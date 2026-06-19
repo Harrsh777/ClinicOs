@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { createMedicineAction, addStockAction } from "@/lib/actions/pharmacy";
 import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, EmptyState } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 
@@ -19,7 +19,7 @@ interface Medicine {
 
 export function PharmacyManager({ medicines }: { medicines: Medicine[] }) {
   const [tab, setTab] = useState<"catalog" | "stock">("catalog");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -32,7 +32,7 @@ export function PharmacyManager({ medicines }: { medicines: Medicine[] }) {
         ))}
       </div>
 
-      {message && <Alert variant="success" className="mb-4">{message}</Alert>}
+      {message && <Alert variant={message.ok ? "success" : "error"} className="mb-4">{message.text}</Alert>}
 
       {tab === "catalog" && (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -43,7 +43,7 @@ export function PharmacyManager({ medicines }: { medicines: Medicine[] }) {
                 e.preventDefault();
                 startTransition(async () => {
                   const result = await createMedicineAction(new FormData(e.currentTarget));
-                  setMessage(result?.error ?? "Medicine added");
+                  setMessage({ text: result?.error ?? "Medicine added", ok: !result?.error });
                 });
               }}
               className="space-y-3"
@@ -58,7 +58,9 @@ export function PharmacyManager({ medicines }: { medicines: Medicine[] }) {
           <Card>
             <h3 className="font-semibold mb-4">Catalog ({medicines.length})</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {medicines.map((m) => {
+              {medicines.length === 0 ? (
+                <EmptyState title="No medicines in catalog" description="Add your first medicine using the form" />
+              ) : medicines.map((m) => {
                 const totalStock = (m.pharmacy_stock ?? []).reduce((s, st) => s + st.quantity, 0);
                 return (
                   <div key={m.id} className="flex justify-between text-sm py-2 border-b border-[var(--border)]">
@@ -80,7 +82,7 @@ export function PharmacyManager({ medicines }: { medicines: Medicine[] }) {
               e.preventDefault();
               startTransition(async () => {
                 const result = await addStockAction(new FormData(e.currentTarget));
-                setMessage(result?.error ?? "Stock added");
+                setMessage({ text: result?.error ?? "Stock added", ok: !result?.error });
               });
             }}
             className="space-y-3"

@@ -23,7 +23,7 @@ export default async function OwnerDashboard() {
                 Franchise
               </Button>
             </Link>
-            <Link href="/receptionist/queue">
+            <Link href="/owner/queue">
               <Button variant="secondary" size="sm" className="gap-2">
                 <ListOrdered className="h-4 w-4" />
                 Live Queue

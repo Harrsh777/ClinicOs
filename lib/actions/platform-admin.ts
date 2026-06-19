@@ -5,6 +5,103 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { z } from "zod";
 
+export async function getPlatformOverview() {
+  await requireRole(["super_admin"]);
+  const service = await createServiceClient();
+
+  const [
+    { count: clinicCount },
+    { count: patientCount },
+    { count: appointmentCount },
+    { count: pendingApps },
+    { data: clinics },
+    { data: recentPatients },
+  ] = await Promise.all([
+    service.from("clinics").select("*", { count: "exact", head: true }),
+    service.from("patients").select("*", { count: "exact", head: true }),
+    service
+      .from("appointments")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+    service
+      .from("clinic_applications")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending"),
+    service
+      .from("clinics")
+      .select("id, name, clinic_code, status, city, created_at")
+      .order("created_at", { ascending: false })
+      .limit(8),
+    service
+      .from("patients")
+      .select("id, full_name, clinic_id, created_at, clinics(name)")
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
+
+  return {
+    clinicCount: clinicCount ?? 0,
+    patientCount: patientCount ?? 0,
+    appointmentCount30d: appointmentCount ?? 0,
+    pendingApplications: pendingApps ?? 0,
+    recentClinics: clinics ?? [],
+    recentPatients: recentPatients ?? [],
+  };
+}
+
+export async function getClinicPlatformDetail(clinicId: string) {
+  await requireRole(["super_admin"]);
+  const service = await createServiceClient();
+
+  const [
+    { data: clinic },
+    { count: patientCount },
+    { count: staffCount },
+    { count: appointmentCount },
+    { data: staff },
+    { data: patients },
+    { data: subscription },
+  ] = await Promise.all([
+    service.from("clinics").select("*").eq("id", clinicId).single(),
+    service.from("patients").select("*", { count: "exact", head: true }).eq("clinic_id", clinicId),
+    service
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("clinic_id", clinicId),
+    service
+      .from("appointments")
+      .select("*", { count: "exact", head: true })
+      .eq("clinic_id", clinicId)
+      .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+    service
+      .from("profiles")
+      .select("id, full_name, email, role, is_active, created_at")
+      .eq("clinic_id", clinicId)
+      .order("created_at", { ascending: false }),
+    service
+      .from("patients")
+      .select("id, full_name, phone, patient_code, created_at, is_active")
+      .eq("clinic_id", clinicId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    service
+      .from("subscriptions")
+      .select("*, plans(name, slug, price_monthly)")
+      .eq("clinic_id", clinicId)
+      .maybeSingle(),
+  ]);
+
+  return {
+    clinic,
+    patientCount: patientCount ?? 0,
+    staffCount: staffCount ?? 0,
+    appointmentCount30d: appointmentCount ?? 0,
+    staff: staff ?? [],
+    patients: patients ?? [],
+    subscription,
+  };
+}
+
 export async function getPlatformAnalytics() {
   await requireRole(["super_admin"]);
   const service = await createServiceClient();
@@ -70,6 +167,8 @@ const brandingSchema = z.object({
   whiteLabel: z.coerce.boolean().optional(),
   whatsappNumber: z.string().optional(),
   tagline: z.string().optional(),
+  portalWalkInEnabled: z.coerce.boolean().optional(),
+  portalMaxDailyWalkIns: z.coerce.number().int().min(1).max(1000).optional(),
 });
 
 export async function updateClinicBrandingAction(formData: FormData) {
@@ -83,6 +182,10 @@ export async function updateClinicBrandingAction(formData: FormData) {
     whiteLabel: formData.get("whiteLabel") === "on" || formData.get("whiteLabel") === "true",
     whatsappNumber: formData.get("whatsappNumber"),
     tagline: formData.get("tagline"),
+    portalWalkInEnabled: formData.get("portalWalkInEnabled") === "on" || formData.get("portalWalkInEnabled") === "true",
+    portalMaxDailyWalkIns: formData.get("portalMaxDailyWalkIns")
+      ? Number(formData.get("portalMaxDailyWalkIns"))
+      : undefined,
   });
 
   if (!parsed.success) return { error: "Invalid branding data" };
@@ -98,6 +201,8 @@ export async function updateClinicBrandingAction(formData: FormData) {
       white_label: parsed.data.whiteLabel ?? false,
       whatsapp_number: parsed.data.whatsappNumber,
       tagline: parsed.data.tagline,
+      portal_walk_in_enabled: parsed.data.portalWalkInEnabled !== false,
+      portal_max_daily_walk_ins: parsed.data.portalMaxDailyWalkIns ?? 200,
     },
     { onConflict: "clinic_id" }
   );

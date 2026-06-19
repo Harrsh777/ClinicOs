@@ -19,18 +19,29 @@ export function PageHeader({
   title,
   subtitle,
   action,
+  backHref,
+  backLabel = "Back",
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  backHref?: string;
+  backLabel?: string;
 }) {
   return (
-    <div className="clinic-page-header flex items-start justify-between gap-4">
-      <div>
-        <h1 className="clinic-page-title">{title}</h1>
-        {subtitle && <p className="clinic-page-subtitle">{subtitle}</p>}
+    <div className="clinic-page-header">
+      {backHref && (
+        <a href={backHref} className="inline-flex items-center text-sm text-[var(--text-muted)] hover:text-[var(--brand-600)] mb-2">
+          ← {backLabel}
+        </a>
+      )}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="clinic-page-title">{title}</h1>
+          {subtitle && <p className="clinic-page-subtitle">{subtitle}</p>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }

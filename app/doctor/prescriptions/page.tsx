@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader } from "@/components/ui/card";
+import { PageHeader, EmptyState } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,9 @@ export default async function DoctorPrescriptionsPage({
   return (
     <div>
       <PageHeader title="Prescriptions" subtitle="E-prescription history" />
+      {(prescriptions ?? []).length === 0 ? (
+        <EmptyState title="No prescriptions" description="Prescriptions are created during consultations" />
+      ) : (
       <Table>
         <TableHeader>
           <TableRow>
@@ -51,6 +54,7 @@ export default async function DoctorPrescriptionsPage({
           ))}
         </TableBody>
       </Table>
+      )}
     </div>
   );
 }

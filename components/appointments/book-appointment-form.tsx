@@ -6,25 +6,28 @@ import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
+import { PatientPicker } from "@/components/patients/patient-picker";
 
 interface Doctor {
   id: string;
   profiles?: { full_name: string; specialization: string | null };
 }
 
-interface Patient {
+interface SelectedPatient {
   id: string;
   full_name: string;
+  phone: string;
+  patient_code: string | null;
 }
 
 export function BookAppointmentForm({
   doctors,
-  patients,
+  clinicId,
   patientId,
   isStaff = false,
 }: {
   doctors: Doctor[];
-  patients?: Patient[];
+  clinicId?: string;
   patientId?: string;
   isStaff?: boolean;
 }) {
@@ -32,7 +35,8 @@ export function BookAppointmentForm({
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
 
   useEffect(() => {
     if (doctorId && date) {
@@ -46,30 +50,40 @@ export function BookAppointmentForm({
     e.preventDefault();
     setLoading(true);
     setMessage(null);
-    const result = await bookAppointmentAction(new FormData(e.currentTarget));
-    setMessage(result?.error ?? "Appointment booked successfully!");
+    const formData = new FormData(e.currentTarget);
+    if (isStaff && selectedPatient) {
+      formData.set("patientId", selectedPatient.id);
+    }
+    const result = await bookAppointmentAction(formData);
+    if (result?.error) {
+      setMessage({ text: result.error, ok: false });
+    } else {
+      setMessage({ text: "Appointment booked successfully!", ok: true });
+      setSelectedPatient(null);
+      (e.target as HTMLFormElement).reset();
+      setDoctorId("");
+      setDate("");
+    }
     setLoading(false);
   }
 
   return (
-    <Card>
+    <Card className="mb-8">
       <h3 className="font-semibold mb-4">{isStaff ? "Book Appointment" : "Book New Appointment"}</h3>
       {message && (
-        <Alert variant={message.includes("success") ? "success" : "error"} className="mb-4">
-          {message}
+        <Alert variant={message.ok ? "success" : "error"} className="mb-4">
+          {message.text}
         </Alert>
       )}
       <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
-        {isStaff && patients && (
-          <Select
-            label="Patient"
-            name="patientId"
-            required
-            options={[
-              { value: "", label: "Select patient..." },
-              ...patients.map((p) => ({ value: p.id, label: p.full_name })),
-            ]}
-          />
+        {isStaff && clinicId && (
+          <div className="sm:col-span-2">
+            <PatientPicker
+              clinicId={clinicId}
+              value={selectedPatient}
+              onChange={setSelectedPatient}
+            />
+          </div>
         )}
         {!isStaff && patientId && <input type="hidden" name="patientId" value={patientId} />}
         <Select
@@ -108,7 +122,9 @@ export function BookAppointmentForm({
           />
         )}
         <div className="sm:col-span-2">
-          <Button type="submit" loading={loading}>Book Appointment</Button>
+          <Button type="submit" loading={loading} disabled={isStaff && !selectedPatient}>
+            Book Appointment
+          </Button>
         </div>
       </form>
     </Card>

@@ -56,7 +56,7 @@ export default function HomePage() {
           </nav>
           <div className="flex items-center gap-3">
             <Link href="/login" className="clinic-btn clinic-btn-ghost clinic-btn-sm hidden sm:inline-flex">Sign In</Link>
-            <Link href="/login" className="clinic-btn clinic-btn-primary clinic-btn-sm">Get Started</Link>
+            <Link href="/signup" className="clinic-btn clinic-btn-primary clinic-btn-sm">Register Clinic</Link>
           </div>
         </div>
       </header>
@@ -83,7 +83,7 @@ export default function HomePage() {
             one beautiful platform built for Indian clinics.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
-            <Link href="/login" className="clinic-btn clinic-btn-primary clinic-btn-lg shadow-[var(--shadow-brand)]">
+            <Link href="/signup" className="clinic-btn clinic-btn-primary clinic-btn-lg shadow-[var(--shadow-brand)]">
               Start Free Trial
             </Link>
             <a href="#features" className="clinic-btn clinic-btn-secondary clinic-btn-lg">
@@ -181,7 +181,7 @@ export default function HomePage() {
                 ))}
               </ul>
               <Link
-                href="/login"
+                href="/signup"
                 className={`clinic-btn w-full clinic-btn-lg ${plan.popular ? "clinic-btn-primary" : "clinic-btn-secondary"}`}
               >
                 Get Started
@@ -198,7 +198,7 @@ export default function HomePage() {
           <p className="mt-3 text-[var(--text-secondary)] max-w-lg mx-auto">
             Join clinics across India using ClinicOS for smarter operations.
           </p>
-          <Link href="/login" className="clinic-btn clinic-btn-primary clinic-btn-lg mt-8 shadow-[var(--shadow-brand)]">
+          <Link href="/signup" className="clinic-btn clinic-btn-primary clinic-btn-lg mt-8 shadow-[var(--shadow-brand)]">
             Start Your Free Trial
           </Link>
         </div>

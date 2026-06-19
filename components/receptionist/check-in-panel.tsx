@@ -14,6 +14,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
+import { PatientPicker } from "@/components/patients/patient-picker";
 import { QrCode, Phone, Hash, ScanLine, UserPlus, Siren } from "lucide-react";
 
 interface CheckInPanelProps {
@@ -39,7 +40,12 @@ export function CheckInPanel({ clinicId }: CheckInPanelProps) {
   const [qrInput, setQrInput] = useState("");
   const [phone, setPhone] = useState("");
   const [bookingId, setBookingId] = useState("");
-  const [walkInPatientId, setWalkInPatientId] = useState("");
+  const [walkInPatient, setWalkInPatient] = useState<{
+    id: string;
+    full_name: string;
+    phone: string;
+    patient_code: string | null;
+  } | null>(null);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [canCheckIn, setCanCheckIn] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -149,9 +155,9 @@ export function CheckInPanel({ clinicId }: CheckInPanelProps) {
   }
 
   function handleWalkIn(emergency: boolean) {
-    if (!walkInPatientId) return;
+    if (!walkInPatient) return;
     startTransition(async () => {
-      const res = await createVisitAction(clinicId, walkInPatientId, {
+      const res = await createVisitAction(clinicId, walkInPatient.id, {
         visitType: emergency ? "emergency" : "walk_in",
         paymentStatus: "pending",
         tokenSeries: emergency ? "emergency" : "regular",
@@ -276,18 +282,19 @@ export function CheckInPanel({ clinicId }: CheckInPanelProps) {
       <div className="mt-8 pt-6 border-t border-[var(--border)]">
         <p className="text-sm font-medium mb-3">Walk-In / Emergency</p>
         <div className="flex flex-wrap gap-3 items-end">
-          <Input
-            label="Patient ID"
-            placeholder="Patient UUID from search"
-            value={walkInPatientId}
-            onChange={(e) => setWalkInPatientId(e.target.value)}
-            className="max-w-xs"
-          />
-          <Button variant="secondary" onClick={() => void handleWalkIn(false)} loading={pending} className="gap-2">
+          <div className="min-w-[280px] flex-1 max-w-md">
+            <PatientPicker
+              clinicId={clinicId}
+              value={walkInPatient}
+              onChange={setWalkInPatient}
+              label="Patient"
+            />
+          </div>
+          <Button variant="secondary" onClick={() => void handleWalkIn(false)} loading={pending} disabled={!walkInPatient} className="gap-2">
             <UserPlus className="h-4 w-4" />
             Walk-In Token
           </Button>
-          <Button variant="danger" onClick={() => void handleWalkIn(true)} loading={pending} className="gap-2">
+          <Button variant="danger" onClick={() => void handleWalkIn(true)} loading={pending} disabled={!walkInPatient} className="gap-2">
             <Siren className="h-4 w-4" />
             Emergency E-Token
           </Button>

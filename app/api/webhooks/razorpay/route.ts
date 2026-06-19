@@ -25,12 +25,15 @@ export async function POST(request: NextRequest) {
     const supabase = await createServiceClient();
     const { data: pendingPayment } = await supabase
       .from("payments")
-      .select("bill_id")
+      .select("bill_id, visit_id")
       .eq("gateway_ref", orderId)
       .eq("status", "pending")
       .maybeSingle();
 
-    if (pendingPayment?.bill_id) {
+    if (pendingPayment?.visit_id && pendingPayment.bill_id) {
+      const { fulfillPortalPayment } = await import("@/lib/actions/public-portal");
+      await fulfillPortalPayment(pendingPayment.visit_id, pendingPayment.bill_id, payment.id, amount);
+    } else if (pendingPayment?.bill_id) {
       await confirmRazorpayPayment(pendingPayment.bill_id, orderId, payment.id, amount);
     }
   }

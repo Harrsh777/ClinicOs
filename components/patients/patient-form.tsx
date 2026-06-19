@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 
-export function PatientForm() {
+export function PatientForm({ basePath = "/receptionist/patients" }: { basePath?: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,7 @@ export function PatientForm() {
       setError(result.error);
       setLoading(false);
     } else if (result?.patientId) {
-      router.push(`/receptionist/patients/${result.patientId}`);
+      router.push(`${basePath}/${result.patientId}`);
     }
   }
 

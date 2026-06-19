@@ -24,6 +24,18 @@ export function TableHead({ children, className }: { children?: React.ReactNode;
   return <th className={className}>{children}</th>;
 }
 
-export function TableCell({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return <td className={className}>{children}</td>;
+export function TableCell({
+  children,
+  className,
+  colSpan,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+  colSpan?: number;
+}) {
+  return (
+    <td className={className} colSpan={colSpan}>
+      {children}
+    </td>
+  );
 }

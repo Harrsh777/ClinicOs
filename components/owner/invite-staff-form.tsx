@@ -6,6 +6,7 @@ import { ASSIGNABLE_MODULES, ASSIGNABLE_ROLES } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
+import { CopyButton } from "@/components/ui/copy-button";
 
 export function InviteStaffForm() {
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +32,11 @@ export function InviteStaffForm() {
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
       {inviteUrl && (
         <Alert variant="success" className="mb-4">
-          Invite created! Share this link: <code className="text-xs font-mono">{inviteUrl}</code>
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Invite created!</span>
+            <code className="text-xs font-mono break-all">{inviteUrl}</code>
+            <CopyButton text={inviteUrl.startsWith("http") ? inviteUrl : `${window.location.origin}${inviteUrl}`} />
+          </div>
         </Alert>
       )}
       <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">

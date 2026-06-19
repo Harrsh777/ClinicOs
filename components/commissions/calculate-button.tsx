@@ -12,8 +12,12 @@ export function CalculateCommissionsButton({ clinicId, month }: { clinicId: stri
 
   async function handleCalculate() {
     setLoading(true);
-    await calculateMonthlyCommissions(clinicId, month);
-    router.refresh();
+    const result = await calculateMonthlyCommissions(clinicId, month);
+    if (result && typeof result === "object" && "error" in result) {
+      alert(result.error);
+    } else {
+      router.refresh();
+    }
     setLoading(false);
   }
 

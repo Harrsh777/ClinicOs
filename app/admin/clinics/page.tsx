@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getClinics, getPlans } from "@/lib/actions/admin";
 import { PageHeader } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -21,6 +22,7 @@ export default async function ClinicsPage() {
         <TableHeader>
           <TableRow>
             <TableHead>Clinic</TableHead>
+            <TableHead>Clinic ID</TableHead>
             <TableHead>Plan</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Created</TableHead>
@@ -34,11 +36,12 @@ export default async function ClinicsPage() {
             return (
               <TableRow key={clinic.id}>
                 <TableCell>
-                  <div>
+                  <Link href={`/admin/clinics/${clinic.id}`} className="hover:text-[var(--brand-600)]">
                     <p className="font-medium">{clinic.name}</p>
                     <p className="text-xs text-[var(--text-muted)]">{clinic.slug}</p>
-                  </div>
+                  </Link>
                 </TableCell>
+                <TableCell className="font-mono text-sm">{clinic.clinic_code ?? "—"}</TableCell>
                 <TableCell>{plan?.name ?? "—"}</TableCell>
                 <TableCell><StatusBadge status={clinic.status} /></TableCell>
                 <TableCell className="text-sm text-[var(--text-muted)]">

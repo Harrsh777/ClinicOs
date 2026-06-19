@@ -551,10 +551,35 @@ CREATE POLICY clinics_owner_update ON clinics FOR UPDATE TO authenticated
 CREATE POLICY clinics_public_slug ON clinics FOR SELECT TO anon
   USING (status = 'active');
 
--- Profiles
+-- Profiles (use SECURITY DEFINER helpers — avoid self-referential subqueries in RLS)
+CREATE OR REPLACE FUNCTION public.my_profile_clinic_id()
+RETURNS UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT clinic_id FROM public.profiles WHERE id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION public.my_profile_role()
+RETURNS public.user_role
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid();
+$$;
+
 CREATE POLICY profiles_self ON profiles FOR SELECT TO authenticated
-  USING (id = auth.uid() OR clinic_id = (SELECT clinic_id FROM profiles WHERE id = auth.uid())
-    OR (SELECT role FROM profiles WHERE id = auth.uid()) = 'super_admin');
+  USING (id = auth.uid());
+
+CREATE POLICY profiles_clinic_read ON profiles FOR SELECT TO authenticated
+  USING (clinic_id IS NOT NULL AND clinic_id = public.my_profile_clinic_id());
+
+CREATE POLICY profiles_super_admin_read ON profiles FOR SELECT TO authenticated
+  USING (public.my_profile_role() = 'super_admin');
 
 CREATE POLICY profiles_self_update ON profiles FOR UPDATE TO authenticated
   USING (id = auth.uid());
@@ -568,8 +593,12 @@ CREATE POLICY profiles_insert_own ON profiles FOR INSERT TO authenticated
 
 CREATE POLICY profiles_owner_manage ON profiles FOR ALL TO authenticated
   USING (
-    clinic_id = (SELECT clinic_id FROM profiles WHERE id = auth.uid())
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) = 'clinic_owner'
+    public.my_profile_role() = 'clinic_owner'
+    AND clinic_id = public.my_profile_clinic_id()
+  )
+  WITH CHECK (
+    public.my_profile_role() = 'clinic_owner'
+    AND clinic_id = public.my_profile_clinic_id()
   );
 
 -- Staff module permissions

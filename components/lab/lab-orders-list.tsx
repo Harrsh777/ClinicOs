@@ -3,10 +3,12 @@
 import { useState, useTransition } from "react";
 import { uploadLabReportAction } from "@/lib/actions/lab";
 import { StatusBadge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Card, EmptyState } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
+import { FlaskConical } from "lucide-react";
+import Link from "next/link";
 
 interface LabOrder {
   id: string;
@@ -17,10 +19,26 @@ interface LabOrder {
   lab_reports?: { ai_summary: string | null }[];
 }
 
-export function LabOrdersList({ orders }: { orders: LabOrder[] }) {
+export function LabOrdersList({
+  orders,
+  uploadHref,
+}: {
+  orders: LabOrder[];
+  uploadHref?: string;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [message, setMessage] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
+
+  if (!orders.length) {
+    return (
+      <EmptyState
+        icon={<FlaskConical />}
+        title="No lab orders"
+        description={uploadHref ? "Orders are created during consultations" : "Upload reports when orders arrive"}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -37,9 +55,15 @@ export function LabOrdersList({ orders }: { orders: LabOrder[] }) {
             <div className="text-right">
               <p className="text-sm text-[var(--text-muted)]">{new Date(order.created_at).toLocaleDateString()}</p>
               {order.status !== "completed" && (
-                <Button size="sm" className="mt-2" onClick={() => setExpanded(expanded === order.id ? null : order.id)}>
-                  Upload Report
-                </Button>
+                uploadHref ? (
+                  <Link href={uploadHref}>
+                    <Button size="sm" className="mt-2" variant="secondary">Upload at Lab Desk</Button>
+                  </Link>
+                ) : (
+                  <Button size="sm" className="mt-2" onClick={() => setExpanded(expanded === order.id ? null : order.id)}>
+                    Upload Report
+                  </Button>
+                )
               )}
             </div>
           </div>
@@ -61,7 +85,7 @@ export function LabOrdersList({ orders }: { orders: LabOrder[] }) {
                   const result = await uploadLabReportAction(fd);
                   setMessage((m) => ({
                     ...m,
-                    [order.id]: result?.error ?? `Report uploaded. ${result.summary ?? ""}`,
+                    [order.id]: result?.error ?? `Report uploaded. ${result?.summary ?? ""}`,
                   }));
                   if (result?.success) setExpanded(null);
                 });
@@ -71,7 +95,11 @@ export function LabOrdersList({ orders }: { orders: LabOrder[] }) {
               <input type="hidden" name="resultValues" value="" id={`rv-${order.id}`} />
               <Input label="Upload PDF/Image" name="file" type="file" accept=".pdf,image/*" />
               <Button type="submit" loading={pending}>Upload & Analyze</Button>
-              {message[order.id] && <Alert variant="success">{message[order.id]}</Alert>}
+              {message[order.id] && (
+                <Alert variant={message[order.id].startsWith("Upload failed") || message[order.id].includes("Invalid") ? "error" : "success"}>
+                  {message[order.id]}
+                </Alert>
+              )}
             </form>
           )}
         </Card>

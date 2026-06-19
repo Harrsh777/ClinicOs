@@ -35,10 +35,30 @@ export interface Profile {
   created_at: string;
 }
 
+export type ApplicationStatus = "pending" | "approved" | "rejected";
+
+export interface ClinicApplication {
+  id: string;
+  clinic_name: string;
+  owner_name: string;
+  owner_email: string;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  plan_slug: string;
+  status: ApplicationStatus;
+  admin_notes: string | null;
+  clinic_id: string | null;
+  created_at: string;
+}
+
 export interface Clinic {
   id: string;
   name: string;
   slug: string;
+  clinic_code: string;
   address: string | null;
   city: string | null;
   phone: string | null;

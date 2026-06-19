@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireAuth, requireRole } from "@/lib/auth/session";
 import { z } from "zod";
 
 const bookSchema = z.object({
@@ -83,8 +83,28 @@ export async function updateAppointmentStatusAction(
   status: "confirmed" | "rejected" | "cancelled" | "completed" | "no_show",
   reason?: string
 ) {
-  const profile = await requireAuth();
+  const profile = await requireRole(["clinic_owner", "receptionist", "doctor"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
   const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("appointments")
+    .select("id, clinic_id, doctor_id, status")
+    .eq("id", appointmentId)
+    .single();
+
+  if (!existing) return { error: "Appointment not found" };
+  if (existing.clinic_id !== profile.clinic_id) return { error: "Forbidden" };
+
+  if (profile.role === "doctor") {
+    const { data: doctor } = await supabase
+      .from("doctors")
+      .select("id")
+      .eq("profile_id", profile.id)
+      .single();
+    if (!doctor || existing.doctor_id !== doctor.id) return { error: "Forbidden" };
+  }
 
   const update: Record<string, unknown> = { status };
   if (reason) update.rejection_reason = reason;
@@ -99,6 +119,9 @@ export async function updateAppointmentStatusAction(
   if (error) return { error: error.message };
 
   if (status === "confirmed" && data) {
+    const { createVisitForAppointmentAction } = await import("@/lib/actions/visits");
+    await createVisitForAppointmentAction(appointmentId).catch(() => null);
+
     const patient = data.patients as { user_id: string | null } | null;
     if (patient?.user_id) {
       await supabase.from("notifications").insert({
@@ -111,12 +134,31 @@ export async function updateAppointmentStatusAction(
     }
   }
 
-  revalidatePath("/appointments");
+  if (status === "rejected" && data) {
+    const patient = data.patients as { user_id: string | null } | null;
+    if (patient?.user_id) {
+      await supabase.from("notifications").insert({
+        user_id: patient.user_id,
+        clinic_id: data.clinic_id,
+        title: "Appointment Declined",
+        body: reason
+          ? `Your appointment request was declined: ${reason}`
+          : "Your appointment request was declined.",
+        type: "appointment",
+      });
+    }
+  }
+
+  revalidatePath("/owner/appointments");
+  revalidatePath("/receptionist/appointments");
+  revalidatePath("/doctor/appointments");
   return { success: true };
 }
 
-async function getOrCreateSession(clinicId: string) {
-  const supabase = await createClient();
+async function getOrCreateSessionForClient(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string
+) {
   const today = new Date().toISOString().split("T")[0];
 
   const { data: existing } = await supabase
@@ -136,6 +178,11 @@ async function getOrCreateSession(clinicId: string) {
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+async function getOrCreateSession(clinicId: string) {
+  const supabase = await createClient();
+  return getOrCreateSessionForClient(supabase, clinicId);
 }
 
 type TokenSeries = "regular" | "emergency" | "vip";
@@ -160,7 +207,23 @@ export async function generateQueueTokenWithSeries(
   } = {}
 ) {
   const supabase = await createClient();
-  const session = await getOrCreateSession(clinicId);
+  return generateQueueTokenWithSeriesForClient(supabase, clinicId, patientId, series, options);
+}
+
+export async function generateQueueTokenWithSeriesForClient(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  patientId: string,
+  series: TokenSeries = "regular",
+  options: {
+    appointmentId?: string;
+    doctorId?: string;
+    priority?: "normal" | "vip" | "emergency";
+    paymentStatus?: PaymentStatus;
+    visitId?: string;
+  } = {}
+) {
+  const session = await getOrCreateSessionForClient(supabase, clinicId);
 
   const priority =
     options.priority ??
@@ -253,16 +316,23 @@ export async function getDoctors(clinicId: string) {
   return data ?? [];
 }
 
-export async function getAppointments(clinicId: string, filters?: { status?: string; date?: string }) {
+export async function getAppointments(
+  clinicId: string,
+  filters?: { status?: string; date?: string; dateFrom?: string; dateTo?: string; doctorId?: string }
+) {
   const supabase = await createClient();
   let query = supabase
     .from("appointments")
     .select("*, patients(full_name, phone), doctors(*, profiles(full_name))")
     .eq("clinic_id", clinicId)
-    .order("appointment_date", { ascending: true });
+    .order("appointment_date", { ascending: true })
+    .order("appointment_time", { ascending: true });
 
   if (filters?.status) query = query.eq("status", filters.status);
   if (filters?.date) query = query.eq("appointment_date", filters.date);
+  if (filters?.dateFrom) query = query.gte("appointment_date", filters.dateFrom);
+  if (filters?.dateTo) query = query.lte("appointment_date", filters.dateTo);
+  if (filters?.doctorId) query = query.eq("doctor_id", filters.doctorId);
 
   const { data } = await query;
   return data ?? [];

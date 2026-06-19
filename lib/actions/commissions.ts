@@ -49,6 +49,12 @@ export async function setCommissionRuleAction(formData: FormData) {
 }
 
 export async function calculateMonthlyCommissions(clinicId: string, month: string) {
+  const profile = await requireRole(["clinic_owner"]);
+  if (profile.clinic_id !== clinicId) return { error: "Forbidden" };
+
+  const monthSchema = z.string().regex(/^\d{4}-\d{2}$/);
+  if (!monthSchema.safeParse(month).success) return { error: "Invalid month format" };
+
   const supabase = await createClient();
   const startDate = `${month}-01`;
   const endDate = new Date(parseInt(month.slice(0, 4)), parseInt(month.slice(5, 7)), 0)

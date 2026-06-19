@@ -16,6 +16,8 @@ interface BrandingFormProps {
     white_label?: boolean;
     whatsapp_number?: string;
     tagline?: string;
+    portal_walk_in_enabled?: boolean;
+    portal_max_daily_walk_ins?: number;
   } | null;
 }
 
@@ -54,6 +56,28 @@ export function BrandingForm({ clinicId, branding }: BrandingFormProps) {
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
+            name="portalWalkInEnabled"
+            defaultChecked={branding?.portal_walk_in_enabled ?? true}
+            className="h-4 w-4 rounded border-[var(--border)]"
+          />
+          <div>
+            <span className="text-sm font-medium">Enable Online Walk-in</span>
+            <p className="text-xs text-[var(--text-muted)]">Let patients join the live queue and pay online at /c/your-slug/walk-in</p>
+          </div>
+        </label>
+
+        <Input
+          name="portalMaxDailyWalkIns"
+          label="Max daily online walk-ins"
+          type="number"
+          min={1}
+          max={1000}
+          defaultValue={branding?.portal_max_daily_walk_ins ?? 200}
+        />
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
             name="whiteLabel"
             defaultChecked={branding?.white_label ?? false}
             className="h-4 w-4 rounded border-[var(--border)]"
@@ -71,6 +95,15 @@ export function BrandingForm({ clinicId, branding }: BrandingFormProps) {
         )}
 
         <Button type="submit" loading={loading}>Save Branding</Button>
+
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-4 text-sm">
+          <p className="font-medium mb-1">Patient portal URL</p>
+          <p className="text-[var(--text-muted)]">
+            Share <span className="font-mono text-[var(--brand-600)]">/c/your-clinic-slug</span> or{" "}
+            <span className="font-mono text-[var(--brand-600)]">/c/your-clinic-slug/walk-in</span> with patients.
+            Set a custom domain above to serve the portal on your own website.
+          </p>
+        </div>
       </form>
     </Card>
   );

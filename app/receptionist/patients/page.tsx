@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { getPatients } from "@/lib/actions/patients";
-import { PageHeader } from "@/components/ui/card";
+import { PageHeader, EmptyState } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { formatPhone } from "@/lib/utils";
 import { PatientSearch } from "@/components/patients/patient-search";
+import { Users } from "lucide-react";
 
 export default async function PatientsPage({
   searchParams,
@@ -29,6 +30,18 @@ export default async function PatientsPage({
       />
       <PatientSearch defaultValue={q} />
       <div className="mt-4">
+        {patients.length === 0 ? (
+          <EmptyState
+            icon={<Users />}
+            title="No patients found"
+            description="Register your first patient to get started"
+            action={
+              <Link href="/receptionist/patients/new">
+                <Button>Register Patient</Button>
+              </Link>
+            }
+          />
+        ) : (
         <Table>
           <TableHeader>
             <TableRow>
@@ -57,6 +70,7 @@ export default async function PatientsPage({
             ))}
           </TableBody>
         </Table>
+        )}
       </div>
     </div>
   );

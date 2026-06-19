@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "node scripts/seed-demo-user.mjs"
+    "seed": "node scripts/seed-demo-user.mjs",
+    "seed:clinic": "node scripts/seed-demo-clinic.mjs",
+    "fix:login": "node scripts/fix-demo-login.mjs",
+    "fix:rls": "node scripts/print-rls-fix.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
@@ -20,6 +23,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
+    "resend": "^6.12.4",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },

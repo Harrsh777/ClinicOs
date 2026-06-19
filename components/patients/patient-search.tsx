@@ -3,7 +3,13 @@
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
-export function PatientSearch({ defaultValue }: { defaultValue?: string }) {
+export function PatientSearch({
+  defaultValue,
+  basePath = "/receptionist/patients",
+}: {
+  defaultValue?: string;
+  basePath?: string;
+}) {
   const router = useRouter();
 
   return (
@@ -11,7 +17,7 @@ export function PatientSearch({ defaultValue }: { defaultValue?: string }) {
       onSubmit={(e) => {
         e.preventDefault();
         const q = new FormData(e.currentTarget).get("q") as string;
-        router.push(`/receptionist/patients${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+        router.push(`${basePath}${q ? `?q=${encodeURIComponent(q)}` : ""}`);
       }}
       className="relative max-w-md"
     >

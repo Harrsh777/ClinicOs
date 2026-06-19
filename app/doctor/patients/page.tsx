@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { getPatients } from "@/lib/actions/patients";
-import { PageHeader } from "@/components/ui/card";
+import { PageHeader, EmptyState } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { PatientSearch } from "@/components/patients/patient-search";
+import { formatPhone } from "@/lib/utils";
+import { Users } from "lucide-react";
 
 export default async function DoctorPatientsPage({
   searchParams,
@@ -18,35 +20,36 @@ export default async function DoctorPatientsPage({
   return (
     <div>
       <PageHeader title="Patients" subtitle="Search and view patient records (read-only)" />
-      <form
-        action="/doctor/patients"
-        className="relative max-w-md"
-      >
-        <input name="q" defaultValue={q} placeholder="Search..." className="clinic-input" />
-      </form>
       <div className="mt-4">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {patients.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">{p.full_name}</TableCell>
-                <TableCell>{p.phone}</TableCell>
-                <TableCell>
-                  <Link href={`/doctor/patients/${p.id}`}>
-                    <Button size="sm" variant="secondary">View Profile</Button>
-                  </Link>
-                </TableCell>
+        <PatientSearch defaultValue={q} basePath="/doctor/patients" />
+      </div>
+      <div className="mt-4">
+        {patients.length === 0 ? (
+          <EmptyState icon={<Users />} title="No patients found" description="Try a different search term" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {patients.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{p.full_name}</TableCell>
+                  <TableCell>{formatPhone(p.phone)}</TableCell>
+                  <TableCell>
+                    <Link href={`/doctor/patients/${p.id}`}>
+                      <Button size="sm" variant="secondary">View Profile</Button>
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </div>
   );

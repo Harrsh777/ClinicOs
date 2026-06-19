@@ -159,7 +159,17 @@ function TokenRow({
           <Button size="sm" onClick={() => onAction("completed")}>Complete</Button>
         )}
         {["waiting", "called"].includes(token.status) && (
-          <Button size="sm" variant="ghost" onClick={() => onAction("skipped")}>Skip</Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              if (confirm(`Skip token ${(token as { token_label?: string }).token_label ?? `#${token.token_number}`}?`)) {
+                onAction("skipped");
+              }
+            }}
+          >
+            Skip
+          </Button>
         )}
       </div>
     </Card>

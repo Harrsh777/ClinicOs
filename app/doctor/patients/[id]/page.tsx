@@ -10,7 +10,12 @@ export default async function DoctorPatientDetailPage({ params }: { params: Prom
 
   return (
     <div>
-      <PageHeader title={data.patient.full_name} subtitle="Patient profile (read-only)" />
+      <PageHeader
+        title={data.patient.full_name}
+        subtitle="Patient profile (read-only)"
+        backHref="/doctor/patients"
+        backLabel="All patients"
+      />
       <PatientProfileTabs {...data} canEdit={false} />
     </div>
   );

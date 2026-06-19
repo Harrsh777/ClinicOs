@@ -2,14 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo, useState } from "react";
 import {
   LayoutDashboard, Users, Calendar, ListOrdered, UserCog, Shield,
   Settings, Building2, CreditCard, IndianRupee, LogOut, Activity,
   Stethoscope, Pill, Receipt, FlaskConical, ShieldCheck, PillBottle,
   Package, TrendingUp, Video, Calculator, Percent, Sparkles, Palette, BarChart3,
+  LayoutGrid, FileHeart, FolderOpen, HeartHandshake, QrCode, ClipboardList,
+  ShieldAlert, Share2, FileText, Scan, AlertTriangle, CalendarClock, BarChart2,
+  Mic, Bot, Phone, Brain, GitCompare, Plug, ChevronDown, Circle,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
-import type { NavItem } from "@/lib/auth/permissions";
+import type { SidebarSectionResolved } from "@/lib/navigation/types";
 import type { Profile } from "@/lib/types/database";
 import { logoutAction } from "@/lib/actions/auth";
 
@@ -18,16 +22,92 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Settings, Building2, CreditCard, IndianRupee, Activity,
   Stethoscope, Pill, Receipt, FlaskConical, ShieldCheck, PillBottle,
   Package, TrendingUp, Video, Calculator, Percent, Sparkles, Palette, BarChart3,
+  LayoutGrid, FileHeart, FolderOpen, HeartHandshake, QrCode, ClipboardList,
+  ShieldAlert, Share2, FileText, Scan, AlertTriangle, CalendarClock, BarChart2,
+  Mic, Bot, Phone, Brain, GitCompare, Plug, Circle,
 };
 
 interface SidebarProps {
   profile: Profile;
-  navItems: NavItem[];
+  sections: SidebarSectionResolved[];
   clinicName?: string;
 }
 
-export function Sidebar({ profile, navItems, clinicName }: SidebarProps) {
+function isHrefActive(pathname: string, href: string) {
+  if (href === pathname) return true;
+  if (href !== "/" && pathname.startsWith(href + "/")) return true;
+  return false;
+}
+
+function NavGroup({
+  group,
+  pathname,
+  defaultOpen,
+}: {
+  group: SidebarSectionResolved["groups"][number];
+  pathname: string;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const Icon = ICON_MAP[group.icon] ?? Circle;
+  const groupActive =
+    group.items.some((item) => isHrefActive(pathname, item.href)) ||
+    (group.href ? isHrefActive(pathname, group.href) : false);
+
+  return (
+    <div className="clinic-nav-group">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn("clinic-nav-group-trigger", groupActive && "active")}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="flex-1 truncate text-left">{group.name}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="clinic-nav-subitems">
+          {group.items.map((item) => {
+            const active = isHrefActive(pathname, item.href);
+            return (
+              <Link
+                key={item.key}
+                href={item.href}
+                className={cn("clinic-nav-subitem", active && "active")}
+              >
+                {item.name}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Sidebar({ profile, sections, clinicName }: SidebarProps) {
   const pathname = usePathname();
+  const activeSectionKey = useMemo(() => {
+    for (const section of sections) {
+      for (const group of section.groups) {
+        if (group.items.some((item) => isHrefActive(pathname, item.href))) {
+          return section.key;
+        }
+      }
+    }
+    return sections[0]?.key ?? "dashboard";
+  }, [pathname, sections]);
+
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  function isSectionOpen(key: string) {
+    if (key in openSections) return openSections[key];
+    return key === activeSectionKey;
+  }
+
+  function toggleSection(key: string) {
+    setOpenSections((prev) => ({ ...prev, [key]: !isSectionOpen(key) }));
+  }
 
   return (
     <aside className="clinic-sidebar">
@@ -43,19 +123,46 @@ export function Sidebar({ profile, navItems, clinicName }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-4">
-        {navItems.map((item) => {
-          const Icon = ICON_MAP[item.icon] ?? LayoutDashboard;
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+      <nav className="flex-1 overflow-y-auto py-3">
+        {sections.map((section) => {
+          const sectionOpen = isSectionOpen(section.key);
+          const sectionActive = section.key === activeSectionKey;
+
           return (
-            <Link
-              key={item.key}
-              href={item.href}
-              className={cn("clinic-nav-item", isActive && "active")}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span>{item.name}</span>
-            </Link>
+            <div key={section.key} className="clinic-nav-section">
+              <button
+                type="button"
+                onClick={() => toggleSection(section.key)}
+                className={cn("clinic-nav-section-trigger", sectionActive && "active")}
+              >
+                <span className="text-base leading-none" aria-hidden>
+                  {section.icon}
+                </span>
+                <span className="flex-1 truncate text-left">{section.label}</span>
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0 text-[var(--text-muted)] transition-transform",
+                    sectionOpen && "rotate-180"
+                  )}
+                />
+              </button>
+
+              {sectionOpen && (
+                <div className="clinic-nav-section-body">
+                  {section.groups.map((group) => (
+                    <NavGroup
+                      key={group.key}
+                      group={group}
+                      pathname={pathname}
+                      defaultOpen={
+                        group.items.some((item) => isHrefActive(pathname, item.href)) ||
+                        (group.href ? isHrefActive(pathname, group.href) : false)
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>

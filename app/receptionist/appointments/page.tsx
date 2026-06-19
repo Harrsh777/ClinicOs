@@ -1,26 +1,39 @@
 import { requireRole } from "@/lib/auth/session";
 import { getAppointments, getDoctors } from "@/lib/actions/appointments";
-import { getPatients } from "@/lib/actions/patients";
 import { PageHeader } from "@/components/ui/card";
 import { AppointmentList } from "@/components/appointments/appointment-list";
 import { BookAppointmentForm } from "@/components/appointments/book-appointment-form";
+import { AppointmentsDateFilter } from "@/components/appointments/appointments-date-filter";
 
-export default async function ReceptionistAppointmentsPage() {
-  const profile = await requireRole(["receptionist"]);
+function defaultDateRange() {
   const today = new Date().toISOString().split("T")[0];
-  const [appointments, doctors, patients] = await Promise.all([
-    getAppointments(profile.clinic_id!, { date: today }),
+  const end = new Date();
+  end.setDate(end.getDate() + 30);
+  return { from: today, to: end.toISOString().split("T")[0] };
+}
+
+export default async function ReceptionistAppointmentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const profile = await requireRole(["receptionist"]);
+  const { from: fromParam, to: toParam } = await searchParams;
+  const defaults = defaultDateRange();
+  const from = fromParam ?? defaults.from;
+  const to = toParam ?? defaults.to;
+
+  const [appointments, doctors] = await Promise.all([
+    getAppointments(profile.clinic_id!, { dateFrom: from, dateTo: to }),
     getDoctors(profile.clinic_id!),
-    getPatients(profile.clinic_id!),
   ]);
 
   return (
     <div>
-      <PageHeader title="Appointments" subtitle="Today's schedule and walk-in bookings" />
-      <BookAppointmentForm doctors={doctors} patients={patients} isStaff />
-      <div className="mt-8">
-        <AppointmentList appointments={appointments} showActions={false} />
-      </div>
+      <PageHeader title="Appointments" subtitle="Schedule and manage bookings" />
+      <BookAppointmentForm doctors={doctors} clinicId={profile.clinic_id!} isStaff />
+      <AppointmentsDateFilter from={from} to={to} basePath="/receptionist/appointments" />
+      <AppointmentList appointments={appointments} showActions />
     </div>
   );
 }

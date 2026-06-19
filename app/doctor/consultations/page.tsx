@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getDoctorConsultations } from "@/lib/actions/consultations";
-import { PageHeader } from "@/components/ui/card";
+import { PageHeader, EmptyState } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,9 @@ export default async function DoctorConsultationsPage() {
   return (
     <div>
       <PageHeader title="Consultations" subtitle="Active and recent consultations" />
+      {consultations.length === 0 ? (
+        <EmptyState title="No consultations" description="Start a consultation from the queue" />
+      ) : (
       <Table>
         <TableHeader>
           <TableRow>
@@ -40,6 +43,7 @@ export default async function DoctorConsultationsPage() {
           ))}
         </TableBody>
       </Table>
+      )}
     </div>
   );
 }

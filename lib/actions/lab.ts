@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireAuth, requireRole } from "@/lib/auth/session";
 import { analyzeLabResults } from "@/lib/ai/lab-analysis";
 import { calculateBillTotals } from "@/lib/billing/calculator";
 
@@ -18,7 +18,7 @@ export async function getLabTests(clinicId: string) {
 }
 
 export async function createLabTestAction(formData: FormData) {
-  const profile = await requireAuth();
+  const profile = await requireRole(["clinic_owner"]);
   if (!profile.clinic_id) return { error: "No clinic assigned" };
 
   const supabase = await createClient();
@@ -158,16 +158,21 @@ export async function uploadLabReportAction(formData: FormData) {
     filePath = `${profile.clinic_id}/lab/${orderId}.${ext}`;
     fileName = file.name;
     const buffer = Buffer.from(await file.arrayBuffer());
-    await supabase.storage.from("clinical-documents").upload(filePath, buffer, {
+    const { error: storageError } = await supabase.storage.from("clinical-documents").upload(filePath, buffer, {
       contentType: file.type,
       upsert: true,
     });
+    if (storageError) return { error: `Upload failed: ${storageError.message}` };
   }
 
   let resultValues: Record<string, string | number> = {};
-  try {
-    if (resultValuesJson) resultValues = JSON.parse(resultValuesJson);
-  } catch { /* ignore */ }
+  if (resultValuesJson) {
+    try {
+      resultValues = JSON.parse(resultValuesJson);
+    } catch {
+      return { error: "Invalid result values JSON" };
+    }
+  }
 
   const testNames = (order.lab_order_items as { lab_tests?: { name: string } }[])?.map(
     (i) => i.lab_tests?.name ?? "Test"

@@ -38,6 +38,7 @@ export function StatusBadge({ status }: { status: string }) {
     active: { label: "Active", variant: "success" },
     suspended: { label: "Suspended", variant: "danger" },
     trial: { label: "Trial", variant: "warning" },
+    approved: { label: "Approved", variant: "success" },
     emergency: { label: "Emergency", variant: "danger" },
     vip: { label: "VIP", variant: "brand" },
     normal: { label: "Normal", variant: "neutral" },

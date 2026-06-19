@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { updateStaffPermissionsAction } from "@/lib/actions/owner";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/card";
 import type { PermissionLevel } from "@/lib/types/database";
 
 interface StaffMember {
@@ -36,6 +37,11 @@ export function PermissionsEditor({ staff, modules }: { staff: StaffMember[]; mo
     setSelectedStaff(staffId);
   }
 
+  useEffect(() => {
+    if (staff[0]?.id) loadStaffPerms(staff[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staff]);
+
   function handleSave() {
     const permissions = Object.entries(perms).map(([moduleKey, level]) => ({
       moduleKey,
@@ -50,7 +56,12 @@ export function PermissionsEditor({ staff, modules }: { staff: StaffMember[]; mo
   }
 
   if (!staff.length) {
-    return <Alert variant="info">No staff members to configure. Invite staff first.</Alert>;
+    return (
+      <EmptyState
+        title="No staff members"
+        description="Invite staff from the Staff Management page first"
+      />
+    );
   }
 
   return (

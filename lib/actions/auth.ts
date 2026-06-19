@@ -1,17 +1,21 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { validateClinicLogin } from "@/lib/auth/clinic-login";
+import { resolveLoginProfile } from "@/lib/auth/profile";
 import { createClient } from "@/lib/supabase/server";
 import { ROLE_ROUTES } from "@/lib/types/database";
 import { z } from "zod";
 
 const loginSchema = z.object({
+  clinicId: z.string().min(1, "Clinic ID is required"),
   email: z.string().email(),
   password: z.string().min(6),
 });
 
 export async function loginAction(formData: FormData) {
   const parsed = loginSchema.safeParse({
+    clinicId: formData.get("clinicId"),
     email: formData.get("email"),
     password: formData.get("password"),
   });
@@ -27,14 +31,36 @@ export async function loginAction(formData: FormData) {
     return { error: error.message };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, is_active")
-    .single();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!profile?.is_active) {
+  if (!user) {
+    return { error: "Authentication failed. Please try again." };
+  }
+
+  const { profile, reason, clinicId: profileClinicId } = await resolveLoginProfile(user);
+
+  if (!profile) {
     await supabase.auth.signOut();
-    return { error: "Your account has been deactivated" };
+    if (reason === "deactivated") {
+      return { error: "Your account has been deactivated. Contact your clinic administrator." };
+    }
+    return {
+      error:
+        "Profile not found. Run: npm run fix:login — or supabase/fix_demo_login.sql in Supabase SQL Editor.",
+    };
+  }
+
+  const clinicCheck = await validateClinicLogin(
+    parsed.data.clinicId,
+    user.id,
+    profile.role,
+    profileClinicId ?? null
+  );
+  if (!clinicCheck.ok) {
+    await supabase.auth.signOut();
+    return { error: clinicCheck.error };
   }
 
   redirect(ROLE_ROUTES[profile.role as keyof typeof ROLE_ROUTES] ?? "/patient");
@@ -44,6 +70,13 @@ export async function logoutAction() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+/** Clear a broken session (auth user exists but profile missing) */
+export async function clearBrokenSessionAction() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  return { success: true };
 }
 
 const inviteAcceptSchema = z.object({
@@ -64,8 +97,10 @@ export async function acceptInviteAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const { createServiceClient } = await import("@/lib/supabase/server");
+  const service = await createServiceClient();
 
-  const { data: invite } = await supabase
+  const { data: invite } = await service
     .from("staff_invites")
     .select("*")
     .eq("token", parsed.data.token)

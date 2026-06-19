@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isProfileSuspended } from "@/lib/auth/profile";
 import { resolvePermissions } from "@/lib/auth/permissions";
 import { ROLE_ROUTES, type Profile, type SystemModule } from "@/lib/types/database";
 
@@ -26,8 +27,8 @@ export async function getProfile(): Promise<Profile | null> {
 
 export async function requireAuth(): Promise<Profile> {
   const profile = await getProfile();
-  if (!profile) redirect("/login");
-  if (!profile.is_active) redirect("/login?error=account_suspended");
+  if (!profile) redirect("/login?error=profile_missing");
+  if (isProfileSuspended(profile)) redirect("/login?error=account_suspended");
   return profile;
 }
 
