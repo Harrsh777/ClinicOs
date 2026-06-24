@@ -75,8 +75,8 @@ export function CheckInClient({
           startTransition(() => {
             void (async () => {
               const res = await qrCheckInAction(clinic.slug, patientId);
-              if (res?.error) setResult({ error: res.error });
-              else if (res?.token) setResult({ token_number: res.token.token_number });
+              if (res && "error" in res && res.error) setResult({ error: res.error });
+              else if (res && "token" in res && res.token) setResult({ token_number: res.token.token_number });
             })();
           });
         }}

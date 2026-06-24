@@ -3,86 +3,233 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Activity } from "lucide-react";
+import { Activity, Building2, ShieldCheck, Sparkles } from "lucide-react";
 import { loginAction } from "@/lib/actions/auth";
+import { patientClinicLoginAction } from "@/lib/actions/patient-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 
+function formatClinicId(value: string) {
+  return value.trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function formatStaffId(value: string) {
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  if (normalized.includes("-")) return normalized;
+  const match = normalized.match(/^([A-Z]+)(\d+)$/);
+  return match ? `${match[1]}-${match[2]}` : normalized;
+}
+
+function friendlyLoginError(message: string) {
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("sql") ||
+    lower.includes("relation") ||
+    lower.includes("schema") ||
+    lower.includes("database") ||
+    lower.includes("violates")
+  ) {
+    return "We could not complete sign in right now. Please contact your clinic administrator.";
+  }
+  return message;
+}
+
 function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loginMode, setLoginMode] = useState<"staff" | "patient">("staff");
+  const [clinicId, setClinicId] = useState("");
+  const [staffId, setStaffId] = useState("");
   const searchParams = useSearchParams();
   const suspended = searchParams.get("error") === "account_suspended";
   const profileMissing = searchParams.get("error") === "profile_missing";
+  const activated = searchParams.get("activated") === "1";
+  const isPlatform = clinicId.trim().toUpperCase() === "PLATFORM";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     const formData = new FormData(e.currentTarget);
+    formData.set("clinicId", formatClinicId(String(formData.get("clinicId") ?? "")));
+
+    if (loginMode === "patient") {
+      formData.set("phone", String(formData.get("staffId") ?? "").replace(/\D/g, "").slice(-10));
+      const result = await patientClinicLoginAction(formData);
+      if (result?.error) {
+        setError(friendlyLoginError(result.error));
+        setLoading(false);
+      }
+      return;
+    }
+
+    formData.set("staffId", formatStaffId(String(formData.get("staffId") ?? "")));
     const result = await loginAction(formData);
     if (result?.error) {
-      setError(result.error);
+      setError(friendlyLoginError(result.error));
       setLoading(false);
     }
   }
 
   return (
-    <div className="clinic-auth-bg flex min-h-screen items-center justify-center p-4">
-      <div className="clinic-auth-card">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--brand-500)] to-[var(--accent-500)]">
-            <Activity className="h-6 w-6 text-white" />
+    <div className="clinic-auth-bg flex min-h-screen items-center justify-center p-4 sm:p-6">
+      <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl border border-white/70 bg-white shadow-[0_24px_80px_-48px_rgba(15,23,42,.5)] lg:grid-cols-[0.95fr_1.05fr]">
+        <section className="relative hidden overflow-hidden bg-gradient-to-br from-[var(--primary)] to-slate-800 px-8 py-10 text-white lg:flex lg:flex-col lg:justify-center">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_20%,rgba(20,184,166,.28),transparent_22rem)]" />
+          <div className="relative">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-400/15 ring-1 ring-teal-300/30">
+                <Activity className="h-5 w-5 text-[var(--secondary)]" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">ClinicOS</p>
+                <p className="text-xs text-slate-400">Premium Healthcare AI Platform</p>
+              </div>
+            </div>
+
+            <p className="mb-3 inline-flex rounded-full border border-teal-300/20 bg-teal-400/10 px-3 py-1 text-xs font-semibold text-teal-200">
+              Enterprise clinic command center
+            </p>
+            <h1 className="max-w-md text-3xl font-bold leading-snug tracking-[-0.03em]">
+              Clinical operations, revenue, and AI workflows in one secure workspace.
+            </h1>
+            <p className="mt-3 max-w-md text-sm text-slate-300">
+              Sign in with your Clinic ID and Staff ID to access role-aware dashboards, queue workflows, billing, and patient records.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Welcome back</h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">Sign in to your ClinicOS account</p>
-        </div>
 
-        {suspended && (
-          <Alert variant="error" className="mb-4">
-            Your account has been suspended. Contact your clinic administrator.
-          </Alert>
-        )}
+          <div className="relative mt-8 grid grid-cols-3 gap-3">
+            {[
+              { icon: ShieldCheck, title: "Role isolated", text: "Modules scoped to each staff role." },
+              { icon: Sparkles, title: "AI-first", text: "Insights and automation built in." },
+              { icon: Building2, title: "Branded portals", text: "Patient pages match your clinic." },
+            ].map((item) => (
+              <div key={item.title} className="rounded-xl border border-white/10 bg-white/[.06] p-3 backdrop-blur">
+                <item.icon className="mb-2 h-4 w-4 text-[var(--secondary)]" />
+                <p className="text-xs font-semibold">{item.title}</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-slate-400">{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        {profileMissing && (
-          <Alert variant="error" className="mb-4">
-            Profile could not be loaded. Run{" "}
-            <code className="text-xs">supabase/fix_profiles_rls.sql</code> in Supabase SQL Editor, then try again.
-          </Alert>
-        )}
+        <section className="flex items-center justify-center px-6 py-8 sm:px-10 sm:py-10">
+          <div className="w-full max-w-lg">
+            <div className="mb-6 flex items-center gap-4 lg:mb-5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--secondary)] to-[var(--accent)] shadow-[0_0_28px_rgba(20,184,166,.2)]">
+                <Activity className="h-5 w-5 text-white" />
+              </div>
+              <div className="text-left">
+                <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Welcome back</h1>
+                <p className="mt-0.5 text-sm text-[var(--text-secondary)]">Sign in to your Clinicos workspace</p>
+              </div>
+            </div>
 
-        {error && (
-          <Alert variant="error" className="mb-4">
-            {error}
-          </Alert>
-        )}
+            {activated && (
+              <Alert variant="success" className="mb-4">
+                Account activated! Sign in with your Clinic ID and Staff ID.
+              </Alert>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Clinic ID"
-            name="clinicId"
-            required
-            defaultValue="CLN-DEMO01"
-            placeholder="CLN-DEMO01 or PLATFORM"
-            autoComplete="organization"
-          />
-          <p className="text-xs text-[var(--text-muted)] -mt-2">
-            Demo: <strong>CLN-DEMO01</strong> · Super admin: <strong>PLATFORM</strong>
-          </p>
-          <Input label="Email" name="email" type="email" required placeholder="you@clinic.com" />
-          <Input label="Password" name="password" type="password" required placeholder="••••••••" />
-          <Button type="submit" loading={loading} className="w-full">
-            Sign In
-          </Button>
-        </form>
+            {suspended && (
+              <Alert variant="error" className="mb-4">
+                Your account has been suspended. Contact your clinic administrator.
+              </Alert>
+            )}
 
-        <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
-          Register your clinic?{" "}
-          <Link href="/signup" className="font-medium text-[var(--brand-600)] hover:underline">
-            Apply here
-          </Link>
-        </p>
+            {profileMissing && (
+              <Alert variant="error" className="mb-4">
+                Profile could not be loaded. Please contact your clinic administrator.
+              </Alert>
+            )}
+
+            {error && (
+              <Alert variant="error" className="mb-4">
+                {error}
+              </Alert>
+            )}
+
+            <div className="mb-4 flex gap-2 rounded-lg bg-[var(--surface-1)] p-1">
+              <button
+                type="button"
+                onClick={() => setLoginMode("staff")}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
+                  loginMode === "staff" ? "bg-white shadow" : "text-[var(--text-muted)]"
+                }`}
+              >
+                Staff
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginMode("patient")}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
+                  loginMode === "patient" ? "bg-white shadow" : "text-[var(--text-muted)]"
+                }`}
+              >
+                Patient
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                <Input
+                  label="Clinic ID"
+                  name="clinicId"
+                  required
+                  placeholder={loginMode === "staff" ? "CLN-1024 or PLATFORM" : "CLN-1024"}
+                  autoComplete="organization"
+                  value={clinicId}
+                  onChange={(e) => setClinicId(e.target.value.toUpperCase())}
+                  onBlur={(e) => setClinicId(formatClinicId(e.target.value))}
+                />
+
+                {loginMode === "staff" && isPlatform ? (
+                  <Input label="Email" name="email" type="email" required placeholder="admin@clinic.com" />
+                ) : (
+                  <Input
+                    label={loginMode === "patient" ? "Mobile Number" : "Staff ID"}
+                    name="staffId"
+                    required={loginMode === "staff" ? !isPlatform : true}
+                    placeholder={loginMode === "patient" ? "10-digit mobile" : "OWN-0001 or DOC-0001"}
+                    autoComplete="username"
+                    value={staffId}
+                    onChange={(e) =>
+                      setStaffId(loginMode === "patient" ? e.target.value : e.target.value.toUpperCase())
+                    }
+                    onBlur={(e) => {
+                      if (loginMode !== "patient") setStaffId(formatStaffId(e.target.value));
+                    }}
+                  />
+                )}
+              </div>
+
+              <Input label="Password" name="password" type="password" required placeholder="••••••••" />
+
+              <Button type="submit" loading={loading} className="w-full">
+                {loginMode === "patient" ? "Sign In as Patient" : "Sign In"}
+              </Button>
+            </form>
+
+            {loginMode === "patient" && (
+              <p className="mt-3 text-center text-sm text-[var(--text-muted)]">
+                New patient? Book at your clinic portal, then create an account with OTP.
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm text-[var(--text-secondary)]">
+              <Link href="/forgot-password" className="font-medium text-[var(--secondary)] hover:underline">
+                Forgot password?
+              </Link>
+              <p>
+                Register your clinic?{" "}
+                <Link href="/signup" className="font-medium text-[var(--secondary)] hover:underline">
+                  Apply here
+                </Link>
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { revokeStaffInviteAction, resendStaffInviteAction } from "@/lib/actions/owner";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
 
 export function PendingInviteActions({
   inviteId,
@@ -33,7 +32,7 @@ export function PendingInviteActions({
             if (result?.error) setMessage(result.error);
             else if (result?.inviteUrl) {
               setInviteUrl(result.inviteUrl);
-              setMessage("Invite extended by 7 days");
+              setMessage(result.emailSent ? "Invite email resent" : "Invite extended. Copy link to share.");
             }
           })
         }

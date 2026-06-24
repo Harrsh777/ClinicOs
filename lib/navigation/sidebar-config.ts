@@ -14,9 +14,29 @@ const CLINIC_STAFF = [
 
 export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
+    key: "admin-portal",
+    label: "Administration",
+    icon: "LayoutDashboard",
+    roles: ["administrator"],
+    groups: [
+      {
+        key: "admin-dashboard",
+        name: "Overview",
+        icon: "LayoutDashboard",
+        moduleKey: "dashboard",
+        items: [
+          { key: "admin-overview", name: "Overview", path: "", moduleKey: "dashboard" },
+          { key: "admin-appointments", name: "Today's Appointments", path: "/appointments", moduleKey: "appointments" },
+          { key: "admin-staff", name: "Staff", path: "/staff", moduleKey: "staff" },
+          { key: "admin-permissions", name: "Permissions", path: "/permissions", moduleKey: "permissions" },
+        ],
+      },
+    ],
+  },
+  {
     key: "dashboard",
     label: "Dashboard",
-    icon: "🏠",
+    icon: "LayoutDashboard",
     groups: [
       {
         key: "dashboard-main",
@@ -67,7 +87,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "patients",
     label: "Patients",
-    icon: "👥",
+    icon: "Users",
     roles: [...CLINIC_STAFF, "patient"],
     groups: [
       {
@@ -92,7 +112,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "appointments",
     label: "Appointments & Queue",
-    icon: "📅",
+    icon: "Calendar",
     roles: ["clinic_owner", "doctor", "receptionist"],
     groups: [
       {
@@ -125,7 +145,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "consultations",
     label: "Consultations",
-    icon: "🩺",
+    icon: "Stethoscope",
     roles: ["clinic_owner", "doctor"],
     groups: [
       {
@@ -148,7 +168,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "prescriptions",
     label: "Prescriptions",
-    icon: "💊",
+    icon: "Pill",
     roles: ["clinic_owner", "doctor", "patient"],
     groups: [
       {
@@ -171,7 +191,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "lab",
     label: "Lab & Pharmacy",
-    icon: "🧪",
+    icon: "FlaskConical",
     roles: ["clinic_owner", "doctor", "receptionist"],
     groups: [
       {
@@ -216,7 +236,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "billing",
     label: "Billing & Finance",
-    icon: "💰",
+    icon: "IndianRupee",
     roles: ["clinic_owner", "receptionist", "finance_manager"],
     groups: [
       {
@@ -277,8 +297,8 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "staff",
     label: "Staff",
-    icon: "👨‍⚕️",
-    roles: ["clinic_owner"],
+    icon: "UserCog",
+    roles: ["clinic_owner", "administrator"],
     groups: [
       {
         key: "staff-core",
@@ -295,7 +315,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "teleconsult",
     label: "Teleconsult",
-    icon: "📹",
+    icon: "Video",
     roles: ["clinic_owner", "doctor", "patient"],
     groups: [
       {
@@ -313,7 +333,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "franchise",
     label: "Franchise",
-    icon: "🏢",
+    icon: "Building2",
     roles: ["clinic_owner"],
     groups: [
       {
@@ -331,8 +351,8 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "administration",
     label: "Settings",
-    icon: "⚙️",
-    roles: ["clinic_owner", "super_admin"],
+    icon: "Settings",
+    roles: ["clinic_owner", "administrator", "super_admin"],
     groups: [
       {
         key: "clinic-settings",
@@ -362,7 +382,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
         icon: "Shield",
         moduleKey: "permissions",
         path: "/permissions",
-        roles: ["clinic_owner"],
+        roles: ["clinic_owner", "administrator"],
         items: [
           { key: "permissions", name: "Roles & Permissions", path: "/permissions", moduleKey: "permissions" },
         ],
@@ -401,7 +421,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     key: "patient-portal",
     label: "My Health",
-    icon: "💚",
+    icon: "Heart",
     roles: ["patient"],
     groups: [
       {
@@ -412,6 +432,7 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
         items: [
           { key: "home", name: "Home", path: "", moduleKey: "dashboard" },
           { key: "appointments", name: "Appointments", path: "/appointments", moduleKey: "appointments" },
+          { key: "queue", name: "Live Queue", path: "/queue", moduleKey: "queue" },
         ],
       },
       {
@@ -424,6 +445,8 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
           { key: "my-records", name: "My Profile", path: "/patients", moduleKey: "patients" },
           { key: "my-rx", name: "Prescriptions", path: "/prescriptions", moduleKey: "prescriptions" },
           { key: "my-lab", name: "Lab Reports", path: "/lab", moduleKey: "lab" },
+          { key: "my-pharmacy", name: "Pharmacy", path: "/pharmacy", moduleKey: "pharmacy" },
+          { key: "my-followups", name: "Follow-ups", path: "/follow-ups", moduleKey: "patients" },
         ],
       },
       {

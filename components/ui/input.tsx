@@ -44,11 +44,12 @@ export function Textarea({ label, className, id, ...props }: TextareaProps) {
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
+  error?: string;
   options: { value: string; label: string }[];
   onChange?: React.ChangeEventHandler<HTMLSelectElement>;
 }
 
-export function Select({ label, options, className, id, onChange, ...props }: SelectProps) {
+export function Select({ label, error, options, className, id, onChange, ...props }: SelectProps) {
   const inputId = id ?? label?.toLowerCase().replace(/\s/g, "-");
   return (
     <div className="w-full">
@@ -57,13 +58,19 @@ export function Select({ label, options, className, id, onChange, ...props }: Se
           {label}
         </label>
       )}
-      <select id={inputId} className={cn("clinic-input", className)} onChange={onChange} {...props}>
+      <select
+        id={inputId}
+        className={cn("clinic-input", error && "border-[var(--danger-500)]", className)}
+        onChange={onChange}
+        {...props}
+      >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
       </select>
+      {error && <p className="mt-1 text-xs text-[var(--danger-500)]">{error}</p>}
     </div>
   );
 }

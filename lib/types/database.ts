@@ -4,6 +4,11 @@ export type UserRole =
   | "doctor"
   | "receptionist"
   | "finance_manager"
+  | "nurse"
+  | "pharmacist"
+  | "lab_technician"
+  | "hr"
+  | "administrator"
   | "patient";
 
 export type PermissionLevel = "read" | "write" | "admin";
@@ -18,7 +23,14 @@ export type AppointmentStatus =
 
 export type AppointmentType = "scheduled" | "walk_in" | "emergency" | "vip" | "teleconsult";
 export type AppointmentPriority = "normal" | "vip" | "emergency";
-export type TokenStatus = "waiting" | "called" | "serving" | "completed" | "skipped";
+export type TokenStatus =
+  | "waiting"
+  | "called"
+  | "serving"
+  | "completed"
+  | "skipped"
+  | "no_show"
+  | "cancelled";
 export type AllergySeverity = "mild" | "moderate" | "severe";
 export type DocumentType = "report" | "xray" | "mri" | "prescription" | "insurance" | "other";
 
@@ -30,7 +42,10 @@ export interface Profile {
   avatar_url: string | null;
   role: UserRole;
   clinic_id: string | null;
+  staff_code: string | null;
+  department_id: string | null;
   is_active: boolean;
+  first_login: boolean;
   specialization: string | null;
   created_at: string;
 }
@@ -66,8 +81,16 @@ export interface Clinic {
   logo_url: string | null;
   status: "active" | "suspended" | "trial";
   consultation_fee_default: number;
+  daily_patient_capacity?: number;
   opening_hours: Record<string, { open: string; close: string } | null>;
   settings: Record<string, unknown>;
+  clinic_setup_completed?: boolean;
+  clinic_type?: string | null;
+  registration_number?: string | null;
+  gst_number?: string | null;
+  emergency_contact?: string | null;
+  website?: string | null;
+  enabled_services?: string[];
 }
 
 export interface SystemModule {
@@ -158,6 +181,11 @@ export interface Doctor {
   slot_duration_mins: number;
   is_accepting_appointments: boolean;
   profiles?: Profile;
+  department?: string | null;
+  room_number?: string | null;
+  queue_status?: string;
+  queue_paused?: boolean;
+  avg_consultation_mins?: number | null;
 }
 
 export interface DoctorSchedule {
@@ -207,6 +235,11 @@ export const ROLE_ROUTES: Record<UserRole, string> = {
   doctor: "/doctor",
   receptionist: "/receptionist",
   finance_manager: "/finance",
+  nurse: "/nurse",
+  pharmacist: "/pharmacist",
+  lab_technician: "/lab-tech",
+  hr: "/hr",
+  administrator: "/administrator",
   patient: "/patient",
 };
 

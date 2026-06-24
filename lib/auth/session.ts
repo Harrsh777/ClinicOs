@@ -1,8 +1,29 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isProfileSuspended } from "@/lib/auth/profile";
+import {
+  decodeMiddlewareProfile,
+  MIDDLEWARE_PROFILE_HEADER,
+  MIDDLEWARE_SETUP_HEADER,
+} from "@/lib/auth/middleware-profile";
 import { resolvePermissions } from "@/lib/auth/permissions";
 import { ROLE_ROUTES, type Profile, type SystemModule } from "@/lib/types/database";
+
+async function getProfileFromMiddleware(): Promise<Profile | null> {
+  const headerStore = await headers();
+  const raw = headerStore.get(MIDDLEWARE_PROFILE_HEADER);
+  if (!raw) return null;
+  return decodeMiddlewareProfile(raw);
+}
+
+export async function getClinicSetupDone(): Promise<boolean | null> {
+  const headerStore = await headers();
+  const raw = headerStore.get(MIDDLEWARE_SETUP_HEADER);
+  if (raw === "1") return true;
+  if (raw === "0") return false;
+  return null;
+}
 
 export async function getSession() {
   const supabase = await createClient();
@@ -13,6 +34,9 @@ export async function getSession() {
 }
 
 export async function getProfile(): Promise<Profile | null> {
+  const cached = await getProfileFromMiddleware();
+  if (cached) return cached;
+
   const { supabase, user } = await getSession();
   if (!user) return null;
 

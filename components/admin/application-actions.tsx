@@ -13,26 +13,31 @@ interface ApplicationActionsProps {
 export function ApplicationActions({ applicationId, planId }: ApplicationActionsProps) {
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [credentials, setCredentials] = useState<{
+  const [activationInfo, setActivationInfo] = useState<{
     clinicCode?: string;
-    email?: string;
-    password?: string;
+    staffCode?: string;
+    activationUrl?: string;
   } | null>(null);
 
   async function handleApprove() {
     setLoading("approve");
     setMessage(null);
+    setActivationInfo(null);
     const fd = new FormData();
     fd.set("applicationId", applicationId);
     if (planId) fd.set("planId", planId);
     const result = await approveClinicApplicationAction(fd);
     if (result?.error) setMessage({ type: "error", text: result.error });
     else {
-      const parts = [`Clinic approved! Code: ${result.clinicCode}`];
-      if (result.emailSent) parts.push("Credentials emailed to owner.");
-      else if (result.credentials) {
-        parts.push("Email not sent — share credentials manually:");
-        setCredentials(result.credentials);
+      const parts = [`Clinic approved! Clinic ID: ${result.clinicCode}, Owner ID: ${result.staffCode}`];
+      if (result.emailSent) parts.push("Activation link emailed to owner.");
+      else if (result.activationUrl) {
+        parts.push("Email not sent — share activation link manually:");
+        setActivationInfo({
+          clinicCode: result.clinicCode,
+          staffCode: result.staffCode,
+          activationUrl: result.activationUrl,
+        });
       }
       setMessage({ type: "success", text: parts.join(" ") });
     }
@@ -59,11 +64,11 @@ export function ApplicationActions({ applicationId, planId }: ApplicationActions
           {message.text}
         </Alert>
       )}
-      {credentials && (
+      {activationInfo && (
         <div className="rounded-lg bg-[var(--surface-2)] p-3 text-xs font-mono space-y-1">
-          <p>Clinic ID: {credentials.clinicCode}</p>
-          <p>Email: {credentials.email}</p>
-          <p>Password: {credentials.password}</p>
+          <p>Clinic ID: {activationInfo.clinicCode}</p>
+          <p>Owner ID: {activationInfo.staffCode}</p>
+          <p className="break-all">Activation: {activationInfo.activationUrl}</p>
         </div>
       )}
       <div className="flex gap-2">

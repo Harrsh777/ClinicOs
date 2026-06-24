@@ -43,6 +43,11 @@ export function ClinicLanding({
               Check In
             </Button>
           </Link>
+          <Link href={`/c/${clinic.slug}/login`}>
+            <Button variant="ghost" size="lg">
+              Patient Sign In
+            </Button>
+          </Link>
         </div>
       </div>
 

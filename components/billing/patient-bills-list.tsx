@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PaymentPanel } from "@/components/billing/payment-panel";
-import { Receipt } from "lucide-react";
+import { Receipt, Download } from "lucide-react";
 
 interface Bill {
   id: string;
@@ -36,6 +36,14 @@ export function PatientBillsList({ bills }: { bills: Bill[] }) {
               <div className="text-right">
                 <p className="text-xl font-bold">₹{Number(bill.total_amount).toFixed(2)}</p>
                 <StatusBadge status={bill.status} />
+                <div className="mt-2">
+                  <Link href={`/print/invoice/${bill.id}`} target="_blank">
+                    <Button variant="ghost" size="sm" className="gap-1">
+                      <Download className="h-3.5 w-3.5" />
+                      Invoice
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </div>
             {due > 0 && <PaymentPanel billId={bill.id} amountDue={due} />}

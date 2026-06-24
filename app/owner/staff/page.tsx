@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { getClinicStaff, getPendingInvites } from "@/lib/actions/owner";
+import { getClinicStaff, getPendingInvites, getClinicDepartments } from "@/lib/actions/owner";
 import { PageHeader, EmptyState } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
@@ -13,10 +13,11 @@ import { Users } from "lucide-react";
 export default async function StaffPage() {
   const profile = await requireRole(["clinic_owner"]);
   const supabase = await createClient();
-  const [{ data: clinic }, staff, pendingInvites] = await Promise.all([
+  const [{ data: clinic }, staff, pendingInvites, departments] = await Promise.all([
     supabase.from("clinics").select("clinic_code").eq("id", profile.clinic_id!).single(),
     getClinicStaff(profile.clinic_id!),
     getPendingInvites(profile.clinic_id!),
+    getClinicDepartments(profile.clinic_id!),
   ]);
 
   return (
@@ -26,7 +27,7 @@ export default async function StaffPage() {
         subtitle={`Create accounts for doctors & receptionists — Clinic ID: ${clinic?.clinic_code ?? "—"}`}
       />
       <div className="grid gap-6 lg:grid-cols-2 mb-6">
-        <CreateStaffForm clinicCode={clinic?.clinic_code ?? ""} />
+        <CreateStaffForm clinicCode={clinic?.clinic_code ?? ""} departments={departments} />
         <InviteStaffForm />
       </div>
       {pendingInvites.length > 0 && (
@@ -70,6 +71,7 @@ export default async function StaffPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Staff ID</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
@@ -80,6 +82,15 @@ export default async function StaffPage() {
               {staff.map((member) => (
                 <TableRow key={member.id}>
                   <TableCell className="font-medium">{member.full_name}</TableCell>
+                  <TableCell>
+                    {member.staff_code ? (
+                      <span className="inline-flex rounded-full border border-teal-200 bg-teal-50 px-3 py-1 font-mono text-xs font-semibold text-teal-800">
+                        {member.staff_code}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--text-muted)]">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-[var(--text-muted)]">{member.email}</TableCell>
                   <TableCell className="capitalize">{member.role.replace(/_/g, " ")}</TableCell>
                   <TableCell>

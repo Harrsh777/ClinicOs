@@ -99,6 +99,12 @@ export function BookingConfirmation({ clinicSlug, booking }: ConfirmationProps) 
       )}
 
       <div className="flex flex-wrap gap-3 justify-center">
+        <Link href={`/c/${clinicSlug}/account?bookingId=${booking.booking_id}`}>
+          <Button className="gap-2">Create Account to Track Visit</Button>
+        </Link>
+        <Link href={`/c/${clinicSlug}/login`}>
+          <Button variant="secondary">Patient Sign In</Button>
+        </Link>
         <Link href={`/queue/${clinicSlug}/display`} target="_blank">
           <Button variant="secondary" className="gap-2">
             <ListOrdered className="h-4 w-4" />

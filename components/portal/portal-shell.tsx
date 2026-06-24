@@ -51,9 +51,17 @@ export function PortalShell({
               )}
             </div>
           </Link>
-          {!whiteLabel && (
-            <span className="hidden text-xs text-[var(--text-muted)] sm:inline">Powered by ClinicOS</span>
-          )}
+          <div className="flex items-center gap-3 shrink-0">
+            <Link
+              href={`/c/${clinic.slug}/login`}
+              className="text-sm font-medium text-[var(--brand-600)] hover:underline"
+            >
+              Patient Sign In
+            </Link>
+            {!whiteLabel && (
+              <span className="hidden text-xs text-[var(--text-muted)] sm:inline">Powered by ClinicOS</span>
+            )}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-8">{children}</main>

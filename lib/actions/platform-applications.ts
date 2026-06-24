@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { createClinicWithOwner } from "@/lib/clinic/provision";
+import { activationUrl } from "@/lib/auth/activation";
 import { sendEmail } from "@/lib/email/send";
 import { clinicApprovedEmail, clinicRejectedEmail } from "@/lib/email/templates";
+import { logPlatformAuditEvent } from "@/lib/auth/audit";
 import { z } from "zod";
 
 export async function getClinicApplications(status?: "pending" | "approved" | "rejected") {
@@ -75,11 +77,13 @@ export async function approveClinicApplicationAction(formData: FormData) {
     ownerEmail: app.owner_email,
     ownerName: app.owner_name,
     planId,
-    phone: app.phone ?? undefined,
+    phone: app.phone ?? app.owner_mobile ?? undefined,
     address: app.address ?? undefined,
     city: app.city ?? undefined,
     state: app.state ?? undefined,
     pincode: app.pincode ?? undefined,
+    email: app.official_email ?? undefined,
+    clinicType: app.clinic_type ?? undefined,
   });
 
   if ("error" in result && result.error) return { error: result.error };
@@ -94,34 +98,38 @@ export async function approveClinicApplicationAction(formData: FormData) {
     })
     .eq("id", app.id);
 
+  const activateLink = activationUrl(result.activationToken!);
+
   const emailResult = await sendEmail({
     to: result.ownerEmail!,
-    subject: `ClinicOS — ${app.clinic_name} approved! Your login credentials`,
+    subject: `MedERP — ${app.clinic_name} approved! Activate your account`,
     html: clinicApprovedEmail({
       ownerName: result.ownerName!,
       clinicName: app.clinic_name,
       clinicCode: result.clinicCode!,
-      email: result.ownerEmail!,
-      password: result.password!,
+      staffCode: result.ownerStaffCode!,
+      activationUrl: activateLink,
     }),
   });
 
+  await logPlatformAuditEvent({
+    adminId: admin.id,
+    action: "clinic.approved",
+    targetClinicId: result.clinic!.id,
+    details: { application_id: app.id, clinic_code: result.clinicCode },
+  });
+
   revalidatePath("/admin/applications");
+  revalidatePath("/admin/clinic-requests");
   revalidatePath("/admin/clinics");
   revalidatePath("/admin");
 
   return {
     success: true,
     clinicCode: result.clinicCode,
+    staffCode: result.ownerStaffCode,
     emailSent: emailResult.ok,
-    emailError: emailResult.ok ? undefined : emailResult.error,
-    credentials: emailResult.ok
-      ? undefined
-      : {
-          clinicCode: result.clinicCode,
-          email: result.ownerEmail,
-          password: result.password,
-        },
+    activationUrl: emailResult.ok ? undefined : activateLink,
   };
 }
 
@@ -154,10 +162,69 @@ export async function rejectClinicApplicationAction(formData: FormData) {
 
   await sendEmail({
     to: app.owner_email,
-    subject: "ClinicOS — Application update",
+    subject: "MedERP — Clinic registration not approved",
     html: clinicRejectedEmail(app.clinic_name, reason),
   });
 
+  await logPlatformAuditEvent({
+    adminId: admin.id,
+    action: "clinic.rejected",
+    details: { application_id: applicationId, reason },
+  });
+
   revalidatePath("/admin/applications");
+  revalidatePath("/admin/clinic-requests");
   return { success: true };
+}
+
+export async function resendApprovalEmailAction(formData: FormData) {
+  const admin = await requireRole(["super_admin"]);
+  const applicationId = formData.get("applicationId") as string;
+  if (!applicationId) return { error: "Missing application ID" };
+
+  const service = await createServiceClient();
+  const { data: app } = await service
+    .from("clinic_applications")
+    .select("*, clinics(clinic_code, name)")
+    .eq("id", applicationId)
+    .eq("status", "approved")
+    .single();
+
+  if (!app?.clinic_id) return { error: "Application not found or not approved" };
+
+  const clinic = app.clinics as { clinic_code: string; name: string } | null;
+  const { data: owner } = await service
+    .from("profiles")
+    .select("id, staff_code, full_name")
+    .eq("clinic_id", app.clinic_id)
+    .eq("role", "clinic_owner")
+    .single();
+
+  if (!owner) return { error: "Owner account not found" };
+
+  const { createActivationToken } = await import("@/lib/auth/activation");
+  const activation = await createActivationToken(owner.id, app.clinic_id);
+  if ("error" in activation) return { error: activation.error };
+
+  const activateLink = activationUrl(activation.token);
+  const emailResult = await sendEmail({
+    to: app.owner_email,
+    subject: `MedERP — Activate your ${app.clinic_name} account`,
+    html: clinicApprovedEmail({
+      ownerName: owner.full_name,
+      clinicName: app.clinic_name,
+      clinicCode: clinic?.clinic_code ?? "",
+      staffCode: owner.staff_code ?? "",
+      activationUrl: activateLink,
+    }),
+  });
+
+  await logPlatformAuditEvent({
+    adminId: admin.id,
+    action: "clinic.activation_resent",
+    targetClinicId: app.clinic_id,
+    details: { application_id: applicationId },
+  });
+
+  return { success: true, emailSent: emailResult.ok, activationUrl: emailResult.ok ? undefined : activateLink };
 }

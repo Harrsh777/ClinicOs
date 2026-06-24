@@ -3,22 +3,41 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth, requireRole } from "@/lib/auth/session";
+import { createWalkInBillWithPayment, getClinicFeeSetup } from "@/lib/actions/billing";
+import { resolveOrCreateClinicPatient } from "@/lib/actions/patients";
+import { resolveWalkInFee } from "@/lib/billing/clinic-fees";
 import { z } from "zod";
 
-const bookSchema = z.object({
-  patientId: z.string().uuid(),
-  doctorId: z.string().uuid(),
-  date: z.string(),
-  time: z.string(),
-  type: z.enum(["scheduled", "walk_in", "emergency", "vip", "teleconsult"]).default("scheduled"),
-  notes: z.string().optional(),
-});
+const bookSchema = z
+  .object({
+    patientMode: z.enum(["existing", "new"]).optional(),
+    patientId: z.string().uuid().optional(),
+    fullName: z.string().min(2).optional(),
+    phone: z.string().min(10).optional(),
+    gender: z.string().optional(),
+    doctorId: z.string().uuid(),
+    date: z.string(),
+    time: z.string(),
+    type: z.enum(["scheduled", "walk_in", "emergency", "vip", "teleconsult"]).default("scheduled"),
+    notes: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.patientId) return true;
+      return data.patientMode === "new" && !!data.fullName && !!data.phone;
+    },
+    { message: "Patient is required" }
+  );
 
 export async function bookAppointmentAction(formData: FormData) {
   const profile = await requireAuth();
 
   const parsed = bookSchema.safeParse({
-    patientId: formData.get("patientId"),
+    patientMode: formData.get("patientMode") || undefined,
+    patientId: formData.get("patientId") || undefined,
+    fullName: formData.get("fullName") || undefined,
+    phone: formData.get("phone") || undefined,
+    gender: formData.get("gender") || undefined,
     doctorId: formData.get("doctorId"),
     date: formData.get("date"),
     time: formData.get("time"),
@@ -37,6 +56,33 @@ export async function bookAppointmentAction(formData: FormData) {
 
   if (!doctor) return { error: "Doctor not found" };
 
+  let patientId = parsed.data.patientId;
+  let patientCode: string | null = null;
+  let isNewPatient = false;
+
+  if (!patientId) {
+    if (parsed.data.patientMode !== "new") {
+      return { error: "Please select a patient" };
+    }
+    if (!parsed.data.fullName || !parsed.data.phone) {
+      return { error: "Patient name and phone are required" };
+    }
+    try {
+      const resolved = await resolveOrCreateClinicPatient(supabase, doctor.clinic_id, profile.id, {
+        fullName: parsed.data.fullName,
+        phone: parsed.data.phone,
+        gender: parsed.data.gender,
+      });
+      patientId = resolved.patientId;
+      patientCode = resolved.patientCode;
+      isNewPatient = !resolved.isExisting;
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Could not register patient" };
+    }
+  }
+
+  if (!patientId) return { error: "Patient is required" };
+
   const priority =
     parsed.data.type === "emergency"
       ? "emergency"
@@ -50,7 +96,7 @@ export async function bookAppointmentAction(formData: FormData) {
     .from("appointments")
     .insert({
       clinic_id: doctor.clinic_id,
-      patient_id: parsed.data.patientId,
+      patient_id: patientId,
       doctor_id: parsed.data.doctorId,
       appointment_date: parsed.data.date,
       appointment_time: parsed.data.time,
@@ -66,7 +112,7 @@ export async function bookAppointmentAction(formData: FormData) {
   if (error) return { error: error.message };
 
   if (parsed.data.type === "walk_in" || parsed.data.type === "emergency") {
-    await generateQueueToken(doctor.clinic_id, parsed.data.patientId, data.id, parsed.data.doctorId, priority);
+    await generateQueueToken(doctor.clinic_id, patientId, data.id, parsed.data.doctorId, priority);
   }
 
   if (status === "confirmed" || profile.role !== "patient") {
@@ -75,7 +121,253 @@ export async function bookAppointmentAction(formData: FormData) {
   }
 
   revalidatePath("/appointments");
-  return { success: true, appointmentId: data.id };
+  revalidatePath("/owner/appointments");
+  revalidatePath("/receptionist/appointments");
+  revalidatePath("/owner/patients");
+  revalidatePath("/receptionist/patients");
+  return { success: true, appointmentId: data.id, patientCode, isNewPatient };
+}
+
+const walkInQuickSchema = z.object({
+  fullName: z.string().min(2),
+  phone: z.string().min(10),
+  gender: z.string().optional(),
+  chiefComplaint: z.string().min(2),
+  doctorId: z.string().uuid(),
+  type: z.enum(["walk_in", "emergency"]).default("walk_in"),
+  temperatureC: z.coerce.number().optional(),
+  weightKg: z.coerce.number().optional(),
+  bpSystolic: z.coerce.number().optional(),
+  bpDiastolic: z.coerce.number().optional(),
+  pulse: z.coerce.number().optional(),
+  spo2: z.coerce.number().optional(),
+  feeType: z.enum(["normal", "emergency", "custom"]).default("normal"),
+  customFee: z.coerce.number().optional(),
+  paymentMethod: z.enum(["cash", "card", "upi"]),
+});
+
+function pickWalkInTimeSlot(slots: string[]): string {
+  if (slots.length > 0) {
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const upcoming = slots.find((s) => {
+      const [h, m] = s.split(":").map(Number);
+      return h * 60 + m >= nowMins;
+    });
+    return upcoming ?? slots[slots.length - 1];
+  }
+  const d = new Date();
+  const rounded = Math.ceil((d.getHours() * 60 + d.getMinutes()) / 15) * 15;
+  const h = Math.floor(rounded / 60) % 24;
+  const m = rounded % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+export async function walkInQuickAction(formData: FormData) {
+  const profile = await requireRole(["clinic_owner", "receptionist"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  const parsed = walkInQuickSchema.safeParse({
+    fullName: formData.get("fullName"),
+    phone: formData.get("phone"),
+    gender: formData.get("gender") || undefined,
+    chiefComplaint: formData.get("chiefComplaint"),
+    doctorId: formData.get("doctorId"),
+    type: formData.get("type") || "walk_in",
+    temperatureC: formData.get("temperatureC") || undefined,
+    weightKg: formData.get("weightKg") || undefined,
+    bpSystolic: formData.get("bpSystolic") || undefined,
+    bpDiastolic: formData.get("bpDiastolic") || undefined,
+    pulse: formData.get("pulse") || undefined,
+    spo2: formData.get("spo2") || undefined,
+    feeType: formData.get("feeType") || "normal",
+    customFee: formData.get("customFee") || undefined,
+    paymentMethod: formData.get("paymentMethod"),
+  });
+
+  if (!parsed.success) return { error: "Please fill required fields including payment method" };
+
+  const supabase = await createClient();
+  const clinicId = profile.clinic_id;
+  const today = new Date().toISOString().split("T")[0];
+  const phone = parsed.data.phone.replace(/\D/g, "");
+
+  const { data: existingPatient } = await supabase
+    .from("patients")
+    .select("id, full_name, patient_code")
+    .eq("clinic_id", clinicId)
+    .eq("phone", phone)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  let patientId = existingPatient?.id;
+  let patientCode = existingPatient?.patient_code ?? null;
+
+  if (!patientId) {
+    const { count } = await supabase
+      .from("patients")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", clinicId);
+
+    patientCode = `P${String((count ?? 0) + 1).padStart(4, "0")}`;
+
+    const { data: newPatient, error: patientError } = await supabase
+      .from("patients")
+      .insert({
+        clinic_id: clinicId,
+        full_name: parsed.data.fullName.trim(),
+        phone,
+        gender: parsed.data.gender || null,
+        patient_code: patientCode,
+        created_by: profile.id,
+      })
+      .select("id")
+      .single();
+
+    if (patientError) return { error: patientError.message };
+    patientId = newPatient.id;
+
+    await supabase.from("audit_logs").insert({
+      clinic_id: clinicId,
+      actor_id: profile.id,
+      action: "create",
+      entity_type: "patient",
+      entity_id: patientId,
+    });
+  }
+
+  const hasVitals =
+    parsed.data.temperatureC != null ||
+    parsed.data.weightKg != null ||
+    parsed.data.bpSystolic != null ||
+    parsed.data.bpDiastolic != null ||
+    parsed.data.pulse != null ||
+    parsed.data.spo2 != null;
+
+  if (hasVitals) {
+    await supabase.from("patient_vitals").insert({
+      patient_id: patientId,
+      clinic_id: clinicId,
+      recorded_by: profile.id,
+      temperature_c: parsed.data.temperatureC,
+      weight_kg: parsed.data.weightKg,
+      bp_systolic: parsed.data.bpSystolic,
+      bp_diastolic: parsed.data.bpDiastolic,
+      pulse: parsed.data.pulse,
+      spo2: parsed.data.spo2,
+    });
+  }
+
+  const { data: doctor } = await supabase
+    .from("doctors")
+    .select("clinic_id")
+    .eq("id", parsed.data.doctorId)
+    .single();
+
+  if (!doctor || doctor.clinic_id !== clinicId) return { error: "Doctor not found" };
+
+  const slots = await getAvailableSlots(parsed.data.doctorId, today);
+  const time = pickWalkInTimeSlot(slots);
+  const priority = parsed.data.type === "emergency" ? "emergency" : "normal";
+
+  const { data: appointment, error: aptError } = await supabase
+    .from("appointments")
+    .insert({
+      clinic_id: clinicId,
+      patient_id: patientId,
+      doctor_id: parsed.data.doctorId,
+      appointment_date: today,
+      appointment_time: time,
+      status: "confirmed",
+      type: parsed.data.type,
+      priority,
+      notes: parsed.data.chiefComplaint.trim(),
+      booked_by: profile.id,
+    })
+    .select()
+    .single();
+
+  if (aptError) return { error: aptError.message };
+
+  const feeSetup = await getClinicFeeSetup(clinicId);
+  const feeAmount = resolveWalkInFee(
+    feeSetup,
+    parsed.data.doctorId,
+    parsed.data.feeType,
+    parsed.data.type,
+    parsed.data.customFee
+  );
+
+  if (feeAmount <= 0) return { error: "Consultation fee must be greater than zero" };
+
+  await generateQueueToken(clinicId, patientId, appointment.id, parsed.data.doctorId, priority, "paid");
+
+  const { createVisitForAppointmentAction } = await import("@/lib/actions/visits");
+  const visitResult = await createVisitForAppointmentAction(appointment.id).catch(() => null);
+
+  const visitId =
+    visitResult && "visitId" in visitResult
+      ? visitResult.visitId
+      : visitResult && "visit" in visitResult && visitResult.visit
+        ? (visitResult.visit as { id: string }).id
+        : undefined;
+
+  const billResult = await createWalkInBillWithPayment(supabase, {
+    clinicId,
+    patientId,
+    appointmentId: appointment.id,
+    visitId,
+    amount: feeAmount,
+    taxRate: feeSetup.taxRate,
+    feeType: parsed.data.feeType === "custom" ? "custom" : parsed.data.type === "emergency" ? "emergency" : "normal",
+    paymentMethod: parsed.data.paymentMethod,
+    recordedBy: profile.id,
+    chiefComplaint: parsed.data.chiefComplaint.trim(),
+  });
+
+  if (billResult.error) return { error: billResult.error };
+
+  if (visitId) {
+    await supabase.from("clinic_visits").update({ payment_status: "paid" }).eq("id", visitId);
+  }
+
+  await supabase
+    .from("queue_tokens")
+    .update({ payment_status: "paid" })
+    .eq("appointment_id", appointment.id);
+
+  revalidatePath("/owner/appointments");
+  revalidatePath("/receptionist/appointments");
+  revalidatePath("/owner/queue");
+  revalidatePath("/receptionist/queue");
+  revalidatePath("/owner/patients");
+  revalidatePath("/owner/billing");
+  revalidatePath("/receptionist/billing");
+  revalidatePath("/finance/billing");
+  revalidatePath("/owner/revenue");
+  revalidatePath("/finance");
+  revalidatePath("/owner");
+
+  const tokenResult = await supabase
+    .from("queue_tokens")
+    .select("token_label")
+    .eq("appointment_id", appointment.id)
+    .maybeSingle();
+
+  return {
+    success: true,
+    patientId,
+    patientCode,
+    appointmentId: appointment.id,
+    tokenLabel: tokenResult.data?.token_label ?? null,
+    time,
+    isExistingPatient: !!existingPatient,
+    visitId,
+    invoiceNumber: billResult.invoiceNumber,
+    receiptNumber: billResult.receiptNumber,
+    totalAmount: billResult.totalAmount,
+    paymentMethod: parsed.data.paymentMethod,
+  };
 }
 
 export async function updateAppointmentStatusAction(
@@ -295,7 +587,8 @@ export async function generateQueueToken(
   patientId: string,
   appointmentId?: string,
   doctorId?: string,
-  priority: "normal" | "vip" | "emergency" = "normal"
+  priority: "normal" | "vip" | "emergency" = "normal",
+  paymentStatus: PaymentStatus = "not_required"
 ) {
   const series: TokenSeries =
     priority === "emergency" ? "emergency" : priority === "vip" ? "vip" : "regular";
@@ -303,6 +596,7 @@ export async function generateQueueToken(
     appointmentId,
     doctorId,
     priority,
+    paymentStatus,
   });
 }
 

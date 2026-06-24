@@ -51,9 +51,17 @@ export async function startConsultationAction(params: {
   });
 
   if (params.queueTokenId) {
+    const now = new Date().toISOString();
     await supabase
       .from("queue_tokens")
-      .update({ status: "serving", serving_at: new Date().toISOString() })
+      .update({
+        status: "serving",
+        serving_at: now,
+        consultation_started_at: now,
+        journey_stage: "consultation_started",
+        status_updated_at: now,
+        updated_at: now,
+      })
       .eq("id", params.queueTokenId);
   }
 
@@ -144,16 +152,35 @@ export async function endConsultationAction(consultationId: string) {
     vitals_snapshot: vitals,
   });
 
+  const endedAt = new Date().toISOString();
+
   await supabase
     .from("consultations")
-    .update({ status: "completed", ended_at: new Date().toISOString() })
+    .update({ status: "completed", ended_at: endedAt })
     .eq("id", consultationId);
 
   if (consultation.queue_token_id) {
     await supabase
       .from("queue_tokens")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .update({ status: "completed", completed_at: endedAt })
       .eq("id", consultation.queue_token_id);
+
+    if (consultation.started_at && consultation.doctor_id) {
+      const durationMins = Math.round(
+        (new Date(endedAt).getTime() - new Date(consultation.started_at).getTime()) / 60000
+      );
+      const { data: doctorRow } = await supabase
+        .from("doctors")
+        .select("avg_consultation_mins, slot_duration_mins")
+        .eq("id", consultation.doctor_id)
+        .single();
+      const prev = doctorRow?.avg_consultation_mins ?? doctorRow?.slot_duration_mins ?? 15;
+      const newAvg = Math.round(prev * 0.8 + durationMins * 0.2);
+      await supabase
+        .from("doctors")
+        .update({ avg_consultation_mins: newAvg, queue_status: "available" })
+        .eq("id", consultation.doctor_id);
+    }
   }
 
   if (consultation.appointment_id) {

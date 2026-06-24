@@ -1,23 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { bookAppointmentAction, getAvailableSlots } from "@/lib/actions/appointments";
 import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
-import { PatientPicker } from "@/components/patients/patient-picker";
+import {
+  PatientSelector,
+  type PatientMode,
+  type PatientResult,
+} from "@/components/patients/patient-selector";
 
 interface Doctor {
   id: string;
   profiles?: { full_name: string; specialization: string | null };
-}
-
-interface SelectedPatient {
-  id: string;
-  full_name: string;
-  phone: string;
-  patient_code: string | null;
 }
 
 export function BookAppointmentForm({
@@ -25,18 +23,22 @@ export function BookAppointmentForm({
   clinicId,
   patientId,
   isStaff = false,
+  embedded = false,
 }: {
   doctors: Doctor[];
   clinicId?: string;
   patientId?: string;
   isStaff?: boolean;
+  embedded?: boolean;
 }) {
   const [doctorId, setDoctorId] = useState("");
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
-  const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
+  const [patientMode, setPatientMode] = useState<PatientMode>("existing");
+  const [selectedPatient, setSelectedPatient] = useState<PatientResult | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (doctorId && date) {
@@ -46,30 +48,37 @@ export function BookAppointmentForm({
     }
   }, [doctorId, date]);
 
+  const patientReady = !isStaff || patientMode === "new" || !!selectedPatient;
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
     const formData = new FormData(e.currentTarget);
-    if (isStaff && selectedPatient) {
+    if (isStaff && patientMode === "existing" && selectedPatient) {
       formData.set("patientId", selectedPatient.id);
     }
     const result = await bookAppointmentAction(formData);
     if (result?.error) {
       setMessage({ text: result.error, ok: false });
     } else {
-      setMessage({ text: "Appointment booked successfully!", ok: true });
+      const patientNote =
+        result.isNewPatient && result.patientCode
+          ? ` New patient ${result.patientCode} saved to Patients.`
+          : "";
+      setMessage({ text: `Appointment booked successfully!${patientNote}`, ok: true });
       setSelectedPatient(null);
+      setPatientMode("existing");
       (e.target as HTMLFormElement).reset();
       setDoctorId("");
       setDate("");
+      router.refresh();
     }
     setLoading(false);
   }
 
-  return (
-    <Card className="mb-8">
-      <h3 className="font-semibold mb-4">{isStaff ? "Book Appointment" : "Book New Appointment"}</h3>
+  const formContent = (
+    <>
       {message && (
         <Alert variant={message.ok ? "success" : "error"} className="mb-4">
           {message.text}
@@ -78,10 +87,12 @@ export function BookAppointmentForm({
       <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
         {isStaff && clinicId && (
           <div className="sm:col-span-2">
-            <PatientPicker
+            <PatientSelector
               clinicId={clinicId}
-              value={selectedPatient}
-              onChange={setSelectedPatient}
+              mode={patientMode}
+              onModeChange={setPatientMode}
+              selectedPatient={selectedPatient}
+              onPatientChange={setSelectedPatient}
             />
           </div>
         )}
@@ -122,11 +133,20 @@ export function BookAppointmentForm({
           />
         )}
         <div className="sm:col-span-2">
-          <Button type="submit" loading={loading} disabled={isStaff && !selectedPatient}>
+          <Button type="submit" loading={loading} disabled={!patientReady}>
             Book Appointment
           </Button>
         </div>
       </form>
+    </>
+  );
+
+  if (embedded) return formContent;
+
+  return (
+    <Card className="mb-8">
+      <h3 className="font-semibold mb-4">{isStaff ? "Book Appointment" : "Book New Appointment"}</h3>
+      {formContent}
     </Card>
   );
 }

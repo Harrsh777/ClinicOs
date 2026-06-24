@@ -7,13 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
 
-export function CreateStaffForm({ clinicCode }: { clinicCode: string }) {
+export function CreateStaffForm({
+  clinicCode,
+  departments = [],
+}: {
+  clinicCode: string;
+  departments?: { id: string; name: string }[];
+}) {
   const [error, setError] = useState<string | null>(null);
-  const [credentials, setCredentials] = useState<{
+  const [created, setCreated] = useState<{
     clinicCode: string;
+    staffCode: string;
     email: string;
-    password: string;
     role: string;
+    activationUrl?: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedModules, setSelectedModules] = useState<string[]>(["patients", "appointments"]);
@@ -22,19 +29,14 @@ export function CreateStaffForm({ clinicCode }: { clinicCode: string }) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setCredentials(null);
+    setCreated(null);
     const formData = new FormData(e.currentTarget);
     selectedModules.forEach((m) => formData.append("moduleKeys", m));
     formData.set("sendEmail", "on");
     const result = await createStaffAccountAction(formData);
     if (result?.error) setError(result.error);
-    else if (result?.credentials?.email && result.credentials.password) {
-      setCredentials({
-        clinicCode: result.credentials.clinicCode ?? clinicCode,
-        email: result.credentials.email,
-        password: result.credentials.password,
-        role: result.credentials.role ?? "",
-      });
+    else if (result?.staff) {
+      setCreated(result.staff as typeof created);
       (e.target as HTMLFormElement).reset();
     }
     setLoading(false);
@@ -44,23 +46,25 @@ export function CreateStaffForm({ clinicCode }: { clinicCode: string }) {
     <div className="clinic-card p-5">
       <h3 className="font-semibold mb-1">Create staff account</h3>
       <p className="text-sm text-[var(--text-muted)] mb-4">
-        Creates login credentials and emails them. Staff sign in with Clinic ID <strong>{clinicCode}</strong>.
+        Sends an activation link by email. Staff sign in with Clinic ID <strong>{clinicCode}</strong> and their Staff ID.
       </p>
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
-      {credentials && (
+      {created && (
         <Alert variant="success" className="mb-4">
-          <p className="font-medium">Account created{credentials ? " — credentials emailed" : ""}</p>
+          <p className="font-medium">Account created — activation email sent</p>
           <div className="mt-2 text-xs font-mono space-y-1">
-            <p>Clinic ID: {credentials.clinicCode}</p>
-            <p>Email: {credentials.email}</p>
-            <p>Password: {credentials.password}</p>
-            <p>Role: {credentials.role}</p>
+            <p>Clinic ID: {created.clinicCode}</p>
+            <p>Staff ID: {created.staffCode}</p>
+            <p>Email: {created.email}</p>
+            <p>Role: {created.role}</p>
+            {created.activationUrl && <p className="break-all">Activation: {created.activationUrl}</p>}
           </div>
         </Alert>
       )}
       <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
         <Input label="Full name" name="fullName" required placeholder="Dr. Amit Verma" />
-        <Input label="Email (login ID)" name="email" type="email" required placeholder="doctor@clinic.com" />
+        <Input label="Email" name="email" type="email" required placeholder="doctor@clinic.com" />
+        <Input label="Phone" name="phone" placeholder="9876543210" />
         <Select
           label="Role"
           name="role"
@@ -70,12 +74,16 @@ export function CreateStaffForm({ clinicCode }: { clinicCode: string }) {
             label: r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
           }))}
         />
-        <Input
-          label="Password (optional)"
-          name="password"
-          type="text"
-          placeholder="Auto-generated if left blank"
-        />
+        {departments.length > 0 && (
+          <Select
+            label="Department"
+            name="departmentId"
+            options={[
+              { value: "", label: "— None —" },
+              ...departments.map((d) => ({ value: d.id, label: d.name })),
+            ]}
+          />
+        )}
         <div className="sm:col-span-2">
           <p className="clinic-label">Module access</p>
           <div className="flex flex-wrap gap-2 mt-1">
@@ -97,7 +105,7 @@ export function CreateStaffForm({ clinicCode }: { clinicCode: string }) {
           </div>
         </div>
         <Button type="submit" loading={loading} className="sm:col-span-2">
-          Create account &amp; send email
+          Create account &amp; send activation email
         </Button>
       </form>
     </div>

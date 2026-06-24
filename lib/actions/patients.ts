@@ -160,6 +160,63 @@ export async function searchPatientsAction(clinicId: string, query: string) {
   return getPatients(clinicId, query);
 }
 
+export async function resolveOrCreateClinicPatient(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  actorId: string,
+  input: { fullName: string; phone: string; gender?: string | null }
+) {
+  const phone = input.phone.replace(/\D/g, "");
+
+  const { data: existing } = await supabase
+    .from("patients")
+    .select("id, patient_code")
+    .eq("clinic_id", clinicId)
+    .eq("phone", phone)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (existing) {
+    return {
+      patientId: existing.id,
+      patientCode: existing.patient_code as string | null,
+      isExisting: true,
+    };
+  }
+
+  const { count } = await supabase
+    .from("patients")
+    .select("id", { count: "exact", head: true })
+    .eq("clinic_id", clinicId);
+
+  const patientCode = `P${String((count ?? 0) + 1).padStart(4, "0")}`;
+
+  const { data: newPatient, error } = await supabase
+    .from("patients")
+    .insert({
+      clinic_id: clinicId,
+      full_name: input.fullName.trim(),
+      phone,
+      gender: input.gender || null,
+      patient_code: patientCode,
+      created_by: actorId,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  await supabase.from("audit_logs").insert({
+    clinic_id: clinicId,
+    actor_id: actorId,
+    action: "create",
+    entity_type: "patient",
+    entity_id: newPatient.id,
+  });
+
+  return { patientId: newPatient.id, patientCode, isExisting: false };
+}
+
 export async function updatePatientAction(formData: FormData) {
   const profile = await requireAuth();
   if (!profile.clinic_id) return { error: "No clinic assigned" };

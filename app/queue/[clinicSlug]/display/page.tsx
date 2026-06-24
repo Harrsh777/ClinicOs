@@ -11,5 +11,14 @@ export default async function TVDisplayPage({
   const data = await getQueueBySlug(clinicSlug);
   if (!data) notFound();
 
-  return <TVDisplay clinic={data.clinic} initialSession={data.session} initialTokens={data.tokens} />;
+  return (
+    <TVDisplay
+      clinic={data.clinic}
+      initialSession={data.session}
+      initialTokens={data.tokens as never}
+      initialServing={(data.serving ?? null) as never}
+      initialNextTokens={data.nextTokens as never}
+      initialEstimatedWait={data.estimatedWaitMins}
+    />
+  );
 }

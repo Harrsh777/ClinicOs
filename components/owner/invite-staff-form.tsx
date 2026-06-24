@@ -11,6 +11,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 export function InviteStaffForm() {
   const [error, setError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedModules, setSelectedModules] = useState<string[]>(["patients", "appointments"]);
 
@@ -22,18 +23,22 @@ export function InviteStaffForm() {
     selectedModules.forEach((m) => formData.append("moduleKeys", m));
     const result = await inviteStaffAction(formData);
     if (result?.error) setError(result.error);
-    else if (result?.inviteUrl) setInviteUrl(result.inviteUrl);
+    else if (result?.inviteUrl) {
+      setInviteUrl(result.inviteUrl);
+      setEmailSent(Boolean(result.emailSent));
+    }
     setLoading(false);
   }
 
   return (
-    <div className="clinic-card p-5">
-      <h3 className="font-semibold mb-4">Invite Staff Member</h3>
+    <div className="clinic-card p-6">
+      <h3 className="mb-1 font-semibold">Invite Staff Member</h3>
+      <p className="mb-4 text-sm text-[var(--text-secondary)]">Email an invite link and preselect sidebar module access.</p>
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
       {inviteUrl && (
         <Alert variant="success" className="mb-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span>Invite created!</span>
+            <span>{emailSent ? "Invite email sent." : "Invite created. Email is not configured, copy this link."}</span>
             <code className="text-xs font-mono break-all">{inviteUrl}</code>
             <CopyButton text={inviteUrl.startsWith("http") ? inviteUrl : `${window.location.origin}${inviteUrl}`} />
           </div>
@@ -52,9 +57,9 @@ export function InviteStaffForm() {
         />
         <div className="sm:col-span-2">
           <p className="clinic-label">Module Access</p>
-          <div className="flex flex-wrap gap-2 mt-1">
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {ASSIGNABLE_MODULES.map((mod) => (
-              <label key={mod} className="flex items-center gap-2 text-sm cursor-pointer">
+              <label key={mod} className="flex cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm">
                 <input
                   type="checkbox"
                   checked={selectedModules.includes(mod)}
@@ -65,7 +70,7 @@ export function InviteStaffForm() {
                   }
                   className="rounded border-[var(--border)]"
                 />
-                <span className="capitalize">{mod}</span>
+                <span className="capitalize">{mod.replace(/_/g, " ")}</span>
               </label>
             ))}
           </div>

@@ -191,12 +191,40 @@ export async function updateClinicBrandingAction(formData: FormData) {
   if (!parsed.success) return { error: "Invalid branding data" };
 
   const supabase = await createClient();
+  let logoUrl = parsed.data.logoUrl;
+  const logoFile = formData.get("logoFile");
+
+  if (logoFile instanceof File && logoFile.size > 0) {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+    if (!allowedTypes.includes(logoFile.type)) {
+      return { error: "Upload a PNG, JPG, WebP, or SVG logo" };
+    }
+    if (logoFile.size > 5 * 1024 * 1024) {
+      return { error: "Logo must be smaller than 5 MB" };
+    }
+
+    const extension = logoFile.name.split(".").pop()?.toLowerCase() ?? "png";
+    const path = `${parsed.data.clinicId}/branding/logo-${Date.now()}.${extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from("clinic-assets")
+      .upload(path, logoFile, {
+        cacheControl: "31536000",
+        upsert: true,
+        contentType: logoFile.type,
+      });
+
+    if (uploadError) return { error: uploadError.message };
+
+    const { data } = supabase.storage.from("clinic-assets").getPublicUrl(path);
+    logoUrl = data.publicUrl;
+  }
+
   const { error } = await supabase.from("clinic_branding").upsert(
     {
       clinic_id: parsed.data.clinicId,
       primary_color: parsed.data.primaryColor,
       secondary_color: parsed.data.secondaryColor,
-      logo_url: parsed.data.logoUrl,
+      logo_url: logoUrl,
       custom_domain: parsed.data.customDomain,
       white_label: parsed.data.whiteLabel ?? false,
       whatsapp_number: parsed.data.whatsappNumber,

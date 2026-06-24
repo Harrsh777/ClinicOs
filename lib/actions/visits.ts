@@ -314,6 +314,9 @@ export async function markVisitPaidAction(visitId: string) {
   await supabase.from("queue_tokens").update({ payment_status: "paid" }).eq("visit_id", visitId);
 
   revalidatePath("/receptionist/queue");
+  revalidatePath("/owner/revenue");
+  revalidatePath("/finance");
+  revalidatePath("/owner");
   return { success: true };
 }
 

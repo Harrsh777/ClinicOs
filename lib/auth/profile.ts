@@ -8,6 +8,11 @@ const VALID_ROLES: UserRole[] = [
   "doctor",
   "receptionist",
   "finance_manager",
+  "nurse",
+  "pharmacist",
+  "lab_technician",
+  "hr",
+  "administrator",
   "patient",
 ];
 

@@ -33,7 +33,7 @@ export async function DashboardShell({ profile, basePath, children }: DashboardS
     <div className="flex min-h-screen bg-[var(--surface-1)]">
       <Sidebar profile={profile} sections={sections} clinicName={clinicName} />
       <main className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-7xl px-6 py-8">{children}</div>
+        <div className="mx-auto max-w-7xl px-8 py-8 max-md:px-4">{children}</div>
       </main>
     </div>
   );

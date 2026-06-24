@@ -1,8 +1,20 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { slugify } from "@/lib/utils";
+import { createActivationToken } from "@/lib/auth/activation";
 import type { UserRole } from "@/lib/types/database";
 
-function randomPassword(length = 12) {
+const ASSIGNABLE_STAFF_ROLES: UserRole[] = [
+  "doctor",
+  "receptionist",
+  "finance_manager",
+  "nurse",
+  "pharmacist",
+  "lab_technician",
+  "hr",
+  "administrator",
+];
+
+function randomPassword(length = 32) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
   let out = "";
   const bytes = crypto.getRandomValues(new Uint8Array(length));
@@ -17,6 +29,17 @@ export async function generateClinicCode(): Promise<string> {
   return `CLN-${Date.now().toString(36).toUpperCase().slice(-6)}`;
 }
 
+async function generateStaffCode(clinicId: string, role: UserRole): Promise<string> {
+  const service = await createServiceClient();
+  const { data, error } = await service.rpc("generate_staff_code", {
+    p_clinic_id: clinicId,
+    p_role: role,
+  });
+  if (!error && data) return data as string;
+  const prefix = role === "clinic_owner" ? "OWN" : "STF";
+  return `${prefix}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
+}
+
 export async function createClinicWithOwner(params: {
   name: string;
   ownerEmail: string;
@@ -28,6 +51,7 @@ export async function createClinicWithOwner(params: {
   state?: string;
   pincode?: string;
   email?: string;
+  clinicType?: string;
 }) {
   const service = await createServiceClient();
   const clinicCode = await generateClinicCode();
@@ -45,7 +69,9 @@ export async function createClinicWithOwner(params: {
       state: params.state,
       pincode: params.pincode,
       email: params.email ?? params.ownerEmail,
+      clinic_type: params.clinicType,
       status: "trial",
+      clinic_setup_completed: false,
     })
     .select()
     .single();
@@ -60,10 +86,22 @@ export async function createClinicWithOwner(params: {
     status: "trialing",
   });
 
-  const password = randomPassword();
+  const defaultDepartments = [
+    "General Medicine",
+    "Cardiology",
+    "Orthopedics",
+    "Pediatrics",
+  ];
+  await service.from("departments").insert(
+    defaultDepartments.map((name) => ({ clinic_id: clinic.id, name }))
+  );
+
+  const ownerStaffCode = await generateStaffCode(clinic.id, "clinic_owner");
+  const tempPassword = randomPassword();
+
   const { data: authUser, error: authError } = await service.auth.admin.createUser({
     email: params.ownerEmail,
-    password,
+    password: tempPassword,
     email_confirm: true,
     user_metadata: { full_name: params.ownerName, role: "clinic_owner" },
   });
@@ -79,16 +117,24 @@ export async function createClinicWithOwner(params: {
     full_name: params.ownerName,
     role: "clinic_owner",
     clinic_id: clinic.id,
+    staff_code: ownerStaffCode,
     is_active: true,
+    first_login: true,
   });
+
+  const activation = await createActivationToken(authUser.user.id, clinic.id);
+  if ("error" in activation) {
+    return { error: activation.error };
+  }
 
   return {
     clinic,
     clinicCode,
     ownerEmail: params.ownerEmail,
     ownerName: params.ownerName,
-    password,
+    ownerStaffCode,
     ownerId: authUser.user.id,
+    activationToken: activation.token,
   };
 }
 
@@ -98,21 +144,24 @@ export async function createStaffAccount(params: {
   clinicName: string;
   email: string;
   fullName: string;
+  phone?: string;
   role: UserRole;
+  departmentId?: string;
   password?: string;
   moduleKeys?: string[];
   grantedBy?: string;
 }) {
-  if (!["doctor", "receptionist", "finance_manager"].includes(params.role)) {
+  if (!ASSIGNABLE_STAFF_ROLES.includes(params.role)) {
     return { error: "Invalid staff role" };
   }
 
   const service = await createServiceClient();
-  const password = params.password ?? randomPassword();
+  const staffCode = await generateStaffCode(params.clinicId, params.role);
+  const tempPassword = params.password ?? randomPassword();
 
   const { data: authUser, error: authError } = await service.auth.admin.createUser({
     email: params.email,
-    password,
+    password: tempPassword,
     email_confirm: true,
     user_metadata: { full_name: params.fullName, role: params.role },
   });
@@ -130,9 +179,13 @@ export async function createStaffAccount(params: {
     id: authUser.user.id,
     email: params.email,
     full_name: params.fullName,
+    phone: params.phone,
     role: params.role,
     clinic_id: params.clinicId,
+    staff_code: staffCode,
+    department_id: params.departmentId ?? null,
     is_active: true,
+    first_login: true,
   });
 
   if (params.role === "doctor") {
@@ -156,10 +209,16 @@ export async function createStaffAccount(params: {
     });
   }
 
+  const activation = await createActivationToken(authUser.user.id, params.clinicId);
+  if ("error" in activation) {
+    return { error: activation.error };
+  }
+
   return {
     userId: authUser.user.id,
     email: params.email,
-    password,
+    staffCode,
+    activationToken: activation.token,
     clinicCode: params.clinicCode,
     clinicName: params.clinicName,
     fullName: params.fullName,

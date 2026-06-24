@@ -51,22 +51,38 @@ export function StatCard({
   value,
   icon,
   trend,
+  accent = "#14B8A6",
 }: {
   label: string;
   value: string | number;
   icon?: React.ReactNode;
   trend?: string;
+  accent?: string;
 }) {
   return (
-    <div className="clinic-stat-card">
-      <div className="flex items-start justify-between">
+    <div className="clinic-stat-card overflow-hidden relative">
+      <div
+        className="absolute inset-x-0 top-0 h-1"
+        style={{ background: `linear-gradient(90deg, ${accent}, rgba(6, 182, 212, 0.35))` }}
+      />
+      <div className="flex h-full items-start justify-between gap-4">
         <div>
           <div className="clinic-stat-value">{value}</div>
           <div className="clinic-stat-label">{label}</div>
-          {trend && <div className="mt-1 text-xs text-[var(--success-500)]">{trend}</div>}
+          {trend && (
+            <div className="mt-3 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              {trend}
+            </div>
+          )}
         </div>
         {icon && (
-          <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[var(--brand-50)] text-[var(--brand-600)]">
+          <div
+            className="flex h-11 w-11 items-center justify-center rounded-2xl"
+            style={{
+              background: `${accent}18`,
+              color: accent,
+            }}
+          >
             {icon}
           </div>
         )}

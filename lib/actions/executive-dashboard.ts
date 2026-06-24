@@ -19,6 +19,8 @@ export interface ExecutiveDashboardData {
     doctorUtilization: number;
     activeDoctors: number;
     totalDoctors: number;
+    queueInService: number;
+    queueCompletedToday: number;
   };
   growth: {
     newPatients: number;
@@ -31,20 +33,57 @@ export interface ExecutiveDashboardData {
     highRiskPatients: number;
     lowPerformingBranch: string | null;
   };
+  charts: {
+    dailyRevenue: { date: string; revenue: number; invoices: number }[];
+    paymentMix: { method: string; amount: number }[];
+    collectionHealth: { name: string; value: number }[];
+    patientMix: { name: string; value: number }[];
+    doctorUtilization: { name: string; value: number }[];
+    queueStatus: { name: string; value: number }[];
+  };
   isFranchise: boolean;
   branchCount: number;
+}
+
+export type DashboardOperationsSnapshot = {
+  operations: ExecutiveDashboardData["operations"];
+  queueStatus: ExecutiveDashboardData["charts"]["queueStatus"];
+};
+
+function buildQueueStatus(operations: {
+  patientsWaiting: number;
+  queueInService: number;
+  queueCompletedToday: number;
+}) {
+  return [
+    { name: "Waiting", value: operations.patientsWaiting },
+    { name: "In service", value: operations.queueInService },
+    { name: "Completed", value: operations.queueCompletedToday },
+  ];
 }
 
 async function getOperationsMetrics(clinicIds: string[]) {
   const supabase = await createClient();
   const today = new Date().toISOString().split("T")[0];
 
-  const [{ data: waitingTokens }, { data: doctors }, { data: activeConsults }] = await Promise.all([
+  const [
+    { count: patientsWaiting },
+    { count: queueInService },
+    { data: doctors },
+    { data: activeConsults },
+    { data: servedToday },
+    { count: queueCompletedToday },
+  ] = await Promise.all([
     supabase
       .from("queue_tokens")
-      .select("created_at, serving_at, called_at")
+      .select("id", { count: "exact", head: true })
       .in("clinic_id", clinicIds)
       .eq("status", "waiting"),
+    supabase
+      .from("queue_tokens")
+      .select("id", { count: "exact", head: true })
+      .in("clinic_id", clinicIds)
+      .in("status", ["called", "serving"]),
     supabase.from("doctors").select("id").in("clinic_id", clinicIds),
     supabase
       .from("consultations")
@@ -52,16 +91,19 @@ async function getOperationsMetrics(clinicIds: string[]) {
       .in("clinic_id", clinicIds)
       .eq("status", "in_progress")
       .gte("started_at", `${today}T00:00:00`),
+    supabase
+      .from("queue_tokens")
+      .select("created_at, serving_at")
+      .in("clinic_id", clinicIds)
+      .eq("status", "completed")
+      .gte("completed_at", `${today}T00:00:00`),
+    supabase
+      .from("queue_tokens")
+      .select("id", { count: "exact", head: true })
+      .in("clinic_id", clinicIds)
+      .eq("status", "completed")
+      .gte("completed_at", `${today}T00:00:00`),
   ]);
-
-  const patientsWaiting = waitingTokens?.length ?? 0;
-
-  const { data: servedToday } = await supabase
-    .from("queue_tokens")
-    .select("created_at, serving_at")
-    .in("clinic_id", clinicIds)
-    .eq("status", "completed")
-    .gte("completed_at", `${today}T00:00:00`);
 
   let averageWaitMins = 0;
   const waits = (servedToday ?? [])
@@ -76,7 +118,96 @@ async function getOperationsMetrics(clinicIds: string[]) {
   const activeDoctors = activeDoctorIds.size;
   const doctorUtilization = totalDoctors > 0 ? Math.round((activeDoctors / totalDoctors) * 100) : 0;
 
-  return { patientsWaiting, averageWaitMins, doctorUtilization, activeDoctors, totalDoctors };
+  return {
+    patientsWaiting: patientsWaiting ?? 0,
+    averageWaitMins,
+    doctorUtilization,
+    activeDoctors,
+    totalDoctors,
+    queueInService: queueInService ?? 0,
+    queueCompletedToday: queueCompletedToday ?? 0,
+  };
+}
+
+async function getChartData(
+  clinicIds: string[],
+  growth: { newPatients: number; returningPatients: number; lostPatients: number },
+  operations: { activeDoctors: number; totalDoctors: number; patientsWaiting: number; queueInService: number; queueCompletedToday: number },
+  business: { revenueThisMonth: number; outstandingPayments: number }
+) {
+  const supabase = await createClient();
+  const start = new Date();
+  start.setDate(start.getDate() - 13);
+  start.setHours(0, 0, 0, 0);
+
+  const [{ data: payments }, { data: bills }] = await Promise.all([
+    supabase
+      .from("payments")
+      .select("amount, method, paid_at")
+      .in("clinic_id", clinicIds)
+      .eq("status", "completed")
+      .gte("paid_at", start.toISOString()),
+    supabase
+      .from("bills")
+      .select("status, total_amount, paid_amount, created_at")
+      .in("clinic_id", clinicIds)
+      .gte("created_at", start.toISOString()),
+  ]);
+
+  const formatKey = (date: Date) => date.toISOString().split("T")[0];
+  const revenueByDay = new Map<string, { date: string; revenue: number; invoices: number }>();
+
+  for (let i = 13; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const key = formatKey(date);
+    revenueByDay.set(key, {
+      date: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+      revenue: 0,
+      invoices: 0,
+    });
+  }
+
+  for (const payment of payments ?? []) {
+    if (!payment.paid_at) continue;
+    const key = String(payment.paid_at).split("T")[0];
+    const day = revenueByDay.get(key);
+    if (day) day.revenue += Number(payment.amount ?? 0);
+  }
+
+  for (const bill of bills ?? []) {
+    if (!bill.created_at) continue;
+    const key = String(bill.created_at).split("T")[0];
+    const day = revenueByDay.get(key);
+    if (day) day.invoices += 1;
+  }
+
+  const methodTotals = new Map<string, number>();
+  for (const payment of payments ?? []) {
+    const method = String(payment.method ?? "other").replace(/_/g, " ");
+    methodTotals.set(method, (methodTotals.get(method) ?? 0) + Number(payment.amount ?? 0));
+  }
+
+  const idleDoctors = Math.max(0, operations.totalDoctors - operations.activeDoctors);
+
+  return {
+    dailyRevenue: Array.from(revenueByDay.values()),
+    paymentMix: Array.from(methodTotals.entries()).map(([method, amount]) => ({ method, amount })),
+    collectionHealth: [
+      { name: "Collected", value: business.revenueThisMonth },
+      { name: "Outstanding", value: business.outstandingPayments },
+    ],
+    patientMix: [
+      { name: "New", value: growth.newPatients },
+      { name: "Returning", value: growth.returningPatients },
+      { name: "At risk", value: growth.lostPatients },
+    ],
+    doctorUtilization: [
+      { name: "Active", value: operations.activeDoctors },
+      { name: "Available", value: idleDoctors },
+    ],
+    queueStatus: buildQueueStatus(operations),
+  };
 }
 
 async function getGrowthMetrics(clinicIds: string[]) {
@@ -87,42 +218,103 @@ async function getGrowthMetrics(clinicIds: string[]) {
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
   const ninetyStr = ninetyDaysAgo.toISOString().split("T")[0];
+  const yearAgo = new Date();
+  yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+  const yearAgoStr = yearAgo.toISOString().split("T")[0];
 
-  const { data: allPatients } = await supabase
-    .from("patients")
-    .select("id, created_at")
-    .in("clinic_id", clinicIds)
-    .eq("is_active", true);
-
-  const newPatients = (allPatients ?? []).filter((p) => p.created_at >= monthStartStr).length;
-
-  const { data: emrVisits, error: emrErr } = await supabase
-    .from("emr_records")
-    .select("patient_id")
-    .in("clinic_id", clinicIds);
+  const [
+    { count: newPatients },
+    { data: visitRows, error: emrErr },
+    { data: recentVisits },
+    { data: oldPatients },
+  ] = await Promise.all([
+    supabase
+      .from("patients")
+      .select("id", { count: "exact", head: true })
+      .in("clinic_id", clinicIds)
+      .eq("is_active", true)
+      .gte("created_at", monthStartStr),
+    supabase
+      .from("emr_records")
+      .select("patient_id")
+      .in("clinic_id", clinicIds)
+      .gte("created_at", `${yearAgoStr}T00:00:00`),
+    supabase
+      .from("emr_records")
+      .select("patient_id")
+      .in("clinic_id", clinicIds)
+      .gte("created_at", `${ninetyStr}T00:00:00`),
+    supabase
+      .from("patients")
+      .select("id")
+      .in("clinic_id", clinicIds)
+      .eq("is_active", true)
+      .lt("created_at", ninetyStr),
+  ]);
 
   if (emrErr) {
-    return { newPatients, returningPatients: 0, lostPatients: 0 };
+    return { newPatients: newPatients ?? 0, returningPatients: 0, lostPatients: 0 };
   }
 
   const visitCounts = new Map<string, number>();
-  for (const v of emrVisits ?? []) {
+  for (const v of visitRows ?? []) {
     visitCounts.set(v.patient_id, (visitCounts.get(v.patient_id) ?? 0) + 1);
   }
   const returningPatients = [...visitCounts.values()].filter((c) => c >= 2).length;
 
-  const { data: recentVisits } = await supabase
-    .from("emr_records")
-    .select("patient_id, created_at")
-    .in("clinic_id", clinicIds)
-    .gte("created_at", `${ninetyStr}T00:00:00`);
-
   const recentPatientIds = new Set((recentVisits ?? []).map((v) => v.patient_id));
-  const lostPatients = (allPatients ?? []).filter(
-    (p) => p.created_at < ninetyStr && !recentPatientIds.has(p.id) && visitCounts.has(p.id)
+  const lostPatients = (oldPatients ?? []).filter(
+    (p) => visitCounts.has(p.id) && !recentPatientIds.has(p.id)
   ).length;
 
-  return { newPatients, returningPatients, lostPatients };
+  return {
+    newPatients: newPatients ?? 0,
+    returningPatients,
+    lostPatients,
+  };
+}
+
+async function getLowPerformingBranch(clinicIds: string[]) {
+  const supabase = await createClient();
+  const monthStart = new Date().toISOString().slice(0, 7) + "-01";
+
+  const branchRevenues = await Promise.all(
+    clinicIds.map(async (id) => {
+      const [{ data: payments }, { data: clinic }] = await Promise.all([
+        supabase
+          .from("payments")
+          .select("amount")
+          .eq("clinic_id", id)
+          .eq("status", "completed")
+          .gte("paid_at", `${monthStart}T00:00:00`),
+        supabase.from("clinics").select("name, branch_label").eq("id", id).single(),
+      ]);
+
+      const revenue = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
+      return {
+        name: clinic?.branch_label ?? clinic?.name ?? "Branch",
+        revenue,
+      };
+    })
+  );
+
+  branchRevenues.sort((a, b) => a.revenue - b.revenue);
+  if (branchRevenues.length > 1 && branchRevenues[0].revenue < branchRevenues[branchRevenues.length - 1].revenue) {
+    return branchRevenues[0].name;
+  }
+  return null;
+}
+
+export async function getDashboardOperationsSnapshot(
+  clinicId: string
+): Promise<DashboardOperationsSnapshot> {
+  await requireRole(["clinic_owner"]);
+  const clinicIds = await getOwnerClinicIds(clinicId);
+  const operations = await getOperationsMetrics(clinicIds);
+  return {
+    operations,
+    queueStatus: buildQueueStatus(operations),
+  };
 }
 
 export async function getExecutiveDashboard(clinicId: string): Promise<ExecutiveDashboardData> {
@@ -130,66 +322,37 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
   const clinicIds = await getOwnerClinicIds(clinicId);
   const isFranchise = clinicIds.length > 1;
 
-  let revenueToday = 0;
-  let revenueThisMonth = 0;
-  let outstandingPayments = 0;
-  let outstandingCount = 0;
+  const revenueResults = await Promise.all(clinicIds.map((id) => getRevenueStats(id)));
+  const revenueToday = revenueResults.reduce((sum, rev) => sum + rev.todayRevenue, 0);
+  const revenueThisMonth = revenueResults.reduce((sum, rev) => sum + rev.monthRevenue, 0);
+  const outstandingPayments = revenueResults.reduce((sum, rev) => sum + rev.unpaidTotal, 0);
+  const outstandingCount = revenueResults.reduce((sum, rev) => sum + rev.unpaidCount, 0);
 
-  for (const id of clinicIds) {
-    const rev = await getRevenueStats(id);
-    revenueToday += rev.todayRevenue;
-    revenueThisMonth += rev.monthRevenue;
-    outstandingPayments += rev.unpaidTotal;
-    outstandingCount += rev.unpaidCount;
-  }
+  const [operations, growth, primaryInsights, healthRisks, followUps, lowPerformingBranch] =
+    await Promise.all([
+      getOperationsMetrics(clinicIds),
+      getGrowthMetrics(clinicIds),
+      getAIBillingInsights(clinicId).catch(() => []),
+      getHealthRiskFlags(clinicId).catch(() => []),
+      getFollowUpTasks(clinicId).catch(() => []),
+      isFranchise ? getLowPerformingBranch(clinicIds) : Promise.resolve(null),
+    ]);
 
-  const [operations, growth] = await Promise.all([
-    getOperationsMetrics(clinicIds),
-    getGrowthMetrics(clinicIds),
-  ]);
-
-  const primaryInsights = await getAIBillingInsights(clinicId).catch(() => []);
-  const healthRisks = await getHealthRiskFlags(clinicId).catch(() => []);
-  const followUps = await getFollowUpTasks(clinicId).catch(() => []);
   const pendingFollowUps = followUps.filter(
     (f) => !["adherence_yes", "adherence_no"].includes(f.status)
   ).length;
 
-  let lowPerformingBranch: string | null = null;
-  if (isFranchise) {
-    const supabase = await createClient();
-    const monthStart = new Date().toISOString().slice(0, 7) + "-01";
-    const branchRevenues: { name: string; revenue: number }[] = [];
+  const business = {
+    revenueToday,
+    revenueThisMonth,
+    outstandingPayments,
+    outstandingCount,
+  };
 
-    for (const id of clinicIds) {
-      const { data: payments } = await supabase
-        .from("payments")
-        .select("amount")
-        .eq("clinic_id", id)
-        .eq("status", "completed")
-        .gte("paid_at", `${monthStart}T00:00:00`);
-
-      const { data: clinic } = await supabase.from("clinics").select("name, branch_label").eq("id", id).single();
-      const revenue = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
-      branchRevenues.push({
-        name: clinic?.branch_label ?? clinic?.name ?? "Branch",
-        revenue,
-      });
-    }
-
-    branchRevenues.sort((a, b) => a.revenue - b.revenue);
-    if (branchRevenues.length > 1 && branchRevenues[0].revenue < branchRevenues[branchRevenues.length - 1].revenue) {
-      lowPerformingBranch = branchRevenues[0].name;
-    }
-  }
+  const charts = await getChartData(clinicIds, growth, operations, business);
 
   return {
-    business: {
-      revenueToday,
-      revenueThisMonth,
-      outstandingPayments,
-      outstandingCount,
-    },
+    business,
     operations,
     growth,
     aiInsights: {
@@ -198,6 +361,7 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
       highRiskPatients: healthRisks.length,
       lowPerformingBranch,
     },
+    charts,
     isFranchise,
     branchCount: clinicIds.length,
   };

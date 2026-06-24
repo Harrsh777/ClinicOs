@@ -4,7 +4,7 @@ import { ExecutiveDashboard } from "@/components/owner/executive-dashboard";
 import { getExecutiveDashboard } from "@/lib/actions/executive-dashboard";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Building2, ListOrdered } from "lucide-react";
+import { Building2, IndianRupee, ListOrdered } from "lucide-react";
 
 export default async function OwnerDashboard() {
   const profile = await requireRole(["clinic_owner"]);
@@ -14,9 +14,15 @@ export default async function OwnerDashboard() {
     <div>
       <PageHeader
         title="Executive Dashboard"
-        subtitle="The one screen clinic owners actually buy"
+        subtitle="Real-time business, operations, and growth — the one screen clinic owners actually buy"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link href="/owner/revenue">
+              <Button variant="secondary" size="sm" className="gap-2">
+                <IndianRupee className="h-4 w-4" />
+                Revenue
+              </Button>
+            </Link>
             <Link href="/owner/franchise">
               <Button variant="secondary" size="sm" className="gap-2">
                 <Building2 className="h-4 w-4" />
@@ -32,7 +38,7 @@ export default async function OwnerDashboard() {
           </div>
         }
       />
-      <ExecutiveDashboard data={data} />
+      <ExecutiveDashboard data={data} clinicId={profile.clinic_id!} />
     </div>
   );
 }

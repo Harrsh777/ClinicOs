@@ -76,6 +76,34 @@ const ROLE_DEFAULT_MODULES: Record<UserRole, Record<string, PermissionLevel>> = 
     lab: "read",
     teleconsult: "read",
   },
+  nurse: {
+    dashboard: "read",
+    patients: "read",
+    appointments: "read",
+    queue: "write",
+  },
+  pharmacist: {
+    dashboard: "read",
+    pharmacy: "write",
+    inventory: "read",
+    patients: "read",
+  },
+  lab_technician: {
+    dashboard: "read",
+    lab: "write",
+    patients: "read",
+  },
+  hr: {
+    dashboard: "read",
+    staff: "write",
+    settings: "read",
+  },
+  administrator: {
+    dashboard: "admin",
+    staff: "admin",
+    settings: "admin",
+    permissions: "admin",
+  },
 };
 
 export function resolvePermissions(
@@ -131,16 +159,34 @@ export const ASSIGNABLE_ROLES: UserRole[] = [
   "doctor",
   "receptionist",
   "finance_manager",
+  "nurse",
+  "pharmacist",
+  "lab_technician",
+  "hr",
+  "administrator",
 ];
 
 export const ASSIGNABLE_MODULES = [
+  "dashboard",
   "patients",
   "appointments",
   "queue",
+  "consultations",
+  "prescriptions",
   "billing",
   "lab",
   "insurance",
   "pharmacy",
+  "inventory",
+  "revenue",
+  "teleconsult",
+  "accounting",
+  "commissions",
+  "ai_insights",
+  "branding",
+  "franchise",
+  "staff",
+  "permissions",
   "finance",
   "settings",
 ] as const;

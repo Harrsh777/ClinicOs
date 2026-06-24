@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { updateClinicBrandingAction } from "@/lib/actions/platform-admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ interface BrandingFormProps {
 export function BrandingForm({ clinicId, branding }: BrandingFormProps) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(branding?.logo_url ?? null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,20 +38,50 @@ export function BrandingForm({ clinicId, branding }: BrandingFormProps) {
   }
 
   return (
-    <Card>
+    <Card className="p-6">
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] p-5">
+            <p className="mb-1 text-sm font-semibold">Logo preview</p>
+            <p className="mb-4 text-xs text-[var(--text-secondary)]">Used on patient portal, login surfaces, and branded documents.</p>
+            <div className="flex h-40 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-[var(--border)] bg-white">
+              {logoPreview ? (
+                <Image src={logoPreview} alt="Clinic logo preview" width={180} height={96} className="max-h-24 w-auto object-contain" unoptimized />
+              ) : (
+                <div className="text-center text-sm text-[var(--text-secondary)]">
+                  <span className="mx-auto mb-2 block h-10 w-10 rounded-2xl bg-teal-50" />
+                  Upload your clinic logo
+                </div>
+              )}
+            </div>
+            <label className="mt-4 block">
+              <span className="clinic-label">Upload Logo</span>
+              <input
+                type="file"
+                name="logoFile"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="block w-full cursor-pointer rounded-2xl border border-[var(--border)] bg-white p-3 text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-[var(--primary)] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) setLogoPreview(URL.createObjectURL(file));
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
           <Input name="tagline" label="Tagline" defaultValue={branding?.tagline ?? ""} placeholder="Your health, our priority" />
           <Input name="whatsappNumber" label="WhatsApp Business Number" defaultValue={branding?.whatsapp_number ?? ""} placeholder="+91 98765 43210" />
-          <Input name="logoUrl" label="Logo URL" defaultValue={branding?.logo_url ?? ""} placeholder="https://..." />
+          <Input name="logoUrl" label="Logo URL fallback" defaultValue={branding?.logo_url ?? ""} placeholder="https://..." />
           <Input name="customDomain" label="Custom Domain" defaultValue={branding?.custom_domain ?? ""} placeholder="clinic.example.com" />
           <div>
             <label className="clinic-label">Primary Color</label>
-            <input type="color" name="primaryColor" defaultValue={branding?.primary_color ?? "#0ea5e9"} className="mt-1 h-10 w-full rounded cursor-pointer" />
+            <input type="color" name="primaryColor" defaultValue={branding?.primary_color ?? "#0F172A"} className="mt-1 h-11 w-full cursor-pointer rounded-2xl border border-[var(--border)] bg-white p-1" />
           </div>
           <div>
             <label className="clinic-label">Secondary Color</label>
-            <input type="color" name="secondaryColor" defaultValue={branding?.secondary_color ?? "#14b8a6"} className="mt-1 h-10 w-full rounded cursor-pointer" />
+            <input type="color" name="secondaryColor" defaultValue={branding?.secondary_color ?? "#14B8A6"} className="mt-1 h-11 w-full cursor-pointer rounded-2xl border border-[var(--border)] bg-white p-1" />
+          </div>
           </div>
         </div>
 

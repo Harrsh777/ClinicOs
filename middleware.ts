@@ -1,16 +1,74 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isProfileSuspended } from "@/lib/auth/profile";
+import {
+  encodeMiddlewareProfile,
+  MIDDLEWARE_PROFILE_HEADER,
+  MIDDLEWARE_SETUP_HEADER,
+} from "@/lib/auth/middleware-profile";
 import { updateSession } from "@/lib/supabase/middleware";
-import { ROLE_ROUTES } from "@/lib/types/database";
+import { ROLE_ROUTES, type Profile } from "@/lib/types/database";
+import { getClinicFeatures, getFeatureRouteGuard, isFeatureEnabled } from "@/lib/clinic/features";
 
-const PUBLIC_ROUTES = ["/", "/login", "/signup", "/invite", "/privacy", "/terms", "/pricing"];
-const PUBLIC_PREFIXES = ["/check-in/", "/queue/", "/c/", "/api/health", "/api/webhooks/", "/api/portal/"];
+const PUBLIC_ROUTES = ["/", "/login", "/signup", "/invite", "/privacy", "/terms", "/pricing", "/forgot-password"];
+const PUBLIC_PREFIXES = ["/check-in/", "/queue/", "/c/", "/api/health", "/api/webhooks/", "/api/portal/", "/activate/", "/reset-password/"];
 
 const PLATFORM_HOSTS = ["localhost", "127.0.0.1", "clinicos"];
+
+const ROLE_PREFIXES = [
+  "/admin",
+  "/owner",
+  "/doctor",
+  "/receptionist",
+  "/finance",
+  "/nurse",
+  "/pharmacist",
+  "/lab-tech",
+  "/hr",
+  "/administrator",
+  "/patient",
+];
 
 function isPlatformHost(host: string) {
   const bare = host.split(":")[0].toLowerCase();
   return PLATFORM_HOSTS.some((h) => bare === h || bare.endsWith(`.${h}`) || bare.includes("vercel.app"));
+}
+
+function resolveSubdomainSlug(host: string): string | null {
+  const bare = host.split(":")[0].toLowerCase();
+  const platformDomain = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN?.toLowerCase();
+
+  if (platformDomain && bare.endsWith(`.${platformDomain}`)) {
+    const sub = bare.slice(0, -(platformDomain.length + 1));
+    if (sub && !["www", "app", "admin", "api"].includes(sub)) return sub;
+  }
+
+  if (bare.endsWith(".localhost")) {
+    const sub = bare.replace(".localhost", "");
+    if (sub && sub !== "localhost") return sub;
+  }
+
+  return null;
+}
+
+function attachProfileContext(
+  request: NextRequest,
+  supabaseResponse: NextResponse,
+  context: Record<string, string>
+) {
+  const requestHeaders = new Headers(request.headers);
+  for (const [key, value] of Object.entries(context)) {
+    requestHeaders.set(key, value);
+  }
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+
+  for (const cookie of supabaseResponse.cookies.getAll()) {
+    response.cookies.set(cookie.name, cookie.value, cookie);
+  }
+
+  return response;
 }
 
 export async function middleware(request: NextRequest) {
@@ -25,7 +83,17 @@ export async function middleware(request: NextRequest) {
 
   const { supabase, user, supabaseResponse } = await updateSession(request);
 
-  // Custom domain → rewrite to /c/[slug]
+  const subSlug = resolveSubdomainSlug(host);
+  if (
+    subSlug &&
+    !pathname.startsWith("/c/") &&
+    !pathname.startsWith("/api/") &&
+    !pathname.startsWith("/_next")
+  ) {
+    const target = pathname === "/" ? `/c/${subSlug}` : `/c/${subSlug}${pathname}`;
+    return NextResponse.rewrite(new URL(target, request.url));
+  }
+
   if (!pathname.startsWith("/c/") && !pathname.startsWith("/api/") && !isPlatformHost(host)) {
     const domain = host.split(":")[0].toLowerCase();
     const { data: branding } = await supabase
@@ -37,8 +105,7 @@ export async function middleware(request: NextRequest) {
     const clinic = branding?.clinics as unknown as { slug: string; status: string } | null;
     if (clinic?.status === "active") {
       const slug = clinic.slug;
-      const target =
-        pathname === "/" ? `/c/${slug}` : `/c/${slug}${pathname}`;
+      const target = pathname === "/" ? `/c/${slug}` : `/c/${slug}${pathname}`;
       return NextResponse.rewrite(new URL(target, request.url));
     }
   }
@@ -50,44 +117,75 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && (pathname === "/login" || pathname === "/")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, is_active")
-      .eq("id", user.id)
-      .maybeSingle();
+  if (!user) {
+    return supabaseResponse;
+  }
 
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const profile = profileRow as Profile | null;
+  const profileContext: Record<string, string> = profile
+    ? { [MIDDLEWARE_PROFILE_HEADER]: encodeMiddlewareProfile(profile) }
+    : {};
+
+  if (pathname === "/login" || pathname === "/") {
     if (profile && profile.is_active !== false) {
       const route = ROLE_ROUTES[profile.role as keyof typeof ROLE_ROUTES] ?? "/patient";
       return NextResponse.redirect(new URL(route, request.url));
     }
+    return attachProfileContext(request, supabaseResponse, profileContext);
   }
 
-  const rolePrefixes = ["/admin", "/owner", "/doctor", "/receptionist", "/finance", "/patient"];
-  const matchedPrefix = rolePrefixes.find((p) => pathname.startsWith(p));
+  const matchedPrefix = ROLE_PREFIXES.find((p) => pathname.startsWith(p));
+  if (!matchedPrefix) {
+    return Object.keys(profileContext).length > 0
+      ? attachProfileContext(request, supabaseResponse, profileContext)
+      : supabaseResponse;
+  }
 
-  if (user && matchedPrefix) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, is_active")
-      .eq("id", user.id)
+  if (!profile) {
+    return NextResponse.redirect(new URL("/login?error=profile_missing", request.url));
+  }
+
+  if (isProfileSuspended(profile)) {
+    return NextResponse.redirect(new URL("/login?error=account_suspended", request.url));
+  }
+
+  if (
+    profile.role === "clinic_owner" &&
+    pathname.startsWith("/owner")
+  ) {
+    const { data: clinic } = await supabase
+      .from("clinics")
+      .select("clinic_setup_completed")
+      .eq("id", profile.clinic_id!)
       .maybeSingle();
 
-    if (!profile) {
-      return NextResponse.redirect(new URL("/login?error=profile_missing", request.url));
-    }
+    profileContext[MIDDLEWARE_SETUP_HEADER] = clinic?.clinic_setup_completed ? "1" : "0";
 
-    if (isProfileSuspended(profile)) {
-      return NextResponse.redirect(new URL("/login?error=account_suspended", request.url));
-    }
-
-    const expectedPrefix = ROLE_ROUTES[profile.role as keyof typeof ROLE_ROUTES];
-    if (expectedPrefix && !pathname.startsWith(expectedPrefix)) {
-      return NextResponse.redirect(new URL(expectedPrefix, request.url));
+    if (!pathname.startsWith("/owner/onboarding") && clinic && !clinic.clinic_setup_completed) {
+      return NextResponse.redirect(new URL("/owner/onboarding", request.url));
     }
   }
 
-  return supabaseResponse;
+  const expectedPrefix = ROLE_ROUTES[profile.role as keyof typeof ROLE_ROUTES];
+  if (expectedPrefix && !pathname.startsWith(expectedPrefix)) {
+    return NextResponse.redirect(new URL(expectedPrefix, request.url));
+  }
+
+  const guard = getFeatureRouteGuard(pathname);
+  if (guard && profile.clinic_id && profile.role !== "super_admin") {
+    const { features } = await getClinicFeatures(profile.clinic_id);
+    if (!isFeatureEnabled(features, guard.feature)) {
+      return NextResponse.redirect(new URL(guard.upgradePath, request.url));
+    }
+  }
+
+  return attachProfileContext(request, supabaseResponse, profileContext);
 }
 
 export const config = {

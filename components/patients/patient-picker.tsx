@@ -93,7 +93,9 @@ export function PatientPicker({
         </div>
       )}
       {query.length >= 2 && !pending && results.length === 0 && (
-        <p className="text-xs text-[var(--text-muted)] mt-1">No patients found. Register a new patient first.</p>
+        <p className="text-xs text-[var(--text-muted)] mt-1">
+          No patients found. Try a different search or switch to New patient.
+        </p>
       )}
     </div>
   );
