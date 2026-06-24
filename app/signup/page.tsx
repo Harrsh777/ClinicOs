@@ -2,6 +2,8 @@ import { Activity, CheckCircle2 } from "lucide-react";
 import { getPublicPlans } from "@/lib/actions/signup";
 import { ClinicApplicationForm } from "@/components/signup/clinic-application-form";
 
+export const dynamic = "force-dynamic";
+
 export default async function SignupPage() {
   const plans = await getPublicPlans();
 
