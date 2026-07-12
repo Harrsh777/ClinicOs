@@ -50,6 +50,57 @@ export type DashboardOperationsSnapshot = {
   queueStatus: ExecutiveDashboardData["charts"]["queueStatus"];
 };
 
+export type RevenueChartDays = 7 | 14 | 30;
+
+function buildRevenueChartSeries(
+  days: number,
+  payments: { amount?: number | null; method?: string | null; paid_at?: string | null }[],
+  bills: { created_at?: string | null }[]
+) {
+  const formatKey = (date: Date) => date.toISOString().split("T")[0];
+  const revenueByDay = new Map<string, { date: string; revenue: number; invoices: number }>();
+
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const key = formatKey(date);
+    revenueByDay.set(key, {
+      date: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+      revenue: 0,
+      invoices: 0,
+    });
+  }
+
+  const methodTotals = new Map<string, number>();
+
+  for (const payment of payments) {
+    if (!payment.paid_at) continue;
+    const key = String(payment.paid_at).split("T")[0];
+    const day = revenueByDay.get(key);
+    if (day) day.revenue += Number(payment.amount ?? 0);
+
+    const method = String(payment.method ?? "other").replace(/_/g, " ");
+    methodTotals.set(method, (methodTotals.get(method) ?? 0) + Number(payment.amount ?? 0));
+  }
+
+  for (const bill of bills) {
+    if (!bill.created_at) continue;
+    const key = String(bill.created_at).split("T")[0];
+    const day = revenueByDay.get(key);
+    if (day) day.invoices += 1;
+  }
+
+  return {
+    dailyRevenue: Array.from(revenueByDay.values()),
+    paymentMix: Array.from(methodTotals.entries()).map(([method, amount]) => ({ method, amount })),
+  };
+}
+
+async function getDailyRevenueSeries(clinicIds: string[], days: number) {
+  const { payments, bills } = await fetchRevenueChartPayments(clinicIds, days);
+  return buildRevenueChartSeries(days, payments, bills).dailyRevenue;
+}
+
 function buildQueueStatus(operations: {
   patientsWaiting: number;
   queueInService: number;
@@ -129,15 +180,10 @@ async function getOperationsMetrics(clinicIds: string[]) {
   };
 }
 
-async function getChartData(
-  clinicIds: string[],
-  growth: { newPatients: number; returningPatients: number; lostPatients: number },
-  operations: { activeDoctors: number; totalDoctors: number; patientsWaiting: number; queueInService: number; queueCompletedToday: number },
-  business: { revenueThisMonth: number; outstandingPayments: number }
-) {
+async function fetchRevenueChartPayments(clinicIds: string[], days: number) {
   const supabase = await createClient();
   const start = new Date();
-  start.setDate(start.getDate() - 13);
+  start.setDate(start.getDate() - (days - 1));
   start.setHours(0, 0, 0, 0);
 
   const [{ data: payments }, { data: bills }] = await Promise.all([
@@ -149,50 +195,28 @@ async function getChartData(
       .gte("paid_at", start.toISOString()),
     supabase
       .from("bills")
-      .select("status, total_amount, paid_amount, created_at")
+      .select("created_at")
       .in("clinic_id", clinicIds)
       .gte("created_at", start.toISOString()),
   ]);
 
-  const formatKey = (date: Date) => date.toISOString().split("T")[0];
-  const revenueByDay = new Map<string, { date: string; revenue: number; invoices: number }>();
+  return { payments: payments ?? [], bills: bills ?? [] };
+}
 
-  for (let i = 13; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const key = formatKey(date);
-    revenueByDay.set(key, {
-      date: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
-      revenue: 0,
-      invoices: 0,
-    });
-  }
-
-  for (const payment of payments ?? []) {
-    if (!payment.paid_at) continue;
-    const key = String(payment.paid_at).split("T")[0];
-    const day = revenueByDay.get(key);
-    if (day) day.revenue += Number(payment.amount ?? 0);
-  }
-
-  for (const bill of bills ?? []) {
-    if (!bill.created_at) continue;
-    const key = String(bill.created_at).split("T")[0];
-    const day = revenueByDay.get(key);
-    if (day) day.invoices += 1;
-  }
-
-  const methodTotals = new Map<string, number>();
-  for (const payment of payments ?? []) {
-    const method = String(payment.method ?? "other").replace(/_/g, " ");
-    methodTotals.set(method, (methodTotals.get(method) ?? 0) + Number(payment.amount ?? 0));
-  }
-
+function assembleChartData(
+  days: number,
+  payments: { amount?: number | null; method?: string | null; paid_at?: string | null }[],
+  bills: { created_at?: string | null }[],
+  growth: { newPatients: number; returningPatients: number; lostPatients: number },
+  operations: { activeDoctors: number; totalDoctors: number; patientsWaiting: number; queueInService: number; queueCompletedToday: number },
+  business: { revenueThisMonth: number; outstandingPayments: number }
+) {
+  const { dailyRevenue, paymentMix } = buildRevenueChartSeries(days, payments, bills);
   const idleDoctors = Math.max(0, operations.totalDoctors - operations.activeDoctors);
 
   return {
-    dailyRevenue: Array.from(revenueByDay.values()),
-    paymentMix: Array.from(methodTotals.entries()).map(([method, amount]) => ({ method, amount })),
+    dailyRevenue,
+    paymentMix,
     collectionHealth: [
       { name: "Collected", value: business.revenueThisMonth },
       { name: "Outstanding", value: business.outstandingPayments },
@@ -224,8 +248,8 @@ async function getGrowthMetrics(clinicIds: string[]) {
 
   const [
     { count: newPatients },
-    { data: visitRows, error: emrErr },
     { data: recentVisits },
+    { data: historicalVisits },
     { data: oldPatients },
   ] = await Promise.all([
     supabase
@@ -238,12 +262,13 @@ async function getGrowthMetrics(clinicIds: string[]) {
       .from("emr_records")
       .select("patient_id")
       .in("clinic_id", clinicIds)
-      .gte("created_at", `${yearAgoStr}T00:00:00`),
+      .gte("created_at", `${ninetyStr}T00:00:00`),
     supabase
       .from("emr_records")
       .select("patient_id")
       .in("clinic_id", clinicIds)
-      .gte("created_at", `${ninetyStr}T00:00:00`),
+      .gte("created_at", `${yearAgoStr}T00:00:00`)
+      .lt("created_at", `${ninetyStr}T00:00:00`),
     supabase
       .from("patients")
       .select("id")
@@ -252,19 +277,16 @@ async function getGrowthMetrics(clinicIds: string[]) {
       .lt("created_at", ninetyStr),
   ]);
 
-  if (emrErr) {
-    return { newPatients: newPatients ?? 0, returningPatients: 0, lostPatients: 0 };
+  const recentVisitCounts = new Map<string, number>();
+  for (const visit of recentVisits ?? []) {
+    recentVisitCounts.set(visit.patient_id, (recentVisitCounts.get(visit.patient_id) ?? 0) + 1);
   }
+  const returningPatients = [...recentVisitCounts.values()].filter((count) => count >= 2).length;
 
-  const visitCounts = new Map<string, number>();
-  for (const v of visitRows ?? []) {
-    visitCounts.set(v.patient_id, (visitCounts.get(v.patient_id) ?? 0) + 1);
-  }
-  const returningPatients = [...visitCounts.values()].filter((c) => c >= 2).length;
-
-  const recentPatientIds = new Set((recentVisits ?? []).map((v) => v.patient_id));
+  const recentPatientIds = new Set((recentVisits ?? []).map((visit) => visit.patient_id));
+  const historicalPatientIds = new Set((historicalVisits ?? []).map((visit) => visit.patient_id));
   const lostPatients = (oldPatients ?? []).filter(
-    (p) => visitCounts.has(p.id) && !recentPatientIds.has(p.id)
+    (patient) => historicalPatientIds.has(patient.id) && !recentPatientIds.has(patient.id)
   ).length;
 
   return {
@@ -305,6 +327,15 @@ async function getLowPerformingBranch(clinicIds: string[]) {
   return null;
 }
 
+export async function getDashboardDailyRevenue(
+  clinicId: string,
+  days: RevenueChartDays = 14
+): Promise<ExecutiveDashboardData["charts"]["dailyRevenue"]> {
+  await requireRole(["clinic_owner"]);
+  const clinicIds = await getOwnerClinicIds(clinicId);
+  return getDailyRevenueSeries(clinicIds, days);
+}
+
 export async function getDashboardOperationsSnapshot(
   clinicId: string
 ): Promise<DashboardOperationsSnapshot> {
@@ -322,21 +353,33 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
   const clinicIds = await getOwnerClinicIds(clinicId);
   const isFranchise = clinicIds.length > 1;
 
-  const revenueResults = await Promise.all(clinicIds.map((id) => getRevenueStats(id)));
+  const chartDays = 14;
+  const chartPaymentsPromise = fetchRevenueChartPayments(clinicIds, chartDays);
+
+  const [
+    revenueResults,
+    operations,
+    growth,
+    primaryInsights,
+    healthRisks,
+    followUps,
+    lowPerformingBranch,
+    chartPayments,
+  ] = await Promise.all([
+    Promise.all(clinicIds.map((id) => getRevenueStats(id))),
+    getOperationsMetrics(clinicIds),
+    getGrowthMetrics(clinicIds),
+    getAIBillingInsights(clinicId).catch(() => []),
+    getHealthRiskFlags(clinicId).catch(() => []),
+    getFollowUpTasks(clinicId).catch(() => []),
+    isFranchise ? getLowPerformingBranch(clinicIds) : Promise.resolve(null),
+    chartPaymentsPromise,
+  ]);
+
   const revenueToday = revenueResults.reduce((sum, rev) => sum + rev.todayRevenue, 0);
   const revenueThisMonth = revenueResults.reduce((sum, rev) => sum + rev.monthRevenue, 0);
   const outstandingPayments = revenueResults.reduce((sum, rev) => sum + rev.unpaidTotal, 0);
   const outstandingCount = revenueResults.reduce((sum, rev) => sum + rev.unpaidCount, 0);
-
-  const [operations, growth, primaryInsights, healthRisks, followUps, lowPerformingBranch] =
-    await Promise.all([
-      getOperationsMetrics(clinicIds),
-      getGrowthMetrics(clinicIds),
-      getAIBillingInsights(clinicId).catch(() => []),
-      getHealthRiskFlags(clinicId).catch(() => []),
-      getFollowUpTasks(clinicId).catch(() => []),
-      isFranchise ? getLowPerformingBranch(clinicIds) : Promise.resolve(null),
-    ]);
 
   const pendingFollowUps = followUps.filter(
     (f) => !["adherence_yes", "adherence_no"].includes(f.status)
@@ -349,7 +392,14 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
     outstandingCount,
   };
 
-  const charts = await getChartData(clinicIds, growth, operations, business);
+  const charts = assembleChartData(
+    chartDays,
+    chartPayments.payments,
+    chartPayments.bills,
+    growth,
+    operations,
+    business
+  );
 
   return {
     business,

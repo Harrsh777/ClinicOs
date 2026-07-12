@@ -22,8 +22,12 @@ import { Button } from "@/components/ui/button";
 import type {
   DashboardOperationsSnapshot,
   ExecutiveDashboardData,
+  RevenueChartDays,
 } from "@/lib/actions/executive-dashboard";
-import { getDashboardOperationsSnapshot } from "@/lib/actions/executive-dashboard";
+import {
+  getDashboardDailyRevenue,
+  getDashboardOperationsSnapshot,
+} from "@/lib/actions/executive-dashboard";
 import {
   IndianRupee,
   Clock,
@@ -46,6 +50,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const CHART_COLORS = ["#14B8A6", "#3B82F6", "#06B6D4", "#F59E0B", "#8B5CF6", "#EF4444"];
+const REVENUE_PERIODS: RevenueChartDays[] = [7, 14, 30];
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -244,16 +249,53 @@ function ChartLegend({ items }: { items: { color: string; label: string }[] }) {
   );
 }
 
+function PeriodToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: RevenueChartDays;
+  onChange: (days: RevenueChartDays) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      className="flex rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-0.5"
+      role="group"
+      aria-label="Revenue chart period"
+    >
+      {REVENUE_PERIODS.map((days) => (
+        <button
+          key={days}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(days)}
+          className={cn(
+            "rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50",
+            value === days
+              ? "bg-white text-[var(--text-primary)] shadow-sm"
+              : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+          )}
+        >
+          {days}d
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SectionCard({
   title,
   subtitle,
   badge,
+  actions,
   children,
   className,
 }: {
   title: string;
   subtitle?: string;
   badge?: React.ReactNode;
+  actions?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -266,7 +308,12 @@ function SectionCard({
             <p className="mt-0.5 text-sm text-[var(--text-secondary)]">{subtitle}</p>
           )}
         </div>
-        {badge}
+        {(actions || badge) && (
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            {actions}
+            {badge}
+          </div>
+        )}
       </div>
       <div className="p-6">{children}</div>
     </Card>
@@ -357,6 +404,9 @@ export function ExecutiveDashboard({
 }) {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const [revenueDays, setRevenueDays] = useState<RevenueChartDays>(14);
+  const [dailyRevenue, setDailyRevenue] = useState(data.charts.dailyRevenue);
+  const [revenueLoading, setRevenueLoading] = useState(false);
   const [liveOps, setLiveOps] = useState<DashboardOperationsSnapshot>({
     operations: data.operations,
     queueStatus: data.charts.queueStatus,
@@ -370,8 +420,10 @@ export function ExecutiveDashboard({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      void refreshOperations();
-    }, 120_000);
+      if (document.visibilityState === "visible") {
+        void refreshOperations();
+      }
+    }, 180_000);
     return () => clearInterval(interval);
   }, [refreshOperations]);
 
@@ -382,10 +434,25 @@ export function ExecutiveDashboard({
     });
   };
 
+  const handleRevenuePeriodChange = useCallback(
+    async (days: RevenueChartDays) => {
+      if (days === revenueDays) return;
+      setRevenueDays(days);
+      setRevenueLoading(true);
+      try {
+        const series = await getDashboardDailyRevenue(clinicId, days);
+        setDailyRevenue(series);
+      } finally {
+        setRevenueLoading(false);
+      }
+    },
+    [clinicId, revenueDays]
+  );
+
   const operations = liveOps.operations;
   const queueStatus = liveOps.queueStatus;
 
-  const hasRevenue = data.charts.dailyRevenue.some((d) => d.revenue > 0);
+  const hasRevenue = dailyRevenue.some((d) => d.revenue > 0);
   const hasPaymentMix = data.charts.paymentMix.some((d) => d.amount > 0);
   const hasCollection = data.charts.collectionHealth.some((d) => d.value > 0);
   const totalPatients =
@@ -488,7 +555,14 @@ export function ExecutiveDashboard({
         <SectionCard
           className="xl:col-span-8"
           title="Revenue momentum"
-          subtitle="Daily collections over the last 14 days"
+          subtitle={`Daily collections over the last ${revenueDays} days`}
+          actions={
+            <PeriodToggle
+              value={revenueDays}
+              onChange={handleRevenuePeriodChange}
+              disabled={revenueLoading}
+            />
+          }
           badge={
             <Badge variant="success" className="gap-1.5">
               <Activity className="h-3 w-3" />
@@ -496,10 +570,15 @@ export function ExecutiveDashboard({
             </Badge>
           }
         >
-          <div className="h-[300px] sm:h-[340px]">
+          <div className="relative h-[300px] sm:h-[340px]">
+            {revenueLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/60">
+                <RefreshCw className="h-5 w-5 animate-spin text-[var(--text-muted)]" />
+              </div>
+            )}
             {hasRevenue ? (
               <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={data.charts.dailyRevenue} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+                <AreaChart data={dailyRevenue} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="execRevenueGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#14B8A6" stopOpacity={0.28} />

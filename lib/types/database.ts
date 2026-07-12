@@ -54,6 +54,12 @@ export type ApplicationStatus = "pending" | "approved" | "rejected";
 
 export type DemoRequestStatus = "new" | "contacted" | "scheduled" | "closed" | "cancelled";
 
+export interface DemoRequestClientMetadata {
+  timezone?: string | null;
+  screen_resolution?: string | null;
+  submitted_at_client?: string;
+}
+
 export interface DemoRequest {
   id: string;
   clinic_name: string;
@@ -75,7 +81,7 @@ export interface DemoRequest {
   user_agent: string | null;
   referer: string | null;
   accept_language: string | null;
-  client_metadata: Record<string, unknown>;
+  client_metadata: DemoRequestClientMetadata;
   reviewed_by: string | null;
   reviewed_at: string | null;
   created_at: string;

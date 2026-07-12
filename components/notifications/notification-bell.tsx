@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  getNotificationsAction,
-  getUnreadNotificationCountAction,
+  getNotificationBellStateAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/lib/actions/notifications";
@@ -28,18 +27,19 @@ export function NotificationBell() {
 
   const refresh = useCallback(() => {
     startTransition(async () => {
-      const [count, list] = await Promise.all([
-        getUnreadNotificationCountAction(),
-        getNotificationsAction(20),
-      ]);
-      setUnread(count);
-      setItems(list as NotificationRow[]);
+      const { unread: nextUnread, items: nextItems } = await getNotificationBellStateAction(20);
+      setUnread(nextUnread);
+      setItems(nextItems as NotificationRow[]);
     });
   }, []);
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 60_000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    }, 120_000);
     return () => clearInterval(interval);
   }, [refresh]);
 
