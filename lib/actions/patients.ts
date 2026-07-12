@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/session";
+import { logAuditEvent } from "@/lib/auth/audit";
+import { generatePatientCode } from "@/lib/db/sequences";
+import { createServiceClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
 const patientSchema = z.object({
@@ -40,12 +43,8 @@ export async function createPatientAction(formData: FormData) {
   if (!parsed.success) return { error: "Please fill required fields" };
 
   const supabase = await createClient();
-  const count = await supabase
-    .from("patients")
-    .select("id", { count: "exact", head: true })
-    .eq("clinic_id", profile.clinic_id);
-
-  const patientCode = `P${String((count.count ?? 0) + 1).padStart(4, "0")}`;
+  const service = await createServiceClient();
+  const patientCode = await generatePatientCode(service, profile.clinic_id);
 
   const { data, error } = await supabase
     .from("patients")
@@ -70,12 +69,12 @@ export async function createPatientAction(formData: FormData) {
 
   if (error) return { error: error.message };
 
-  await supabase.from("audit_logs").insert({
-    clinic_id: profile.clinic_id,
-    actor_id: profile.id,
+  await logAuditEvent({
+    clinicId: profile.clinic_id,
+    actorId: profile.id,
     action: "create",
-    entity_type: "patient",
-    entity_id: data.id,
+    entityType: "patient",
+    entityId: data.id,
   });
 
   revalidatePath("/receptionist/patients");
@@ -184,12 +183,8 @@ export async function resolveOrCreateClinicPatient(
     };
   }
 
-  const { count } = await supabase
-    .from("patients")
-    .select("id", { count: "exact", head: true })
-    .eq("clinic_id", clinicId);
-
-  const patientCode = `P${String((count ?? 0) + 1).padStart(4, "0")}`;
+  const service = await createServiceClient();
+  const patientCode = await generatePatientCode(service, clinicId);
 
   const { data: newPatient, error } = await supabase
     .from("patients")
@@ -206,12 +201,12 @@ export async function resolveOrCreateClinicPatient(
 
   if (error) throw new Error(error.message);
 
-  await supabase.from("audit_logs").insert({
-    clinic_id: clinicId,
-    actor_id: actorId,
+  await logAuditEvent({
+    clinicId,
+    actorId,
     action: "create",
-    entity_type: "patient",
-    entity_id: newPatient.id,
+    entityType: "patient",
+    entityId: newPatient.id,
   });
 
   return { patientId: newPatient.id, patientCode, isExisting: false };
@@ -420,5 +415,61 @@ export async function getPatientDetail(patientId: string) {
     allergies: allergies.data ?? [],
     history: history.data,
     documents: documents.data ?? [],
+  };
+}
+
+export async function getPatientSummary(patientId: string, clinicId: string) {
+  const supabase = await createClient();
+
+  const [
+    { data: patient },
+    { data: appointments },
+    { data: prescriptions },
+    { data: emrRecords },
+    { data: bills },
+    { data: documents },
+  ] = await Promise.all([
+    supabase.from("patients").select("*").eq("id", patientId).eq("clinic_id", clinicId).single(),
+    supabase
+      .from("appointments")
+      .select("id, appointment_date, appointment_time, status, consultation_type, appointment_number, booking_symptoms, booking_notes, doctors(profiles(full_name))")
+      .eq("patient_id", patientId)
+      .order("appointment_date", { ascending: false })
+      .limit(10),
+    supabase
+      .from("prescriptions")
+      .select("id, created_at, doctors(profiles(full_name))")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("emr_records")
+      .select("id, visit_number, created_at, summary")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("bills")
+      .select("id, invoice_number, total_amount, paid_amount, status, created_at")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("patient_documents")
+      .select("id, name, document_type, created_at")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
+
+  if (!patient) return null;
+
+  return {
+    patient,
+    appointments: appointments ?? [],
+    prescriptions: prescriptions ?? [],
+    emrRecords: emrRecords ?? [],
+    bills: bills ?? [],
+    documents: documents ?? [],
   };
 }

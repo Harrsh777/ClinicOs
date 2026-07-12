@@ -13,31 +13,23 @@ interface ApplicationActionsProps {
 export function ApplicationActions({ applicationId, planId }: ApplicationActionsProps) {
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [activationInfo, setActivationInfo] = useState<{
-    clinicCode?: string;
-    staffCode?: string;
-    activationUrl?: string;
-  } | null>(null);
+  const [manualCreds, setManualCreds] = useState<{ clinicCode?: string; tempPassword?: string } | null>(null);
 
   async function handleApprove() {
     setLoading("approve");
     setMessage(null);
-    setActivationInfo(null);
+    setManualCreds(null);
     const fd = new FormData();
     fd.set("applicationId", applicationId);
     if (planId) fd.set("planId", planId);
     const result = await approveClinicApplicationAction(fd);
     if (result?.error) setMessage({ type: "error", text: result.error });
     else {
-      const parts = [`Clinic approved! Clinic ID: ${result.clinicCode}, Owner ID: ${result.staffCode}`];
-      if (result.emailSent) parts.push("Activation link emailed to owner.");
-      else if (result.activationUrl) {
-        parts.push("Email not sent — share activation link manually:");
-        setActivationInfo({
-          clinicCode: result.clinicCode,
-          staffCode: result.staffCode,
-          activationUrl: result.activationUrl,
-        });
+      const parts = [`Clinic approved! Clinic ID: ${result.clinicCode}`];
+      if (result.emailSent) parts.push("Credentials emailed to owner.");
+      else if (result.tempPassword) {
+        parts.push("Email not sent — share credentials manually:");
+        setManualCreds({ clinicCode: result.clinicCode, tempPassword: result.tempPassword });
       }
       setMessage({ type: "success", text: parts.join(" ") });
     }
@@ -64,11 +56,10 @@ export function ApplicationActions({ applicationId, planId }: ApplicationActions
           {message.text}
         </Alert>
       )}
-      {activationInfo && (
+      {manualCreds && (
         <div className="rounded-lg bg-[var(--surface-2)] p-3 text-xs font-mono space-y-1">
-          <p>Clinic ID: {activationInfo.clinicCode}</p>
-          <p>Owner ID: {activationInfo.staffCode}</p>
-          <p className="break-all">Activation: {activationInfo.activationUrl}</p>
+          {manualCreds.clinicCode && <p>Clinic ID: {manualCreds.clinicCode}</p>}
+          {manualCreds.tempPassword && <p>Password: {manualCreds.tempPassword}</p>}
         </div>
       )}
       <div className="flex gap-2">

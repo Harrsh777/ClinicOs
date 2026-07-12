@@ -397,9 +397,15 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
         items: [
           { key: "clinics", name: "Clinics", path: "/clinics", moduleKey: "clinics" },
           {
+            key: "demo-requests",
+            name: "Demo Requests",
+            path: "/demo-requests",
+            moduleKey: "demo_requests",
+          },
+          {
             key: "applications",
-            name: "Applications",
-            path: "/applications",
+            name: "Pending Registrations",
+            path: "/clinics?status=pending",
             moduleKey: "clinics",
           },
         ],

@@ -13,6 +13,7 @@ import { resolveClinicFromCode } from "@/lib/auth/clinic-login";
 import { getPublicClinicBySlug } from "@/lib/portal/clinic-public";
 import { requirePortalSession } from "@/lib/portal/session";
 import { logAuditEvent } from "@/lib/auth/audit";
+import { generatePatientCode } from "@/lib/db/sequences";
 import { ROLE_ROUTES } from "@/lib/types/database";
 import { z } from "zod";
 
@@ -51,12 +52,7 @@ async function upsertPatientRecord(
     return existing;
   }
 
-  const { count } = await service
-    .from("patients")
-    .select("id", { count: "exact", head: true })
-    .eq("clinic_id", clinicId);
-
-  const patientCode = `P${String((count ?? 0) + 1).padStart(4, "0")}`;
+  const patientCode = await generatePatientCode(service, clinicId);
   const { data, error } = await service
     .from("patients")
     .insert({
@@ -125,14 +121,18 @@ export async function registerPatientAccountAction(input: {
 
   await service
     .from("profiles")
-    .update({
-      role: "patient",
-      clinic_id: clinic.id,
-      full_name: parsed.data.fullName,
-      phone,
-      email: authEmail,
-    })
-    .eq("id", authUser.user.id);
+    .upsert(
+      {
+        id: authUser.user.id,
+        role: "patient",
+        clinic_id: clinic.id,
+        full_name: parsed.data.fullName,
+        phone,
+        email: authEmail,
+        is_active: true,
+      },
+      { onConflict: "id" }
+    );
 
   await service
     .from("patients")
@@ -156,11 +156,11 @@ export async function registerPatientAccountAction(input: {
     password: parsed.data.password,
   });
 
-  if (signInError) {
-    return { success: true, requiresLogin: true };
-  }
-
-  redirect("/patient");
+  return {
+    success: true,
+    signedIn: !signInError,
+    requiresLogin: Boolean(signInError),
+  };
 }
 
 export async function patientPortalLoginAction(input: {
@@ -222,7 +222,7 @@ export async function patientPortalLoginAction(input: {
     device_label: "Patient portal",
   });
 
-  redirect("/patient");
+  return { success: true, signedIn: true };
 }
 
 export async function patientOtpLoginAction(clinicSlug: string, phone: string) {

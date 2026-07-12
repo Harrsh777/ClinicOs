@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { getPatients } from "@/lib/actions/patients";
-import { PageHeader, EmptyState } from "@/components/ui/card";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { PageHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatPhone } from "@/lib/utils";
 import { PatientSearch } from "@/components/patients/patient-search";
-import { Users } from "lucide-react";
+import { PatientListTable } from "@/components/patients/patient-list-table";
 
 export default async function OwnerPatientsPage({
   searchParams,
@@ -21,7 +19,7 @@ export default async function OwnerPatientsPage({
     <div>
       <PageHeader
         title="Patients"
-        subtitle="Search and manage patient records"
+        subtitle={`${patients.length} patient${patients.length !== 1 ? "s" : ""} registered at your clinic`}
         action={
           <Link href="/owner/patients/new">
             <Button>Register Patient</Button>
@@ -29,45 +27,14 @@ export default async function OwnerPatientsPage({
         }
       />
       <PatientSearch defaultValue={q} basePath="/owner/patients" />
-      {patients.length === 0 ? (
-        <EmptyState
-          icon={<Users />}
-          title="No patients found"
-          description="Register your first patient to get started"
-          action={
-            <Link href="/owner/patients/new">
-              <Button>Register Patient</Button>
-            </Link>
-          }
+      <div className="mt-4">
+        <PatientListTable
+          patients={patients}
+          basePath="/owner/patients"
+          canRegister
+          registerHref="/owner/patients/new"
         />
-      ) : (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Phone</TableHead>
-            <TableHead>Gender</TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {patients.map((p) => (
-            <TableRow key={p.id}>
-              <TableCell>{p.full_name}</TableCell>
-              <TableCell>{formatPhone(p.phone)}</TableCell>
-              <TableCell className="capitalize">{p.gender ?? "—"}</TableCell>
-              <TableCell>
-                <Link href={`/owner/patients/${p.id}`}>
-                  <Button size="sm" variant="secondary">
-                    View
-                  </Button>
-                </Link>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      )}
+      </div>
     </div>
   );
 }

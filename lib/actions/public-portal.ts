@@ -9,7 +9,301 @@ import { requirePortalSession } from "@/lib/portal/session";
 import { getPublicClinicBySlug } from "@/lib/portal/clinic-public";
 import { getCurrentTimeInClinicTz, getTodayDateInClinicTz } from "@/lib/portal/clinic-hours";
 import { validateWalkInRequest, getPortalQueueStats } from "@/lib/portal/walk-in";
+import { upsertPortalPatientFull, type PortalPatientInput } from "@/lib/portal/patient-upsert";
+import { isSlotAvailable } from "@/lib/portal/slots";
+import { generateBookingId, reserveAppointmentSlot } from "@/lib/db/sequences";
+import { sanitizeText } from "@/lib/security/sanitize";
+import { notifyBookingCreated, notifyPaymentReceived } from "@/lib/notifications/service";
 import { z } from "zod";
+
+const publicBookSchema = z.object({
+  clinicSlug: z.string().min(1),
+  doctorId: z.string().uuid(),
+  date: z.string(),
+  time: z.string(),
+  consultationType: z.enum(["normal", "emergency", "video"]).default("normal"),
+  paymentMode: z.enum(["online", "at_clinic"]).default("online"),
+  fullName: z.string().min(2),
+  phone: z.string().min(10),
+  email: z.string().email().optional().or(z.literal("")),
+  age: z.coerce.number().int().min(0).max(120).optional(),
+  gender: z.string().optional(),
+  heightCm: z.coerce.number().optional(),
+  weightKg: z.coerce.number().optional(),
+  bloodGroup: z.string().optional(),
+  address: z.string().optional(),
+  symptoms: z.string().optional(),
+  medicalConditions: z.string().optional(),
+  allergies: z.string().optional(),
+  currentMedicines: z.string().optional(),
+  occupation: z.string().optional(),
+  insurance: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+async function getFeeForConsultationType(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  clinicId: string,
+  doctorId: string,
+  consultationType: "normal" | "emergency" | "video"
+) {
+  const [{ data: doctor }, { data: clinic }, { data: billing }] = await Promise.all([
+    service.from("doctors").select("consultation_fee").eq("id", doctorId).single(),
+    service.from("clinics").select("consultation_fee_default").eq("id", clinicId).single(),
+    service.from("clinic_billing_settings").select("emergency_consultation_fee, video_consultation_fee").eq("clinic_id", clinicId).maybeSingle(),
+  ]);
+
+  const base = Number(doctor?.consultation_fee ?? clinic?.consultation_fee_default ?? 500);
+  if (consultationType === "emergency") return Number(billing?.emergency_consultation_fee ?? base * 1.5);
+  if (consultationType === "video") return Number(billing?.video_consultation_fee ?? base * 0.8);
+  return base;
+}
+
+/** Phase 2 public booking — no OTP required */
+export async function createPublicBookingAction(input: z.infer<typeof publicBookSchema>) {
+  const parsed = publicBookSchema.safeParse(input);
+  if (!parsed.success) return { error: "Invalid booking details" };
+
+  const clinic = await getPublicClinicBySlug(parsed.data.clinicSlug);
+  if (!clinic) return { error: "Clinic not found or booking not enabled" };
+
+  const service = await createServiceClient();
+
+  const { data: doctor } = await service
+    .from("doctors")
+    .select("id")
+    .eq("id", parsed.data.doctorId)
+    .eq("clinic_id", clinic.id)
+    .single();
+
+  if (!doctor) return { error: "Doctor not found" };
+
+  const slotOk = await isSlotAvailable(
+    parsed.data.doctorId,
+    clinic.id,
+    parsed.data.date,
+    parsed.data.time,
+    parsed.data.consultationType
+  );
+  if (!slotOk) return { error: "This slot is no longer available. Please choose another time." };
+
+  const fee = await getFeeForConsultationType(
+    service,
+    clinic.id,
+    parsed.data.doctorId,
+    parsed.data.consultationType
+  );
+
+  try {
+    const patientInput: PortalPatientInput = {
+      fullName: sanitizeText(parsed.data.fullName, 120),
+      phone: parsed.data.phone,
+      email: parsed.data.email || undefined,
+      age: parsed.data.age,
+      gender: parsed.data.gender,
+      heightCm: parsed.data.heightCm,
+      weightKg: parsed.data.weightKg,
+      bloodGroup: parsed.data.bloodGroup,
+      address: sanitizeText(parsed.data.address, 500),
+      symptoms: sanitizeText(parsed.data.symptoms, 2000),
+      medicalConditions: sanitizeText(parsed.data.medicalConditions, 2000),
+      allergies: sanitizeText(parsed.data.allergies, 1000),
+      currentMedicines: sanitizeText(parsed.data.currentMedicines, 1000),
+      occupation: sanitizeText(parsed.data.occupation, 120),
+      insurance: sanitizeText(parsed.data.insurance, 200),
+      notes: sanitizeText(parsed.data.notes, 2000),
+    };
+
+    const patientResult = await upsertPortalPatientFull(service, clinic.id, patientInput);
+    const aptType = parsed.data.consultationType === "emergency" ? "emergency" : "scheduled";
+    const priority = parsed.data.consultationType === "emergency" ? "emergency" : "normal";
+
+    const reservation = await reserveAppointmentSlot(service, {
+      clinicId: clinic.id,
+      patientId: patientResult.patientId,
+      doctorId: parsed.data.doctorId,
+      date: parsed.data.date,
+      time: parsed.data.time,
+      consultationType: parsed.data.consultationType,
+      paymentMode: parsed.data.paymentMode,
+      priority,
+      aptType,
+    });
+
+    if (!reservation.ok) return { error: reservation.error };
+
+    const { appointmentId, appointmentNumber } = reservation.reservation;
+    const bookingNotes = [
+      patientInput.notes,
+      patientInput.currentMedicines ? `Medicines: ${patientInput.currentMedicines}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n") || null;
+
+    await service
+      .from("appointments")
+      .update({
+        booking_symptoms: patientInput.symptoms || null,
+        booking_notes: bookingNotes,
+        notes: `Booked via public portal${patientResult.isReturning ? " (returning patient)" : ""}`,
+      })
+      .eq("id", appointmentId);
+
+    const { visitCode, bookingId, signature } = await generateCodes(service);
+    const receiptNumber = `RCP-${bookingId.slice(-8)}`;
+
+    const { data: visit, error: visitErr } = await service
+      .from("clinic_visits")
+      .insert({
+        visit_code: visitCode,
+        booking_id: bookingId,
+        clinic_id: clinic.id,
+        patient_id: patientResult.patientId,
+        appointment_id: appointmentId,
+        visit_type: aptType,
+        payment_status: parsed.data.paymentMode === "at_clinic" ? "pending" : "pending",
+        check_in_status: "scheduled",
+        qr_signature: signature,
+        receipt_number: receiptNumber,
+      })
+      .select()
+      .single();
+
+    if (visitErr) {
+      await service
+        .from("appointments")
+        .update({ status: "cancelled", notes: "Booking failed during visit creation" })
+        .eq("id", appointmentId);
+      return { error: visitErr.message };
+    }
+
+    if (patientResult.isReturning) {
+      const { data: p } = await service.from("patients").select("visit_count").eq("id", patientResult.patientId).single();
+      await service
+        .from("patients")
+        .update({
+          visit_count: (p?.visit_count ?? 0) + 1,
+          last_visit_at: new Date().toISOString(),
+          next_appointment_at: `${parsed.data.date}T${parsed.data.time}`,
+        })
+        .eq("id", patientResult.patientId);
+    } else {
+      await service
+        .from("patients")
+        .update({
+          visit_count: 1,
+          last_visit_at: new Date().toISOString(),
+          next_appointment_at: `${parsed.data.date}T${parsed.data.time}`,
+        })
+        .eq("id", patientResult.patientId);
+    }
+
+    if (parsed.data.paymentMode === "at_clinic") {
+      const { data: bill } = await service
+        .from("bills")
+        .insert({
+          clinic_id: clinic.id,
+          patient_id: patientResult.patientId,
+          invoice_number: `INV-PENDING-${bookingId.slice(-6)}`,
+          status: "unpaid",
+          subtotal: fee,
+          tax_amount: 0,
+          total_amount: fee,
+          paid_amount: 0,
+          patient_amount: fee,
+          notes: `Pay at clinic — ${bookingId}`,
+        })
+        .select()
+        .single();
+
+      revalidatePath("/receptionist/appointments");
+      revalidatePath("/owner/appointments");
+
+      const { data: doctorProfile } = await service
+        .from("doctors")
+        .select("profiles(full_name)")
+        .eq("id", parsed.data.doctorId)
+        .single();
+
+      await notifyBookingCreated({
+        clinicId: clinic.id,
+        patientName: patientInput.fullName,
+        bookingId,
+        appointmentNumber,
+        doctorName: (doctorProfile?.profiles as unknown as { full_name: string } | null)?.full_name,
+        date: parsed.data.date,
+        time: parsed.data.time,
+      });
+
+      return {
+        success: true,
+        payAtClinic: true,
+        bookingId,
+        appointmentNumber,
+        receiptNumber,
+        visitId: visit.id,
+        patientId: patientResult.patientId,
+        patientCode: patientResult.patientCode,
+        isReturning: patientResult.isReturning,
+        fee,
+        billId: bill?.id,
+      };
+    }
+
+    const checkout = await createPortalCheckout(service, {
+      clinicId: clinic.id,
+      clinicName: clinic.name,
+      clinicSlug: clinic.slug,
+      patientId: patientResult.patientId,
+      visitId: visit.id,
+      appointmentId,
+      bookingId,
+      doctorId: parsed.data.doctorId,
+      fee,
+      lineDescription: `${parsed.data.consultationType} consultation (Online Booking)`,
+      paymentNote: `Portal booking ${bookingId}`,
+    });
+
+    if (checkout.error) {
+      await service
+        .from("appointments")
+        .update({ status: "cancelled", notes: "Payment checkout failed" })
+        .eq("id", appointmentId);
+      return { error: checkout.error };
+    }
+
+    revalidatePath("/receptionist/appointments");
+    revalidatePath("/owner/appointments");
+
+    const { data: doctorProfile } = await service
+      .from("doctors")
+      .select("profiles(full_name)")
+      .eq("id", parsed.data.doctorId)
+      .single();
+
+    await notifyBookingCreated({
+      clinicId: clinic.id,
+      patientName: patientInput.fullName,
+      bookingId,
+      appointmentNumber,
+      doctorName: (doctorProfile?.profiles as unknown as { full_name: string } | null)?.full_name,
+      date: parsed.data.date,
+      time: parsed.data.time,
+    });
+
+    return {
+      ...checkout,
+      appointmentNumber,
+      receiptNumber,
+      patientId: patientResult.patientId,
+      patientCode: patientResult.patientCode,
+      isReturning: patientResult.isReturning,
+      bookingType: "scheduled" as const,
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Booking failed" };
+  }
+}
 
 const bookSchema = z.object({
   clinicSlug: z.string().min(1),
@@ -27,9 +321,9 @@ const walkInSchema = z.object({
   doctorId: z.string().uuid().optional(),
 });
 
-async function generateCodes() {
+async function generateCodes(service: Awaited<ReturnType<typeof createServiceClient>>) {
   const visitCode = `VIS-${Date.now().toString(36).toUpperCase().slice(-5)}`;
-  const bookingId = `BK-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 9000 + 1000)}`;
+  const bookingId = await generateBookingId(service);
   return { visitCode, bookingId, signature: signVisit(visitCode) };
 }
 
@@ -316,7 +610,7 @@ export async function createPortalBookingAction(input: z.infer<typeof bookSchema
 
     if (aptErr) return { error: aptErr.message };
 
-    const { visitCode, bookingId, signature } = await generateCodes();
+    const { visitCode, bookingId, signature } = await generateCodes(service);
 
     const { data: visit, error: visitErr } = await service
       .from("clinic_visits")
@@ -411,7 +705,7 @@ export async function createPortalWalkInAction(input: z.infer<typeof walkInSchem
 
     if (aptErr) return { error: aptErr.message };
 
-    const { visitCode, bookingId, signature } = await generateCodes();
+    const { visitCode, bookingId, signature } = await generateCodes(service);
 
     const { data: visit, error: visitErr } = await service
       .from("clinic_visits")
@@ -495,29 +789,38 @@ export async function fulfillPortalPayment(
 
   if (!visit) return { error: "Visit not found" };
 
-  if (visit.payment_status === "paid" && visit.queue_token_id) {
+  if (visit.payment_status === "paid") {
     return { success: true, tokenLabel: visit.token_label, bookingId: visit.booking_id };
   }
 
   const { data: bill } = await service.from("bills").select("*").eq("id", billId).single();
   if (!bill) return { error: "Bill not found" };
 
-  await service
+  const { data: existingPayment } = await service
     .from("payments")
-    .update({
-      status: "completed",
-      gateway_ref: gatewayRef,
-      receipt_number: `RZP-${gatewayRef.slice(-8).toUpperCase()}`,
-      paid_at: new Date().toISOString(),
-    })
+    .select("id, status")
     .eq("bill_id", billId)
-    .eq("status", "pending");
+    .eq("status", "completed")
+    .maybeSingle();
 
-  const newPaid = Number(bill.paid_amount) + amount;
-  await service
-    .from("bills")
-    .update({ paid_amount: newPaid, status: deriveBillStatus(Number(bill.total_amount), newPaid) })
-    .eq("id", billId);
+  if (!existingPayment) {
+    await service
+      .from("payments")
+      .update({
+        status: "completed",
+        gateway_ref: gatewayRef,
+        receipt_number: `RZP-${gatewayRef.slice(-8).toUpperCase()}`,
+        paid_at: new Date().toISOString(),
+      })
+      .eq("bill_id", billId)
+      .eq("status", "pending");
+
+    const newPaid = Math.min(Number(bill.total_amount), Number(bill.paid_amount) + amount);
+    await service
+      .from("bills")
+      .update({ paid_amount: newPaid, status: deriveBillStatus(Number(bill.total_amount), newPaid) })
+      .eq("id", billId);
+  }
 
   await service.from("clinic_visits").update({ payment_status: "paid" }).eq("id", visitId);
 
@@ -569,6 +872,20 @@ export async function fulfillPortalPayment(
   revalidatePath("/receptionist/queue");
   revalidatePath("/owner/queue");
 
+  const { data: patient } = await service
+    .from("patients")
+    .select("full_name")
+    .eq("id", visit.patient_id)
+    .maybeSingle();
+
+  await notifyPaymentReceived({
+    clinicId: visit.clinic_id,
+    patientName: patient?.full_name ?? "Patient",
+    amount,
+    bookingId: visit.booking_id ?? undefined,
+    invoiceNumber: bill.invoice_number,
+  });
+
   return { success: true, tokenLabel, bookingId: visit.booking_id };
 }
 
@@ -614,7 +931,7 @@ export async function getPortalBookingStatus(bookingId: string, clinicSlug: stri
   const { data } = await service
     .from("clinic_visits")
     .select(
-      "booking_id, token_label, payment_status, check_in_status, visit_code, qr_signature, visit_type, queue_token_id, appointments(appointment_date, appointment_time, type, doctors(profiles(full_name)))"
+      "booking_id, token_label, payment_status, check_in_status, visit_code, qr_signature, visit_type, queue_token_id, receipt_number, appointments(appointment_number, appointment_date, appointment_time, consultation_type, type, doctors(profiles(full_name)))"
     )
     .eq("booking_id", bookingId.toUpperCase())
     .eq("clinic_id", clinic.id)

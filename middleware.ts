@@ -8,8 +8,9 @@ import {
 import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_ROUTES, type Profile } from "@/lib/types/database";
 import { getClinicFeatures, getFeatureRouteGuard, isFeatureEnabled } from "@/lib/clinic/features";
+import { isShortClinicPortalPath, resolveAnyShortClinicPath } from "@/lib/portal/public-urls";
 
-const PUBLIC_ROUTES = ["/", "/login", "/signup", "/invite", "/privacy", "/terms", "/pricing", "/forgot-password"];
+const PUBLIC_ROUTES = ["/", "/login", "/signup", "/register", "/invite", "/privacy", "/terms", "/pricing", "/forgot-password"];
 const PUBLIC_PREFIXES = ["/check-in/", "/queue/", "/c/", "/api/health", "/api/webhooks/", "/api/portal/", "/activate/", "/reset-password/"];
 
 const PLATFORM_HOSTS = ["localhost", "127.0.0.1", "clinicos"];
@@ -78,6 +79,7 @@ export async function middleware(request: NextRequest) {
   const isPublic =
     PUBLIC_ROUTES.includes(pathname) ||
     PUBLIC_PREFIXES.some((p) => pathname.startsWith(p)) ||
+    isShortClinicPortalPath(pathname) ||
     pathname.startsWith("/invite/") ||
     pathname.startsWith("/api/cron/");
 
@@ -94,16 +96,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(new URL(target, request.url));
   }
 
+  // localhost:3002/{clinicSlug}/booking → /c/{clinicSlug}/bookings (public, no login)
+  const shortPortalTarget = resolveAnyShortClinicPath(pathname);
+  if (
+    shortPortalTarget &&
+    isPlatformHost(host) &&
+    !pathname.startsWith("/c/") &&
+    !pathname.startsWith("/api/") &&
+    !pathname.startsWith("/_next")
+  ) {
+    return NextResponse.rewrite(new URL(shortPortalTarget, request.url));
+  }
+
   if (!pathname.startsWith("/c/") && !pathname.startsWith("/api/") && !isPlatformHost(host)) {
     const domain = host.split(":")[0].toLowerCase();
     const { data: branding } = await supabase
       .from("clinic_branding")
-      .select("clinics!inner(slug, status)")
+      .select("clinics!inner(slug, status, portal_enabled)")
       .eq("custom_domain", domain)
       .maybeSingle();
 
-    const clinic = branding?.clinics as unknown as { slug: string; status: string } | null;
-    if (clinic?.status === "active") {
+    const clinic = branding?.clinics as unknown as { slug: string; status: string; portal_enabled?: boolean } | null;
+    if (clinic?.status === "active" && clinic.portal_enabled !== false) {
       const slug = clinic.slug;
       const target = pathname === "/" ? `/c/${slug}` : `/c/${slug}${pathname}`;
       return NextResponse.rewrite(new URL(target, request.url));
@@ -167,7 +181,16 @@ export async function middleware(request: NextRequest) {
 
     profileContext[MIDDLEWARE_SETUP_HEADER] = clinic?.clinic_setup_completed ? "1" : "0";
 
-    if (!pathname.startsWith("/owner/onboarding") && clinic && !clinic.clinic_setup_completed) {
+    if (profile.first_login && !pathname.startsWith("/owner/change-password")) {
+      return NextResponse.redirect(new URL("/owner/change-password", request.url));
+    }
+
+    if (
+      !pathname.startsWith("/owner/onboarding") &&
+      !pathname.startsWith("/owner/change-password") &&
+      clinic &&
+      !clinic.clinic_setup_completed
+    ) {
       return NextResponse.redirect(new URL("/owner/onboarding", request.url));
     }
   }

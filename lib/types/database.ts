@@ -52,6 +52,36 @@ export interface Profile {
 
 export type ApplicationStatus = "pending" | "approved" | "rejected";
 
+export type DemoRequestStatus = "new" | "contacted" | "scheduled" | "closed" | "cancelled";
+
+export interface DemoRequest {
+  id: string;
+  clinic_name: string;
+  doctor_name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  clinic_type: string | null;
+  preferred_date: string;
+  preferred_time: string;
+  notes: string | null;
+  status: DemoRequestStatus;
+  admin_notes: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  referer: string | null;
+  accept_language: string | null;
+  client_metadata: Record<string, unknown>;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ClinicApplication {
   id: string;
   clinic_name: string;
@@ -86,10 +116,20 @@ export interface Clinic {
   settings: Record<string, unknown>;
   clinic_setup_completed?: boolean;
   clinic_type?: string | null;
+  portal_enabled?: boolean;
+  onboarding_progress?: Record<string, unknown>;
+  google_maps_link?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  website?: string | null;
+  emergency_available?: boolean;
+  parking_available?: boolean;
+  wheelchair_access?: boolean;
+  facility_images?: string[];
+  other_facilities?: string[];
   registration_number?: string | null;
   gst_number?: string | null;
   emergency_contact?: string | null;
-  website?: string | null;
   enabled_services?: string[];
 }
 

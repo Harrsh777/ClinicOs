@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth, requireRole } from "@/lib/auth/session";
+import { logAuditEvent } from "@/lib/auth/audit";
+import { createNotification, notifyCancellation } from "@/lib/notifications/service";
 import { createWalkInBillWithPayment, getClinicFeeSetup } from "@/lib/actions/billing";
 import { resolveOrCreateClinicPatient } from "@/lib/actions/patients";
 import { resolveWalkInFee } from "@/lib/billing/clinic-fees";
@@ -227,12 +229,12 @@ export async function walkInQuickAction(formData: FormData) {
     if (patientError) return { error: patientError.message };
     patientId = newPatient.id;
 
-    await supabase.from("audit_logs").insert({
-      clinic_id: clinicId,
-      actor_id: profile.id,
+    await logAuditEvent({
+      clinicId,
+      actorId: profile.id,
       action: "create",
-      entity_type: "patient",
-      entity_id: patientId,
+      entityType: "patient",
+      entityId: patientId,
     });
   }
 
@@ -405,7 +407,7 @@ export async function updateAppointmentStatusAction(
     .from("appointments")
     .update(update)
     .eq("id", appointmentId)
-    .select("*, patients(user_id)")
+    .select("*, patients(full_name, user_id)")
     .single();
 
   if (error) return { error: error.message };
@@ -414,29 +416,39 @@ export async function updateAppointmentStatusAction(
     const { createVisitForAppointmentAction } = await import("@/lib/actions/visits");
     await createVisitForAppointmentAction(appointmentId).catch(() => null);
 
-    const patient = data.patients as { user_id: string | null } | null;
+    const patient = data.patients as { user_id: string | null; full_name: string } | null;
     if (patient?.user_id) {
-      await supabase.from("notifications").insert({
-        user_id: patient.user_id,
-        clinic_id: data.clinic_id,
+      await createNotification({
+        userId: patient.user_id,
+        clinicId: data.clinic_id,
+        type: "appointment_reminder",
         title: "Appointment Confirmed",
         body: `Your appointment on ${data.appointment_date} at ${data.appointment_time} has been confirmed.`,
-        type: "appointment",
       });
     }
   }
 
-  if (status === "rejected" && data) {
-    const patient = data.patients as { user_id: string | null } | null;
+  if ((status === "rejected" || status === "cancelled" || status === "no_show") && data) {
+    const patient = data.patients as { user_id: string | null; full_name: string } | null;
     if (patient?.user_id) {
-      await supabase.from("notifications").insert({
-        user_id: patient.user_id,
-        clinic_id: data.clinic_id,
-        title: "Appointment Declined",
+      await createNotification({
+        userId: patient.user_id,
+        clinicId: data.clinic_id,
+        type: status === "cancelled" ? "cancellation" : "general",
+        title: status === "rejected" ? "Appointment Declined" : "Appointment Cancelled",
         body: reason
-          ? `Your appointment request was declined: ${reason}`
-          : "Your appointment request was declined.",
-        type: "appointment",
+          ? `Your appointment was ${status === "rejected" ? "declined" : "cancelled"}: ${reason}`
+          : `Your appointment on ${data.appointment_date} at ${data.appointment_time} was ${status === "rejected" ? "declined" : "cancelled"}.`,
+      });
+    }
+
+    if (status === "cancelled" || status === "no_show") {
+      await notifyCancellation({
+        clinicId: data.clinic_id,
+        patientName: patient?.full_name ?? "Patient",
+        date: data.appointment_date,
+        time: data.appointment_time,
+        reason,
       });
     }
   }
@@ -680,34 +692,9 @@ export async function saveDoctorScheduleAction(formData: FormData) {
 
 export async function getAvailableSlots(doctorId: string, date: string) {
   const supabase = await createClient();
-  const dayOfWeek = new Date(date).getDay();
+  const { data: doctor } = await supabase.from("doctors").select("clinic_id").eq("id", doctorId).single();
+  if (!doctor?.clinic_id) return [];
 
-  const [{ data: schedule }, { data: blocked }, { data: booked }, { data: doctor }] =
-    await Promise.all([
-      supabase.from("doctor_schedules").select("*").eq("doctor_id", doctorId).eq("day_of_week", dayOfWeek).maybeSingle(),
-      supabase.from("doctor_blocked_dates").select("*").eq("doctor_id", doctorId).eq("blocked_date", date).maybeSingle(),
-      supabase.from("appointments").select("appointment_time").eq("doctor_id", doctorId).eq("appointment_date", date).neq("status", "cancelled"),
-      supabase.from("doctors").select("slot_duration_mins").eq("id", doctorId).single(),
-    ]);
-
-  if (!schedule || blocked) return [];
-
-  const duration = doctor?.slot_duration_mins ?? 15;
-  const bookedTimes = new Set((booked ?? []).map((b) => b.appointment_time.slice(0, 5)));
-  const slots: string[] = [];
-
-  const [startH, startM] = schedule.start_time.split(":").map(Number);
-  const [endH, endM] = schedule.end_time.split(":").map(Number);
-  let current = startH * 60 + startM;
-  const end = endH * 60 + endM;
-
-  while (current + duration <= end) {
-    const h = Math.floor(current / 60);
-    const m = current % 60;
-    const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-    if (!bookedTimes.has(time)) slots.push(time);
-    current += duration;
-  }
-
-  return slots;
+  const { getAvailableSlotsForDoctor } = await import("@/lib/portal/slots");
+  return getAvailableSlotsForDoctor({ doctorId, clinicId: doctor.clinic_id, date });
 }

@@ -5,178 +5,310 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { logAuditEvent } from "@/lib/auth/audit";
-import { z } from "zod";
+import {
+  defaultProgress,
+  mergeProgress,
+  type OnboardingProgress,
+} from "@/lib/types/onboarding";
 
 export async function getOnboardingState() {
   const profile = await requireRole(["clinic_owner"]);
   if (!profile.clinic_id) return null;
 
   const supabase = await createClient();
-  const [{ data: clinic }, { data: departments }] = await Promise.all([
+  const [{ data: clinic }, { data: billing }] = await Promise.all([
     supabase.from("clinics").select("*").eq("id", profile.clinic_id).single(),
-    supabase.from("departments").select("id, name").eq("clinic_id", profile.clinic_id).order("name"),
+    supabase.from("clinic_billing_settings").select("*").eq("clinic_id", profile.clinic_id).maybeSingle(),
   ]);
 
-  const { data: plans } = await supabase
-    .from("plans")
-    .select("id, slug, name, price_monthly")
-    .eq("is_active", true)
-    .order("price_monthly");
+  const stored = (clinic?.onboarding_progress ?? {}) as Partial<OnboardingProgress>;
+  const progress = mergeProgress(stored, clinic?.name);
 
-  return { clinic, departments: departments ?? [], plans: plans ?? [] };
-}
+  if (clinic) {
+    progress.step2 = {
+      ...progress.step2!,
+      clinicName: progress.step2!.clinicName || clinic.name || "",
+      logoUrl: progress.step2!.logoUrl || clinic.logo_url || "",
+      address: progress.step2!.address || clinic.address || "",
+      city: progress.step2!.city || clinic.city || "",
+      state: progress.step2!.state || clinic.state || "",
+      pincode: progress.step2!.pincode || clinic.pincode || "",
+      phone: progress.step2!.phone || clinic.phone || "",
+      email: progress.step2!.email || clinic.email || "",
+      website: progress.step2!.website || clinic.website || "",
+      googleMapsLink: progress.step2!.googleMapsLink || clinic.google_maps_link || "",
+      latitude: progress.step2!.latitude || (clinic.latitude != null ? String(clinic.latitude) : ""),
+      longitude: progress.step2!.longitude || (clinic.longitude != null ? String(clinic.longitude) : ""),
+      emergencyAvailable: progress.step2!.emergencyAvailable ?? clinic.emergency_available ?? false,
+      parking: progress.step2!.parking ?? clinic.parking_available ?? false,
+      wheelchairAccess: progress.step2!.wheelchairAccess ?? clinic.wheelchair_access ?? false,
+      otherFacilities: progress.step2!.otherFacilities || (clinic.other_facilities ?? []).join(", "),
+      images: progress.step2!.images || (clinic.facility_images ?? []).join("\n"),
+    };
 
-const step1Schema = z.object({
-  address: z.string().min(5),
-  registrationNumber: z.string().optional(),
-  gstNumber: z.string().optional(),
-  emergencyContact: z.string().optional(),
-  logoUrl: z.string().url().optional().or(z.literal("")),
-});
-
-export async function saveOnboardingStep1Action(formData: FormData) {
-  const profile = await requireRole(["clinic_owner"]);
-  if (!profile.clinic_id) return { error: "No clinic assigned" };
-
-  const parsed = step1Schema.safeParse({
-    address: formData.get("address"),
-    registrationNumber: formData.get("registrationNumber") || undefined,
-    gstNumber: formData.get("gstNumber") || undefined,
-    emergencyContact: formData.get("emergencyContact") || undefined,
-    logoUrl: formData.get("logoUrl") || undefined,
-  });
-
-  if (!parsed.success) return { error: "Please fill required clinic details" };
-
-  const openingHours: Record<string, { open: string; close: string } | null> = {};
-  const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-  for (const day of days) {
-    const open = formData.get(`${day}Open`) as string;
-    const close = formData.get(`${day}Close`) as string;
-    const closed = formData.get(`${day}Closed`) === "on";
-    openingHours[day] = closed || !open ? null : { open, close: close || "18:00" };
+    if (billing) {
+      progress.step3 = {
+        ...progress.step3!,
+        normalConsultation: String(clinic.consultation_fee_default ?? progress.step3!.normalConsultation),
+        emergencyConsultation: String(billing.emergency_consultation_fee ?? progress.step3!.emergencyConsultation),
+        videoConsultation: String(billing.video_consultation_fee ?? progress.step3!.videoConsultation),
+        homeVisit: String(billing.home_visit_fee ?? progress.step3!.homeVisit),
+        followUpFee: String(billing.follow_up_fee ?? progress.step3!.followUpFee),
+        freeFollowUpDays: String(billing.free_follow_up_days ?? progress.step3!.freeFollowUpDays),
+        refundPolicy: billing.refund_policy ?? progress.step3!.refundPolicy,
+        cancellationPolicy: billing.cancellation_policy ?? progress.step3!.cancellationPolicy,
+        paymentMethods: Object.entries((billing.payment_methods as Record<string, boolean>) ?? {})
+          .filter(([, v]) => v)
+          .map(([k]) => k),
+      };
+      progress.step5 = {
+        ...progress.step5!,
+        upi: billing.upi_id ?? progress.step5!.upi,
+        gst: billing.gst_number ?? progress.step5!.gst,
+        invoicePrefix: billing.invoice_prefix ?? progress.step5!.invoicePrefix,
+        prescriptionHeader: billing.prescription_header ?? progress.step5!.prescriptionHeader,
+        digitalSignatureUrl: billing.digital_signature_url ?? progress.step5!.digitalSignatureUrl,
+        socialLinks: billing.social_links ? JSON.stringify(billing.social_links) : progress.step5!.socialLinks,
+      };
+    }
   }
 
-  const dailyPatientCapacity = parseInt(String(formData.get("dailyPatientCapacity") ?? "50"), 10) || 50;
-  const avgFeePerPatient = parseFloat(String(formData.get("avgFeePerPatient") ?? "500")) || 500;
-
-  const supabase = await createClient();
-  const { data: existingClinic } = await supabase
-    .from("clinics")
-    .select("settings")
-    .eq("id", profile.clinic_id!)
-    .single();
-
-  const settings = { ...((existingClinic?.settings ?? {}) as Record<string, unknown>) };
-  settings.queue = {
-    dailyPatientCapacity,
-    avgFeePerPatient,
-  };
-
-  const { error } = await supabase
-    .from("clinics")
-    .update({
-      address: parsed.data.address,
-      registration_number: parsed.data.registrationNumber ?? null,
-      gst_number: parsed.data.gstNumber ?? null,
-      emergency_contact: parsed.data.emergencyContact ?? null,
-      logo_url: parsed.data.logoUrl || null,
-      opening_hours: openingHours,
-      consultation_fee_default: avgFeePerPatient,
-      daily_patient_capacity: dailyPatientCapacity,
-      settings,
-    })
-    .eq("id", profile.clinic_id);
-
-  if (error) return { error: error.message };
-  return { success: true, step: 2 };
+  return { clinic, billing, progress, profile };
 }
 
-export async function saveOnboardingStep2Action(formData: FormData) {
+async function saveProgress(clinicId: string, progress: OnboardingProgress) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("clinics")
+    .update({ onboarding_progress: progress })
+    .eq("id", clinicId);
+  if (error) throw new Error(error.message);
+}
+
+export async function saveOnboardingProgressAction(progress: OnboardingProgress) {
   const profile = await requireRole(["clinic_owner"]);
   if (!profile.clinic_id) return { error: "No clinic assigned" };
 
-  const selected = formData.getAll("departments") as string[];
+  try {
+    await saveProgress(profile.clinic_id, progress);
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to save progress" };
+  }
+}
+
+const DAY_MAP: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
+export async function completeOnboardingAction(progress: OnboardingProgress) {
+  const profile = await requireRole(["clinic_owner"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  const doctors = progress.step1?.doctors ?? [];
+  if (!doctors.length || !doctors[0]?.name?.trim()) {
+    return { error: "Add at least one doctor with a name" };
+  }
+  if (!progress.step2?.address?.trim() || !progress.step2?.city?.trim()) {
+    return { error: "Clinic address and city are required" };
+  }
+
   const supabase = await createClient();
+  const clinicId = profile.clinic_id;
+  const s2 = progress.step2!;
+  const s3 = progress.step3 ?? defaultProgress().step3!;
+  const s5 = progress.step5 ?? defaultProgress().step5!;
 
-  if (selected.length > 0) {
-    await supabase
-      .from("departments")
-      .update({ is_active: false })
-      .eq("clinic_id", profile.clinic_id);
+  const openingHours: Record<string, { open: string; close: string } | null> = {};
+  const firstDoctorId = doctors[0]!.id;
+  const firstSchedule = progress.step4?.schedules?.[firstDoctorId];
+  if (firstSchedule?.weekly) {
+    for (const [day, hours] of Object.entries(firstSchedule.weekly)) {
+      openingHours[day] = hours.closed ? null : { open: hours.open, close: hours.close };
+    }
+  }
 
-    for (const name of selected) {
-      await supabase.from("departments").upsert(
-        { clinic_id: profile.clinic_id, name, is_active: true },
-        { onConflict: "clinic_id,name" }
+  const facilityImages = s2.images
+    .split("\n")
+    .map((u) => u.trim())
+    .filter(Boolean);
+  const otherFacilities = s2.otherFacilities
+    .split(",")
+    .map((f) => f.trim())
+    .filter(Boolean);
+
+  const paymentMethods = {
+    cash: s3.paymentMethods.includes("cash"),
+    upi: s3.paymentMethods.includes("upi"),
+    card: s3.paymentMethods.includes("card"),
+    insurance: s3.paymentMethods.includes("insurance"),
+  };
+
+  let socialLinks: Record<string, string> = {};
+  try {
+    if (s5.socialLinks.trim()) socialLinks = JSON.parse(s5.socialLinks);
+  } catch {
+    socialLinks = { website: s5.socialLinks };
+  }
+
+  await supabase
+    .from("clinics")
+    .update({
+      name: s2.clinicName || undefined,
+      logo_url: s2.logoUrl || null,
+      address: s2.address,
+      city: s2.city,
+      state: s2.state,
+      pincode: s2.pincode || null,
+      phone: s2.phone || null,
+      email: s2.email || null,
+      website: s2.website || null,
+      google_maps_link: s2.googleMapsLink || null,
+      latitude: s2.latitude ? parseFloat(s2.latitude) : null,
+      longitude: s2.longitude ? parseFloat(s2.longitude) : null,
+      emergency_available: s2.emergencyAvailable,
+      parking_available: s2.parking,
+      wheelchair_access: s2.wheelchairAccess,
+      facility_images: facilityImages,
+      other_facilities: otherFacilities,
+      consultation_fee_default: parseFloat(s3.normalConsultation) || 500,
+      opening_hours: Object.keys(openingHours).length ? openingHours : undefined,
+      settings: {
+        onboarding_doctors: doctors,
+        setup_completed_at: new Date().toISOString(),
+      },
+      clinic_setup_completed: true,
+      portal_enabled: true,
+      status: "active",
+      onboarding_progress: { ...progress, currentStep: 5 },
+    })
+    .eq("id", clinicId);
+
+  await supabase.from("clinic_billing_settings").upsert({
+    clinic_id: clinicId,
+    emergency_consultation_fee: parseFloat(s3.emergencyConsultation) || null,
+    video_consultation_fee: parseFloat(s3.videoConsultation) || null,
+    home_visit_fee: parseFloat(s3.homeVisit) || null,
+    follow_up_fee: parseFloat(s3.followUpFee) || null,
+    free_follow_up_days: parseInt(s3.freeFollowUpDays, 10) || 7,
+    refund_policy: s3.refundPolicy || null,
+    cancellation_policy: s3.cancellationPolicy || null,
+    payment_methods: paymentMethods,
+    upi_id: s5.upi || null,
+    gst_number: s5.gst || null,
+    invoice_prefix: s5.invoicePrefix || "INV",
+    prescription_header: s5.prescriptionHeader || null,
+    digital_signature_url: s5.digitalSignatureUrl || null,
+    social_links: socialLinks,
+  });
+
+  const ownerDoctor = doctors[0]!;
+  const { data: existingDoctor } = await supabase
+    .from("doctors")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+
+  const doctorPayload = {
+    clinic_id: clinicId,
+    profile_id: profile.id,
+    specialization: ownerDoctor.specialization || null,
+    consultation_fee: parseFloat(s3.normalConsultation) || 500,
+    slot_duration_mins: parseInt(ownerDoctor.consultationDuration, 10) || 15,
+    degree: ownerDoctor.degree || null,
+    experience_years: ownerDoctor.experience ? parseInt(ownerDoctor.experience, 10) : null,
+    registration_number: ownerDoctor.registrationNumber || null,
+    languages: ownerDoctor.languages
+      ? ownerDoctor.languages.split(",").map((l) => l.trim()).filter(Boolean)
+      : [],
+    biography: ownerDoctor.biography || null,
+    buffer_mins: firstSchedule ? parseInt(firstSchedule.bufferTime, 10) || 5 : 5,
+    max_daily_patients: firstSchedule ? parseInt(firstSchedule.maxDailyPatients, 10) || null : null,
+    emergency_slots: firstSchedule ? parseInt(firstSchedule.emergencySlots, 10) || 2 : 2,
+  };
+
+  let doctorRowId = existingDoctor?.id;
+  if (existingDoctor) {
+    await supabase.from("doctors").update(doctorPayload).eq("id", existingDoctor.id);
+  } else {
+    const { data: inserted } = await supabase.from("doctors").insert(doctorPayload).select("id").single();
+    doctorRowId = inserted?.id;
+  }
+
+  await supabase
+    .from("profiles")
+    .update({
+      full_name: ownerDoctor.name || profile.full_name,
+      specialization: ownerDoctor.specialization || null,
+      avatar_url: ownerDoctor.profileImageUrl || null,
+    })
+    .eq("id", profile.id);
+
+  if (firstSchedule?.weekly && doctorRowId) {
+    const doctorId = doctorRowId;
+    for (const [day, hours] of Object.entries(firstSchedule.weekly)) {
+      const dow = DAY_MAP[day];
+      if (dow === undefined) continue;
+      if (hours.closed) {
+        await supabase
+          .from("doctor_schedules")
+          .delete()
+          .eq("doctor_id", doctorId)
+          .eq("day_of_week", dow);
+      } else {
+        await supabase.from("doctor_schedules").upsert(
+          {
+            doctor_id: doctorId,
+            clinic_id: clinicId,
+            day_of_week: dow,
+            start_time: hours.open,
+            end_time: hours.close,
+            is_available: true,
+          },
+          { onConflict: "doctor_id,day_of_week" }
+        );
+      }
+    }
+
+    const holidayDates = (firstSchedule.holidays ?? "")
+      .split(",")
+      .map((d) => d.trim())
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    const leaveDates = (firstSchedule.leave ?? "")
+      .split(",")
+      .map((d) => d.trim())
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+
+    for (const blockedDate of [...holidayDates, ...leaveDates]) {
+      await supabase.from("doctor_blocked_dates").upsert(
+        { doctor_id: doctorId, clinic_id: clinicId, blocked_date: blockedDate, reason: "Holiday/leave" },
+        { onConflict: "doctor_id,blocked_date" }
       );
     }
   }
 
-  const custom = (formData.get("customDepartment") as string)?.trim();
-  if (custom) {
-    await supabase.from("departments").upsert(
-      { clinic_id: profile.clinic_id, name: custom, is_active: true },
-      { onConflict: "clinic_id,name" }
-    );
+  if (s5.whatsappNumber) {
+    await supabase.from("clinic_branding").upsert({
+      clinic_id: clinicId,
+      whatsapp_number: s5.whatsappNumber,
+      primary_color: "#0F172A",
+      secondary_color: "#14B8A6",
+    });
   }
-
-  return { success: true, step: 3 };
-}
-
-export async function saveOnboardingStep3Action(formData: FormData) {
-  const profile = await requireRole(["clinic_owner"]);
-  if (!profile.clinic_id) return { error: "No clinic assigned" };
-
-  const services = formData.getAll("services") as string[];
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("clinics")
-    .update({ enabled_services: services })
-    .eq("id", profile.clinic_id);
-
-  if (error) return { error: error.message };
-  return { success: true, step: 4 };
-}
-
-export async function completeOnboardingAction(formData: FormData) {
-  const profile = await requireRole(["clinic_owner"]);
-  if (!profile.clinic_id) return { error: "No clinic assigned" };
-
-  const planSlug = (formData.get("planSlug") as string) || "free";
-  const supabase = await createClient();
-
-  const { data: plan } = await supabase
-    .from("plans")
-    .select("id")
-    .eq("slug", planSlug)
-    .maybeSingle();
-
-  if (plan) {
-    await supabase
-      .from("subscriptions")
-      .update({ plan_id: plan.id })
-      .eq("clinic_id", profile.clinic_id);
-  }
-
-  await supabase
-    .from("clinics")
-    .update({ clinic_setup_completed: true, status: "active" })
-    .eq("id", profile.clinic_id);
-
-  await supabase
-    .from("profiles")
-    .update({ first_login: false })
-    .eq("id", profile.id);
 
   await logAuditEvent({
-    clinicId: profile.clinic_id,
+    clinicId,
     actorId: profile.id,
     action: "clinic.setup_completed",
     entityType: "clinic",
-    entityId: profile.clinic_id,
-    metadata: { plan_slug: planSlug, services: formData.getAll("services") },
+    entityId: clinicId,
+    metadata: { doctors: doctors.length },
   });
 
   revalidatePath("/owner");

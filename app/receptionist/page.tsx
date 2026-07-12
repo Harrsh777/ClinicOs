@@ -2,16 +2,37 @@ import Link from "next/link";
 import { PageHeader, StatCard } from "@/components/ui/card";
 import { ListOrdered, Users, Calendar, UserCheck, Clock, IndianRupee, Receipt } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 import { getReceptionistDashboard } from "@/lib/actions/role-dashboards";
+import { PublicBookingLinkCard } from "@/components/owner/public-booking-link-card";
 import { Button } from "@/components/ui/button";
 
 export default async function ReceptionistDashboard() {
   const profile = await requireRole(["receptionist"]);
-  const stats = await getReceptionistDashboard(profile.clinic_id!);
+  const supabase = await createClient();
+  const [{ data: clinic }, stats] = await Promise.all([
+    supabase
+      .from("clinics")
+      .select("slug, name, portal_enabled")
+      .eq("id", profile.clinic_id!)
+      .single(),
+    getReceptionistDashboard(profile.clinic_id!),
+  ]);
 
   return (
     <div>
       <PageHeader title="Reception Dashboard" subtitle="Today's clinic operations at a glance" />
+      {clinic && (
+        <div className="mb-6">
+          <PublicBookingLinkCard
+            clinicSlug={clinic.slug}
+            clinicName={clinic.name}
+            portalEnabled={clinic.portal_enabled ?? false}
+            compact
+            setupHref="/receptionist"
+          />
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Current Token" value={stats.currentToken} icon={<ListOrdered className="h-5 w-5" />} />
         <StatCard label="Waiting" value={stats.waiting} icon={<Users className="h-5 w-5" />} trend="Patients in queue" />

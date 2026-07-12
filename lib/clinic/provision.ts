@@ -24,6 +24,9 @@ function randomPassword(length = 32) {
 
 export async function generateClinicCode(): Promise<string> {
   const service = await createServiceClient();
+  const { data: seqData, error: seqError } = await service.rpc("generate_sequential_clinic_code");
+  if (!seqError && seqData) return seqData as string;
+
   const { data, error } = await service.rpc("generate_clinic_code");
   if (!error && data) return data as string;
   return `CLN-${Date.now().toString(36).toUpperCase().slice(-6)}`;
@@ -72,6 +75,7 @@ export async function createClinicWithOwner(params: {
       clinic_type: params.clinicType,
       status: "trial",
       clinic_setup_completed: false,
+      portal_enabled: false,
     })
     .select()
     .single();
@@ -122,10 +126,12 @@ export async function createClinicWithOwner(params: {
     first_login: true,
   });
 
-  const activation = await createActivationToken(authUser.user.id, clinic.id);
-  if ("error" in activation) {
-    return { error: activation.error };
-  }
+  await service.from("clinic_billing_settings").upsert({
+    clinic_id: clinic.id,
+    tax_rate: 0,
+    invoice_prefix: "INV",
+    payment_methods: { cash: true, upi: true, card: true, insurance: true },
+  });
 
   return {
     clinic,
@@ -134,7 +140,7 @@ export async function createClinicWithOwner(params: {
     ownerName: params.ownerName,
     ownerStaffCode,
     ownerId: authUser.user.id,
-    activationToken: activation.token,
+    tempPassword,
   };
 }
 

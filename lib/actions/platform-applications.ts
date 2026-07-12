@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { createClinicWithOwner } from "@/lib/clinic/provision";
-import { activationUrl } from "@/lib/auth/activation";
 import { sendEmail } from "@/lib/email/send";
 import { clinicApprovedEmail, clinicRejectedEmail } from "@/lib/email/templates";
 import { logPlatformAuditEvent } from "@/lib/auth/audit";
@@ -98,17 +97,17 @@ export async function approveClinicApplicationAction(formData: FormData) {
     })
     .eq("id", app.id);
 
-  const activateLink = activationUrl(result.activationToken!);
+  const activateLink = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   const emailResult = await sendEmail({
     to: result.ownerEmail!,
-    subject: `MedERP — ${app.clinic_name} approved! Activate your account`,
+    subject: `ClinicOS — ${app.clinic_name} approved! Your login credentials`,
     html: clinicApprovedEmail({
       ownerName: result.ownerName!,
       clinicName: app.clinic_name,
       clinicCode: result.clinicCode!,
-      staffCode: result.ownerStaffCode!,
-      activationUrl: activateLink,
+      tempPassword: result.tempPassword!,
+      loginUrl: `${activateLink}/login`,
     }),
   });
 
@@ -127,9 +126,8 @@ export async function approveClinicApplicationAction(formData: FormData) {
   return {
     success: true,
     clinicCode: result.clinicCode,
-    staffCode: result.ownerStaffCode,
     emailSent: emailResult.ok,
-    activationUrl: emailResult.ok ? undefined : activateLink,
+    tempPassword: emailResult.ok ? undefined : result.tempPassword,
   };
 }
 
@@ -155,6 +153,7 @@ export async function rejectClinicApplicationAction(formData: FormData) {
     .update({
       status: "rejected",
       admin_notes: reason,
+      rejection_reason: reason,
       reviewed_by: admin.id,
       reviewed_at: new Date().toISOString(),
     })
@@ -195,36 +194,41 @@ export async function resendApprovalEmailAction(formData: FormData) {
   const clinic = app.clinics as { clinic_code: string; name: string } | null;
   const { data: owner } = await service
     .from("profiles")
-    .select("id, staff_code, full_name")
+    .select("id, full_name")
     .eq("clinic_id", app.clinic_id)
     .eq("role", "clinic_owner")
     .single();
 
   if (!owner) return { error: "Owner account not found" };
 
-  const { createActivationToken } = await import("@/lib/auth/activation");
-  const activation = await createActivationToken(owner.id, app.clinic_id);
-  if ("error" in activation) return { error: activation.error };
+  const { randomPassword } = await import("@/lib/clinic/provision");
+  const tempPassword = randomPassword();
+  const { error: pwError } = await service.auth.admin.updateUserById(owner.id, {
+    password: tempPassword,
+  });
+  if (pwError) return { error: pwError.message };
 
-  const activateLink = activationUrl(activation.token);
+  await service.from("profiles").update({ first_login: true }).eq("id", owner.id);
+
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const emailResult = await sendEmail({
     to: app.owner_email,
-    subject: `MedERP — Activate your ${app.clinic_name} account`,
+    subject: `ClinicOS — Login credentials for ${app.clinic_name}`,
     html: clinicApprovedEmail({
       ownerName: owner.full_name,
       clinicName: app.clinic_name,
       clinicCode: clinic?.clinic_code ?? "",
-      staffCode: owner.staff_code ?? "",
-      activationUrl: activateLink,
+      tempPassword,
+      loginUrl: `${loginUrl}/login`,
     }),
   });
 
   await logPlatformAuditEvent({
     adminId: admin.id,
-    action: "clinic.activation_resent",
+    action: "clinic.credentials_resent",
     targetClinicId: app.clinic_id,
     details: { application_id: applicationId },
   });
 
-  return { success: true, emailSent: emailResult.ok, activationUrl: emailResult.ok ? undefined : activateLink };
+  return { success: true, emailSent: emailResult.ok, tempPassword: emailResult.ok ? undefined : tempPassword };
 }

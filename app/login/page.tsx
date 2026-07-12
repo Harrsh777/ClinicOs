@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Activity, Building2, ShieldCheck, Sparkles } from "lucide-react";
 import { loginAction } from "@/lib/actions/auth";
-import { patientClinicLoginAction } from "@/lib/actions/patient-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -14,9 +13,9 @@ function formatClinicId(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, "");
 }
 
-function formatStaffId(value: string) {
-  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
-  if (normalized.includes("-")) return normalized;
+function formatUserId(value: string) {
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9-@.]/g, "");
+  if (normalized.includes("@") || normalized.includes("-")) return normalized;
   const match = normalized.match(/^([A-Z]+)(\d+)$/);
   return match ? `${match[1]}-${match[2]}` : normalized;
 }
@@ -38,9 +37,8 @@ function friendlyLoginError(message: string) {
 function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [loginMode, setLoginMode] = useState<"staff" | "patient">("staff");
   const [clinicId, setClinicId] = useState("");
-  const [staffId, setStaffId] = useState("");
+  const [userId, setUserId] = useState("");
   const searchParams = useSearchParams();
   const suspended = searchParams.get("error") === "account_suspended";
   const profileMissing = searchParams.get("error") === "profile_missing";
@@ -54,17 +52,10 @@ function LoginForm() {
     const formData = new FormData(e.currentTarget);
     formData.set("clinicId", formatClinicId(String(formData.get("clinicId") ?? "")));
 
-    if (loginMode === "patient") {
-      formData.set("phone", String(formData.get("staffId") ?? "").replace(/\D/g, "").slice(-10));
-      const result = await patientClinicLoginAction(formData);
-      if (result?.error) {
-        setError(friendlyLoginError(result.error));
-        setLoading(false);
-      }
-      return;
+    if (!isPlatform) {
+      formData.set("staffId", formatUserId(String(formData.get("staffId") ?? "")));
     }
 
-    formData.set("staffId", formatStaffId(String(formData.get("staffId") ?? "")));
     const result = await loginAction(formData);
     if (result?.error) {
       setError(friendlyLoginError(result.error));
@@ -95,7 +86,7 @@ function LoginForm() {
               Clinical operations, revenue, and AI workflows in one secure workspace.
             </h1>
             <p className="mt-3 max-w-md text-sm text-slate-300">
-              Sign in with your Clinic ID and Staff ID to access role-aware dashboards, queue workflows, billing, and patient records.
+              Sign in with your Clinic ID, User ID, and password. Owners and staff use the same login.
             </p>
           </div>
 
@@ -128,7 +119,7 @@ function LoginForm() {
 
             {activated && (
               <Alert variant="success" className="mb-4">
-                Account activated! Sign in with your Clinic ID and Staff ID.
+                Account activated! Sign in with your Clinic ID, User ID, and password.
               </Alert>
             )}
 
@@ -150,72 +141,46 @@ function LoginForm() {
               </Alert>
             )}
 
-            <div className="mb-4 flex gap-2 rounded-lg bg-[var(--surface-1)] p-1">
-              <button
-                type="button"
-                onClick={() => setLoginMode("staff")}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
-                  loginMode === "staff" ? "bg-white shadow" : "text-[var(--text-muted)]"
-                }`}
-              >
-                Staff
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginMode("patient")}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
-                  loginMode === "patient" ? "bg-white shadow" : "text-[var(--text-muted)]"
-                }`}
-              >
-                Patient
-              </button>
-            </div>
-
             <form onSubmit={handleSubmit} className="space-y-3.5">
-              <div className="grid gap-3.5 sm:grid-cols-2">
-                <Input
-                  label="Clinic ID"
-                  name="clinicId"
-                  required
-                  placeholder={loginMode === "staff" ? "CLN-1024 or PLATFORM" : "CLN-1024"}
-                  autoComplete="organization"
-                  value={clinicId}
-                  onChange={(e) => setClinicId(e.target.value.toUpperCase())}
-                  onBlur={(e) => setClinicId(formatClinicId(e.target.value))}
-                />
+              <Input
+                label="Clinic ID"
+                name="clinicId"
+                required
+                placeholder="CLN-000001 or PLATFORM"
+                autoComplete="organization"
+                value={clinicId}
+                onChange={(e) => setClinicId(e.target.value.toUpperCase())}
+                onBlur={(e) => setClinicId(formatClinicId(e.target.value))}
+              />
 
-                {loginMode === "staff" && isPlatform ? (
-                  <Input label="Email" name="email" type="email" required placeholder="admin@clinic.com" />
-                ) : (
-                  <Input
-                    label={loginMode === "patient" ? "Mobile Number" : "Staff ID"}
-                    name="staffId"
-                    required={loginMode === "staff" ? !isPlatform : true}
-                    placeholder={loginMode === "patient" ? "10-digit mobile" : "OWN-0001 or DOC-0001"}
-                    autoComplete="username"
-                    value={staffId}
-                    onChange={(e) =>
-                      setStaffId(loginMode === "patient" ? e.target.value : e.target.value.toUpperCase())
-                    }
-                    onBlur={(e) => {
-                      if (loginMode !== "patient") setStaffId(formatStaffId(e.target.value));
-                    }}
-                  />
-                )}
-              </div>
+              {isPlatform ? (
+                <Input label="Email" name="email" type="email" required placeholder="admin@clinic.com" />
+              ) : (
+                <Input
+                  label="User ID"
+                  name="staffId"
+                  required
+                  placeholder="OWN-0001 or DOC-0001"
+                  autoComplete="username"
+                  value={userId}
+                  onChange={(e) => setUserId(e.target.value.toUpperCase())}
+                  onBlur={(e) => setUserId(formatUserId(e.target.value))}
+                />
+              )}
 
               <Input label="Password" name="password" type="password" required placeholder="••••••••" />
 
               <Button type="submit" loading={loading} className="w-full">
-                {loginMode === "patient" ? "Sign In as Patient" : "Sign In"}
+                Sign In
               </Button>
             </form>
 
-            {loginMode === "patient" && (
-              <p className="mt-3 text-center text-sm text-[var(--text-muted)]">
-                New patient? Book at your clinic portal, then create an account with OTP.
-              </p>
-            )}
+            <p className="mt-3 text-center text-sm text-[var(--text-muted)]">
+              Patient?{" "}
+              <Link href="/" className="font-medium text-[var(--secondary)] hover:underline">
+                Sign in at your clinic portal
+              </Link>
+            </p>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm text-[var(--text-secondary)]">
               <Link href="/forgot-password" className="font-medium text-[var(--secondary)] hover:underline">
@@ -223,8 +188,8 @@ function LoginForm() {
               </Link>
               <p>
                 Register your clinic?{" "}
-                <Link href="/signup" className="font-medium text-[var(--secondary)] hover:underline">
-                  Apply here
+                <Link href="/register" className="font-medium text-[var(--secondary)] hover:underline">
+                  Register here
                 </Link>
               </p>
             </div>
@@ -237,7 +202,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="clinic-auth-bg min-h-screen" />}>
       <LoginForm />
     </Suspense>
   );

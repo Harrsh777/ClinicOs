@@ -31,7 +31,7 @@ export function ClinicLanding({
               Walk-in Now
             </Button>
           </Link>
-          <Link href={`/c/${clinic.slug}/book`}>
+          <Link href={`/c/${clinic.slug}/bookings`}>
             <Button variant="secondary" size="lg" className="gap-2">
               <Calendar className="h-5 w-5" />
               Book Appointment

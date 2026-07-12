@@ -13,10 +13,19 @@ export default async function PortalConfirmationPage({
   if (!clinic) notFound();
 
   const booking = await getPortalBookingStatus(bookingId, clinicSlug);
-  if (!booking || booking.payment_status !== "paid") {
+  if (!booking) {
     return (
       <div className="clinic-card p-6 text-center">
-        <p className="text-[var(--text-muted)]">Booking not found or payment pending.</p>
+        <p className="text-[var(--text-muted)]">Booking not found.</p>
+      </div>
+    );
+  }
+
+  const isPayAtClinic = booking.payment_status === "pending";
+  if (!isPayAtClinic && booking.payment_status !== "paid") {
+    return (
+      <div className="clinic-card p-6 text-center">
+        <p className="text-[var(--text-muted)]">Payment pending. Complete payment to view confirmation.</p>
       </div>
     );
   }

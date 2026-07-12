@@ -1,18 +1,21 @@
 import Link from "next/link";
 import { PageHeader, StatCard } from "@/components/ui/card";
-import { Building2, Users, Inbox, Calendar, BarChart3 } from "lucide-react";
+import { Building2, Users, Inbox, Calendar, BarChart3, CalendarClock } from "lucide-react";
+import { format } from "date-fns";
 import { getClinics } from "@/lib/actions/admin";
 import { getPlatformAnalytics, getPlatformOverview } from "@/lib/actions/platform-admin";
+import { getDemoRequestStats } from "@/lib/actions/demo-requests";
 import { Button } from "@/components/ui/button";
 import { PlatformAnalytics } from "@/components/admin/platform-analytics";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 
 export default async function AdminDashboard() {
-  const [clinics, analytics, overview] = await Promise.all([
+  const [clinics, analytics, overview, demoStats] = await Promise.all([
     getClinics(),
     getPlatformAnalytics(),
     getPlatformOverview(),
+    getDemoRequestStats(),
   ]);
   const active = clinics.filter((c) => c.status === "active").length;
   const trial = clinics.filter((c) => c.status === "trial").length;
@@ -24,6 +27,14 @@ export default async function AdminDashboard() {
         subtitle="Full visibility across all clinics, patients, and operations"
         action={
           <div className="flex flex-wrap gap-2">
+            {demoStats.newCount > 0 && (
+              <Link href="/admin/demo-requests?status=new">
+                <Button size="sm" variant="secondary" className="gap-2">
+                  <CalendarClock className="h-4 w-4" />
+                  {demoStats.newCount} demo leads
+                </Button>
+              </Link>
+            )}
             {overview.pendingApplications > 0 && (
               <Link href="/admin/applications?status=pending">
                 <Button size="sm" className="gap-2">
@@ -37,6 +48,9 @@ export default async function AdminDashboard() {
                 <BarChart3 className="h-4 w-4" />
                 Analytics
               </Button>
+            </Link>
+            <Link href="/admin/demo-requests">
+              <Button variant="secondary" size="sm">Demo Requests</Button>
             </Link>
             <Link href="/admin/applications">
               <Button variant="secondary" size="sm">Applications</Button>
@@ -56,7 +70,43 @@ export default async function AdminDashboard() {
         <StatCard label="Appointments (30d)" value={overview.appointmentCount30d} icon={<Calendar className="h-5 w-5" />} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 mb-8">
+      <div className="grid gap-6 lg:grid-cols-3 mb-8">
+        <div className="clinic-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Recent demo requests</h3>
+            <Link href="/admin/demo-requests" className="text-sm text-[var(--brand-600)] hover:underline">View all</Link>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Clinic</TableHead>
+                <TableHead>Demo slot</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {demoStats.recent.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-[var(--text-muted)]">No demo requests yet</TableCell>
+                </TableRow>
+              ) : (
+                demoStats.recent.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell>
+                      <p className="font-medium">{d.clinic_name}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{d.email}</p>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {format(new Date(d.preferred_date), "dd MMM yyyy")} · {d.preferred_time}
+                    </TableCell>
+                    <TableCell><StatusBadge status={d.status} /></TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
         <div className="clinic-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Recent clinics</h3>

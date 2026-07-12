@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getPublicAccountPath } from "@/lib/portal/public-urls";
 import { VisitTokenCard } from "@/components/patient/visit-token-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -42,6 +43,12 @@ export function BookingConfirmation({ clinicSlug, booking }: ConfirmationProps) 
           {isWalkIn ? "You're in the queue!" : "Booking Confirmed!"}
         </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">Booking ID: {booking.booking_id}</p>
+        {(booking as { receipt_number?: string }).receipt_number && (
+          <p className="text-sm text-[var(--text-muted)]">Receipt: {(booking as { receipt_number?: string }).receipt_number}</p>
+        )}
+        {apt && (apt as { appointment_number?: string }).appointment_number && (
+          <p className="text-sm text-[var(--text-muted)]">Appointment: {(apt as { appointment_number?: string }).appointment_number}</p>
+        )}
       </div>
 
       {isInQueue ? (
@@ -99,7 +106,7 @@ export function BookingConfirmation({ clinicSlug, booking }: ConfirmationProps) 
       )}
 
       <div className="flex flex-wrap gap-3 justify-center">
-        <Link href={`/c/${clinicSlug}/account?bookingId=${booking.booking_id}`}>
+        <Link href={getPublicAccountPath(clinicSlug, booking.booking_id)}>
           <Button className="gap-2">Create Account to Track Visit</Button>
         </Link>
         <Link href={`/c/${clinicSlug}/login`}>

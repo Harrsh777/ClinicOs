@@ -5,7 +5,7 @@ import { PatientAuthForm } from "@/components/portal/patient-auth-form";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { getPublicBookingPath, getPublicLoginPath } from "@/lib/portal/public-urls";
 
 export default async function PatientAccountSetupPage({
   params,
@@ -21,33 +21,47 @@ export default async function PatientAccountSetupPage({
 
   const session = await getPortalSession();
   if (!session || session.clinicId !== clinic.id) {
-    redirect(`/c/${clinicSlug}/login?mode=register${bookingId ? `&redirect=/c/${clinicSlug}/account?bookingId=${bookingId}` : ""}`);
+    const loginPath = getPublicLoginPath(clinicSlug, { mode: "register" });
+    const redirectParam = bookingId
+      ? `&redirect=${encodeURIComponent(`/${clinicSlug}/account?bookingId=${bookingId}`)}`
+      : "";
+    redirect(`${loginPath}${redirectParam}`);
   }
 
   return (
-    <div>
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Create Your Account</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Track appointments, prescriptions, lab results, and live queue status
+    <div className="mx-auto max-w-md">
+      <div className="mb-8 text-center">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Almost there!</h1>
+        <p className="mt-2 text-sm text-[var(--text-muted)]">
+          Set your password to access appointments, prescriptions, and queue updates
         </p>
       </div>
 
       {bookingId && (
         <Alert variant="success" className="mb-4">
-          Your booking <strong>{bookingId}</strong> is confirmed. Create an account to manage it anytime.
+          Booking <strong>{bookingId}</strong> confirmed. Create your account to manage it anytime.
         </Alert>
       )}
 
-      <Card padding className="!p-6">
-        <PatientAuthForm clinic={clinic} initialMode="register" redirectTo="/patient" />
+      <Card className="!p-6 shadow-lg ring-1 ring-[var(--border)]">
+        <PatientAuthForm
+          clinic={clinic}
+          initialMode="register"
+          redirectTo="/patient"
+          defaultPhone={session.phone}
+          startAtCredentials
+        />
       </Card>
 
-      <div className="mt-4 text-center">
-        <Link href="/patient">
-          <Button variant="ghost">Already have an account? Sign in</Button>
+      <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
+        <Link href={getPublicLoginPath(clinicSlug)} className="font-medium text-[var(--brand-600)] hover:underline">
+          Already have an account? Sign in
         </Link>
-      </div>
+        {" · "}
+        <Link href={getPublicBookingPath(clinicSlug)} className="text-[var(--brand-600)] hover:underline">
+          Book again
+        </Link>
+      </p>
     </div>
   );
 }

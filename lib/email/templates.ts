@@ -23,19 +23,21 @@ export function clinicApprovedEmail(params: {
   ownerName: string;
   clinicName: string;
   clinicCode: string;
-  staffCode: string;
-  activationUrl: string;
+  tempPassword: string;
+  loginUrl?: string;
 }) {
+  const loginUrl = params.loginUrl ?? `${APP_URL}/login`;
   return layout(`
-    <h2 style="margin-top:0">Welcome to MedERP!</h2>
+    <h2 style="margin-top:0">Welcome to ClinicOS!</h2>
     <p>Hi ${params.ownerName},</p>
     <p>Your clinic <strong>${params.clinicName}</strong> has been approved.</p>
     <table style="width:100%;background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">
       <tr><td style="padding:4px 0;color:#6b7280">Clinic ID</td><td><strong>${params.clinicCode}</strong></td></tr>
-      <tr><td style="padding:4px 0;color:#6b7280">Owner Login ID</td><td><strong>${params.staffCode}</strong></td></tr>
+      <tr><td style="padding:4px 0;color:#6b7280">Temporary Password</td><td><strong>${params.tempPassword}</strong></td></tr>
     </table>
-    <p><a href="${params.activationUrl}" style="display:inline-block;background:#0d9488;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Activate your account</a></p>
-    <p style="font-size:13px;color:#6b7280">Set your own password when you activate. After activation, sign in at <a href="${APP_URL}/login">${APP_URL}/login</a> using your Clinic ID and Owner Login ID.</p>
+    <p><a href="${loginUrl}" style="display:inline-block;background:#0d9488;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to ClinicOS</a></p>
+    <p style="font-size:13px;color:#6b7280">Sign in at <a href="${loginUrl}">${loginUrl}</a> using your Clinic ID and temporary password. You will be asked to set a new password on first login, then complete the setup wizard.</p>
+    <p style="font-size:13px;color:#ef4444">For security, change your password immediately after first login.</p>
   `);
 }
 

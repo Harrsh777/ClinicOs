@@ -21,7 +21,7 @@ import { z } from "zod";
 
 const staffLoginSchema = z.object({
   clinicId: z.string().min(1, "Clinic ID is required"),
-  staffId: z.string().min(1, "Staff ID is required"),
+  staffId: z.string().min(1, "User ID is required"),
   password: z.string().min(6),
 });
 
@@ -47,7 +47,7 @@ export async function loginAction(formData: FormData) {
 
   const parsed = staffLoginSchema.safeParse({
     clinicId,
-    staffId: formData.get("staffId"),
+    staffId: formData.get("staffId") || undefined,
     password: formData.get("password"),
   });
 
@@ -55,7 +55,10 @@ export async function loginAction(formData: FormData) {
     return { error: "Invalid login credentials format" };
   }
 
-  const resolved = await resolveStaffLoginEmail(parsed.data.clinicId, parsed.data.staffId);
+  const resolved = await resolveStaffLoginEmail(
+    parsed.data.clinicId,
+    parsed.data.staffId.trim()
+  );
   if (!resolved.ok) return { error: resolved.error };
 
   const lockCheck = await checkAccountLocked(resolved.profileId);
@@ -69,7 +72,7 @@ export async function loginAction(formData: FormData) {
 
   if (error) {
     await recordFailedLogin(resolved.profileId);
-    return { error: "Invalid Clinic ID, Staff ID, or password" };
+    return { error: "Invalid Clinic ID, User ID, or password" };
   }
 
   return finalizeLogin(parsed.data.clinicId, resolved.profileId, resolved.clinicId);
@@ -170,7 +173,7 @@ async function finalizeLogin(
     .single();
 
   if (fullProfile?.role === "clinic_owner" && fullProfile.first_login) {
-    redirect("/owner/onboarding");
+    redirect("/owner/change-password");
   }
 
   if (fullProfile?.role === "clinic_owner" && fullProfile.clinic_id) {
@@ -353,6 +356,38 @@ const inviteAcceptSchema = z.object({
   password: z.string().min(8),
   fullName: z.string().min(2),
 });
+
+export async function changePasswordAction(formData: FormData) {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (password.length < 8) return { error: "Password must be at least 8 characters" };
+  if (password !== confirmPassword) return { error: "Passwords do not match" };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const service = await createServiceClient();
+  const { error } = await service.auth.admin.updateUserById(user.id, { password });
+  if (error) return { error: error.message };
+
+  await service.from("profiles").update({ first_login: false }).eq("id", user.id);
+
+  const { data: profile } = await service
+    .from("profiles")
+    .select("role, clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role === "clinic_owner") {
+    redirect("/owner/onboarding");
+  }
+
+  redirect(ROLE_ROUTES[profile?.role as keyof typeof ROLE_ROUTES] ?? "/login");
+}
 
 export async function acceptInviteAction(formData: FormData) {
   const parsed = inviteAcceptSchema.safeParse({

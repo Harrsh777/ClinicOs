@@ -2,15 +2,15 @@ import { redirect } from "next/navigation";
 import { Activity, CheckCircle2 } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { getOnboardingState } from "@/lib/actions/onboarding";
-import { OnboardingWizard } from "@/components/owner/onboarding-wizard";
+import { SetupWizard } from "@/components/owner/setup-wizard";
 
 export default async function OwnerOnboardingPage() {
-  const profile = await requireRole(["clinic_owner"]);
+  await requireRole(["clinic_owner"]);
   const state = await getOnboardingState();
 
   if (!state?.clinic) redirect("/owner");
 
-  if (state.clinic.clinic_setup_completed && !profile.first_login) {
+  if (state.clinic.clinic_setup_completed) {
     redirect("/owner");
   }
 
@@ -36,20 +36,20 @@ export default async function OwnerOnboardingPage() {
                 Set up {clinicName}
               </h1>
               <p className="mt-2 text-sm text-slate-300">
-                Configure your clinic profile, departments, and services so your team can start using MedERP right away.
+                Complete all five steps to configure your clinic. Progress is saved automatically — you can resume anytime.
               </p>
               <ul className="mt-8 space-y-3 text-sm text-slate-300">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--secondary)]" />
-                  Four quick steps — about 3 minutes
+                  Doctors, clinic profile &amp; fees
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--secondary)]" />
-                  You can update these settings later
+                  Working hours &amp; optional billing settings
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--secondary)]" />
-                  Unlocks your full owner dashboard
+                  Unlocks dashboard &amp; public booking page
                 </li>
               </ul>
             </div>
@@ -65,11 +65,7 @@ export default async function OwnerOnboardingPage() {
                 <p className="text-sm text-[var(--text-secondary)]">Complete your clinic profile</p>
               </div>
             </div>
-            <OnboardingWizard
-              clinic={state.clinic}
-              departments={state.departments}
-              plans={state.plans}
-            />
+            <SetupWizard initialProgress={state.progress} />
           </main>
         </div>
       </div>

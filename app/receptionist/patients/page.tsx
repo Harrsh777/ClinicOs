@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { getPatients } from "@/lib/actions/patients";
-import { PageHeader, EmptyState } from "@/components/ui/card";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { PageHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatPhone } from "@/lib/utils";
 import { PatientSearch } from "@/components/patients/patient-search";
-import { Users } from "lucide-react";
+import { PatientListTable } from "@/components/patients/patient-list-table";
 
 export default async function PatientsPage({
   searchParams,
@@ -21,7 +19,7 @@ export default async function PatientsPage({
     <div>
       <PageHeader
         title="Patients"
-        subtitle="Search and manage patient records"
+        subtitle={`${patients.length} patient${patients.length !== 1 ? "s" : ""} at your clinic`}
         action={
           <Link href="/receptionist/patients/new">
             <Button>Register Patient</Button>
@@ -30,47 +28,12 @@ export default async function PatientsPage({
       />
       <PatientSearch defaultValue={q} />
       <div className="mt-4">
-        {patients.length === 0 ? (
-          <EmptyState
-            icon={<Users />}
-            title="No patients found"
-            description="Register your first patient to get started"
-            action={
-              <Link href="/receptionist/patients/new">
-                <Button>Register Patient</Button>
-              </Link>
-            }
-          />
-        ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Code</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Registered</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {patients.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-mono text-sm text-[var(--text-muted)]">{p.patient_code}</TableCell>
-                <TableCell className="font-medium">{p.full_name}</TableCell>
-                <TableCell>{formatPhone(p.phone)}</TableCell>
-                <TableCell className="text-sm text-[var(--text-muted)]">
-                  {new Date(p.created_at).toLocaleDateString()}
-                </TableCell>
-                <TableCell>
-                  <Link href={`/receptionist/patients/${p.id}`}>
-                    <Button size="sm" variant="secondary">View</Button>
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        )}
+        <PatientListTable
+          patients={patients}
+          basePath="/receptionist/patients"
+          canRegister
+          registerHref="/receptionist/patients/new"
+        />
       </div>
     </div>
   );

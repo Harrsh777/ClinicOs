@@ -58,6 +58,7 @@ import { cn, getInitials } from "@/lib/utils";
 import type { SidebarSectionResolved } from "@/lib/navigation/types";
 import type { Profile } from "@/lib/types/database";
 import { logoutAction } from "@/lib/actions/auth";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -417,6 +418,9 @@ export function Sidebar({ profile, sections, clinicName }: SidebarProps) {
       </nav>
 
       <div className="clinic-sidebar-footer">
+        <div className="mb-2 flex items-center justify-center">
+          <NotificationBell />
+        </div>
         <UserMenu profile={profile} />
       </div>
     </aside>

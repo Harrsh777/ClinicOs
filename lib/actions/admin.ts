@@ -67,9 +67,22 @@ export async function suspendClinicAction(clinicId: string, suspend: boolean) {
   await requireRole(["super_admin"]);
   const supabase = await createClient();
 
+  let portalEnabled: boolean | undefined;
+  if (!suspend) {
+    const { data: clinic } = await supabase
+      .from("clinics")
+      .select("clinic_setup_completed")
+      .eq("id", clinicId)
+      .single();
+    portalEnabled = clinic?.clinic_setup_completed ?? false;
+  }
+
   const { error } = await supabase
     .from("clinics")
-    .update({ status: suspend ? "suspended" : "active" })
+    .update({
+      status: suspend ? "suspended" : "active",
+      ...(suspend ? { portal_enabled: false } : portalEnabled !== undefined ? { portal_enabled: portalEnabled } : {}),
+    })
     .eq("id", clinicId);
 
   if (error) return { error: error.message };

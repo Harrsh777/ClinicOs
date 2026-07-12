@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { BookDemoModal } from "@/components/landing/book-demo-modal";
 
 // ─── Inline style helpers ────────────────────────────────────────────────────
 const COLORS = {
@@ -350,6 +351,7 @@ function PricingCard({ plan, price, desc, features, highlight }: {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ClinicosLanding() {
   const [scrolled, setScrolled] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -457,7 +459,10 @@ export default function ClinicosLanding() {
           {/* CTA */}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Link href="/login" style={{ fontSize: 14, fontWeight: 600, color: COLORS.primary, textDecoration: "none", fontFamily: "Inter, sans-serif" }}>Login</Link>
-            <Link href="/signup" style={{
+            <button
+              type="button"
+              onClick={() => setDemoOpen(true)}
+              style={{
               padding: "9px 20px", borderRadius: 12,
               background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.accent2})`,
               border: "none", color: COLORS.white, fontSize: 14, fontWeight: 700,
@@ -467,7 +472,7 @@ export default function ClinicosLanding() {
             }}
               onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${COLORS.accent}50`; }}
               onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = `0 4px 16px ${COLORS.accent}40`; }}
-            >Book Demo →</Link>
+            >Book Demo →</button>
           </div>
         </div>
       </nav>
@@ -937,7 +942,10 @@ export default function ClinicosLanding() {
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "none"; }}
               >Start Free Trial →</button>
-              <button style={{
+              <button
+                type="button"
+                onClick={() => setDemoOpen(true)}
+                style={{
                 padding: "16px 36px", borderRadius: 16,
                 background: "transparent", border: "1.5px solid rgba(255,255,255,0.2)",
                 color: COLORS.white, fontSize: 16, fontWeight: 700,
@@ -1011,6 +1019,8 @@ export default function ClinicosLanding() {
           </div>
         </div>
       </footer>
+
+      <BookDemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
     </div>
   );
 }

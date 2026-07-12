@@ -57,7 +57,7 @@ export async function resolveStaffLoginEmail(
         };
       }
     }
-    return { ok: false, error: "Invalid Staff ID for this clinic." };
+    return { ok: false, error: "Invalid User ID for this clinic." };
   }
 
   if (!profile.email) {

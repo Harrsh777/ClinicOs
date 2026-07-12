@@ -1,22 +1,38 @@
 import { notFound } from "next/navigation";
-import { getPatientDetail } from "@/lib/actions/patients";
+import { requireRole } from "@/lib/auth/session";
+import { getPatientDetail, getPatientSummary } from "@/lib/actions/patients";
+import { getPatientEmrRecords } from "@/lib/actions/consultations";
 import { PageHeader } from "@/components/ui/card";
 import { PatientProfileTabs } from "@/components/patients/patient-profile-tabs";
+import { PatientSummaryPanel } from "@/components/patients/patient-summary-panel";
 
 export default async function DoctorPatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const profile = await requireRole(["doctor", "clinic_owner"]);
   const { id } = await params;
-  const data = await getPatientDetail(id);
+
+  const [data, summary, emrRecords] = await Promise.all([
+    getPatientDetail(id),
+    profile.clinic_id ? getPatientSummary(id, profile.clinic_id) : null,
+    getPatientEmrRecords(id),
+  ]);
+
   if (!data.patient) notFound();
+  if (profile.clinic_id && data.patient.clinic_id !== profile.clinic_id) notFound();
+
+  const enrichedSummary = summary
+    ? { ...summary, emrRecords: emrRecords.length ? emrRecords : summary.emrRecords }
+    : null;
 
   return (
     <div>
       <PageHeader
         title={data.patient.full_name}
-        subtitle="Patient profile (read-only)"
+        subtitle={data.patient.patient_code ? `Patient ID: ${data.patient.patient_code}` : "Patient profile"}
         backHref="/doctor/patients"
         backLabel="All patients"
       />
-      <PatientProfileTabs {...data} canEdit={false} />
+      {enrichedSummary && <PatientSummaryPanel summary={enrichedSummary as Parameters<typeof PatientSummaryPanel>[0]["summary"]} />}
+      <PatientProfileTabs {...data} canEdit={false} emrRecords={emrRecords} />
     </div>
   );
 }
