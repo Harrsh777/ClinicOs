@@ -3,7 +3,7 @@ import { PageHeader, StatCard } from "@/components/ui/card";
 import { Building2, Users, Inbox, Calendar, BarChart3, CalendarClock } from "lucide-react";
 import { format } from "date-fns";
 import { getClinics } from "@/lib/actions/admin";
-import { getPlatformAnalytics, getPlatformOverview } from "@/lib/actions/platform-admin";
+import { getPlatformAnalytics, getPlatformOverview, getPlatformCredentials } from "@/lib/actions/platform-admin";
 import { getDemoRequestStats } from "@/lib/actions/demo-requests";
 import { Button } from "@/components/ui/button";
 import { PlatformAnalytics } from "@/components/admin/platform-analytics";
@@ -11,11 +11,12 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { StatusBadge } from "@/components/ui/badge";
 
 export default async function AdminDashboard() {
-  const [clinics, analytics, overview, demoStats] = await Promise.all([
+  const [clinics, analytics, overview, demoStats, credentials] = await Promise.all([
     getClinics(),
     getPlatformAnalytics(),
     getPlatformOverview(),
     getDemoRequestStats(),
+    getPlatformCredentials(),
   ]);
   const active = clinics.filter((c) => c.status === "active").length;
   const trial = clinics.filter((c) => c.status === "trial").length;
@@ -68,6 +69,63 @@ export default async function AdminDashboard() {
         <StatCard label="On Trial" value={trial} icon={<Building2 className="h-5 w-5" />} />
         <StatCard label="Platform Patients" value={overview.patientCount} icon={<Users className="h-5 w-5" />} />
         <StatCard label="Appointments (30d)" value={overview.appointmentCount30d} icon={<Calendar className="h-5 w-5" />} />
+      </div>
+
+      <div className="mb-8 clinic-card p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold">Clinic login credentials</h3>
+            <p className="text-sm text-[var(--text-muted)]">
+              Owner accounts created or approved from this admin panel. Passwords are stored for platform support only.
+            </p>
+          </div>
+          <Link href="/admin/clinics" className="text-sm text-[var(--brand-600)] hover:underline">
+            All clinics
+          </Link>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Clinic</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Clinic ID</TableHead>
+              <TableHead>Staff ID</TableHead>
+              <TableHead>Password</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {credentials.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-[var(--text-muted)]">
+                  No credentials stored yet
+                </TableCell>
+              </TableRow>
+            ) : (
+              credentials.slice(0, 12).map((cred) => {
+                const clinicMeta = cred.clinics as { name?: string; status?: string; city?: string } | null;
+                return (
+                  <TableRow key={cred.id}>
+                    <TableCell>
+                      <Link
+                        href={`/admin/clinics/${cred.clinic_id}`}
+                        className="font-medium hover:text-[var(--brand-600)]"
+                      >
+                        {clinicMeta?.name ?? "—"}
+                      </Link>
+                      {clinicMeta?.city && (
+                        <p className="text-xs text-[var(--text-muted)]">{clinicMeta.city}</p>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">{cred.email}</TableCell>
+                    <TableCell className="font-mono text-sm">{cred.clinic_code}</TableCell>
+                    <TableCell className="font-mono text-sm">{cred.staff_code}</TableCell>
+                    <TableCell className="font-mono text-sm">{cred.initial_password}</TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3 mb-8">

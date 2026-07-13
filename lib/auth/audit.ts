@@ -29,16 +29,16 @@ export async function logAuditEvent(params: {
 }
 
 export async function logPlatformAuditEvent(params: {
-  adminId: string;
+  adminId?: string | null;
   action: string;
   targetClinicId?: string;
   details?: Record<string, unknown>;
 }) {
   const service = await createServiceClient();
   await service.from("platform_audit_logs").insert({
-    admin_id: params.adminId,
+    admin_id: params.adminId ?? null,
     action: params.action,
     target_clinic_id: params.targetClinicId ?? null,
-    details: params.details ?? {},
+    details: { ...params.details, source: params.adminId ? "profile" : "platform_password_admin" },
   });
 }

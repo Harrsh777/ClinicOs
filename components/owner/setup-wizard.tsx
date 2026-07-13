@@ -237,7 +237,10 @@ export function SetupWizard({ initialProgress }: { initialProgress: OnboardingPr
         <div className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Doctor information</h2>
-            <p className="text-sm text-[var(--text-secondary)]">Add doctors who practice at your clinic. At least one is required.</p>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Add doctors who practice at your clinic for your public profile and booking page. Login accounts
+              are created separately from Staff Management after setup.
+            </p>
           </div>
           {doctors.map((doc, i) => (
             <DoctorCard

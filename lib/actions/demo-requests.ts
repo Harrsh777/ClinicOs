@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth/session";
+import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { enforceRateLimit } from "@/lib/security/rate-limit";
 import {
   demoRequestFieldErrors,
@@ -116,7 +116,7 @@ export async function submitDemoRequestAction(formData: FormData) {
 }
 
 export async function getDemoRequests(status?: DemoRequestStatus) {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const service = await createServiceClient();
 
   let query = service
@@ -140,7 +140,7 @@ const updateDemoSchema = z.object({
 });
 
 export async function updateDemoRequestAction(formData: FormData) {
-  const profile = await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const parsed = updateDemoSchema.safeParse({
     id: formData.get("id"),
     status: formData.get("status"),
@@ -155,7 +155,7 @@ export async function updateDemoRequestAction(formData: FormData) {
     .update({
       status: parsed.data.status,
       admin_notes: parsed.data.adminNotes?.trim() || null,
-      reviewed_by: profile.id,
+      reviewed_by: null,
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", parsed.data.id);
@@ -168,7 +168,7 @@ export async function updateDemoRequestAction(formData: FormData) {
 }
 
 export async function getDemoRequestStats() {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const service = await createServiceClient();
 
   const [{ count: newCount, error: countError }, { data: recent, error: recentError }] = await Promise.all([

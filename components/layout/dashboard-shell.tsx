@@ -1,8 +1,9 @@
-import { Sidebar } from "@/components/layout/sidebar";
+import { TopNavbar } from "@/components/layout/top-navbar";
 import { getUserPermissions } from "@/lib/auth/session";
 import { getLinkedDoctor } from "@/lib/auth/linked-doctor";
 import { getOwnerClinicIds } from "@/lib/actions/franchise";
 import { buildSidebarNav } from "@/lib/navigation/build-sidebar-nav";
+import { buildTopNav } from "@/lib/navigation/build-top-nav";
 import { getClinicFeatures } from "@/lib/clinic/features";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types/database";
@@ -36,25 +37,35 @@ export async function DashboardShell({ profile, basePath, children }: DashboardS
       features,
       hasLinkedDoctor,
     });
+    const navItems = buildTopNav(sections);
 
     return (
-      <div className="flex min-h-screen bg-[var(--surface-1)]">
-        <Sidebar profile={profile} sections={sections} clinicName={clinicName} />
-        <main className="flex-1 overflow-auto">
-          <div className="mx-auto max-w-7xl px-8 py-8 max-md:px-4">{children}</div>
-        </main>
+      <div className="min-h-screen bg-[var(--surface-1)]">
+        <TopNavbar
+          profile={profile}
+          navItems={navItems}
+          sections={sections}
+          clinicName={clinicName}
+          basePath={basePath}
+        />
+        <main className="clinic-main-content">{children}</main>
       </div>
     );
   }
 
   const sections = buildSidebarNav(profile, permissions, basePath, { showFranchise, hasLinkedDoctor });
+  const navItems = buildTopNav(sections);
 
   return (
-    <div className="flex min-h-screen bg-[var(--surface-1)]">
-      <Sidebar profile={profile} sections={sections} clinicName={clinicName} />
-      <main className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-7xl px-8 py-8 max-md:px-4">{children}</div>
-      </main>
+    <div className="min-h-screen bg-[var(--surface-1)]">
+      <TopNavbar
+        profile={profile}
+        navItems={navItems}
+        sections={sections}
+        clinicName={clinicName}
+        basePath={basePath}
+      />
+      <main className="clinic-main-content">{children}</main>
     </div>
   );
 }

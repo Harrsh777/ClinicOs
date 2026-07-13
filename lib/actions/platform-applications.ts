@@ -2,15 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth/session";
+import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { createClinicWithOwner } from "@/lib/clinic/provision";
 import { sendEmail } from "@/lib/email/send";
 import { clinicApprovedEmail, clinicRejectedEmail } from "@/lib/email/templates";
 import { logPlatformAuditEvent } from "@/lib/auth/audit";
+import { savePlatformClinicCredentials } from "@/lib/clinic/credentials";
 import { z } from "zod";
 
 export async function getClinicApplications(status?: "pending" | "approved" | "rejected") {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const service = await createServiceClient();
   let query = service
     .from("clinic_applications")
@@ -38,7 +39,7 @@ const approveSchema = z.object({
 });
 
 export async function approveClinicApplicationAction(formData: FormData) {
-  const admin = await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const parsed = approveSchema.safeParse({
     applicationId: formData.get("applicationId"),
     planId: formData.get("planId") || undefined,
@@ -92,7 +93,7 @@ export async function approveClinicApplicationAction(formData: FormData) {
     .update({
       status: "approved",
       clinic_id: result.clinic!.id,
-      reviewed_by: admin.id,
+      reviewed_by: null,
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", app.id);
@@ -112,7 +113,7 @@ export async function approveClinicApplicationAction(formData: FormData) {
   });
 
   await logPlatformAuditEvent({
-    adminId: admin.id,
+    adminId: null,
     action: "clinic.approved",
     targetClinicId: result.clinic!.id,
     details: { application_id: app.id, clinic_code: result.clinicCode },
@@ -132,7 +133,7 @@ export async function approveClinicApplicationAction(formData: FormData) {
 }
 
 export async function rejectClinicApplicationAction(formData: FormData) {
-  const admin = await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const applicationId = formData.get("applicationId") as string;
   const reason = (formData.get("reason") as string) || undefined;
 
@@ -154,7 +155,7 @@ export async function rejectClinicApplicationAction(formData: FormData) {
       status: "rejected",
       admin_notes: reason,
       rejection_reason: reason,
-      reviewed_by: admin.id,
+      reviewed_by: null,
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", applicationId);
@@ -166,7 +167,7 @@ export async function rejectClinicApplicationAction(formData: FormData) {
   });
 
   await logPlatformAuditEvent({
-    adminId: admin.id,
+    adminId: null,
     action: "clinic.rejected",
     details: { application_id: applicationId, reason },
   });
@@ -177,7 +178,7 @@ export async function rejectClinicApplicationAction(formData: FormData) {
 }
 
 export async function resendApprovalEmailAction(formData: FormData) {
-  const admin = await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const applicationId = formData.get("applicationId") as string;
   if (!applicationId) return { error: "Missing application ID" };
 
@@ -210,6 +211,24 @@ export async function resendApprovalEmailAction(formData: FormData) {
 
   await service.from("profiles").update({ first_login: true }).eq("id", owner.id);
 
+  const { data: ownerProfile } = await service
+    .from("profiles")
+    .select("staff_code, email")
+    .eq("id", owner.id)
+    .single();
+
+  if (clinic?.clinic_code && ownerProfile?.staff_code && ownerProfile.email) {
+    await savePlatformClinicCredentials(service, {
+      clinicId: app.clinic_id,
+      profileId: owner.id,
+      clinicCode: clinic.clinic_code,
+      staffCode: ownerProfile.staff_code,
+      email: ownerProfile.email,
+      initialPassword: tempPassword,
+      role: "clinic_owner",
+    });
+  }
+
   const loginUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const emailResult = await sendEmail({
     to: app.owner_email,
@@ -224,7 +243,7 @@ export async function resendApprovalEmailAction(formData: FormData) {
   });
 
   await logPlatformAuditEvent({
-    adminId: admin.id,
+    adminId: null,
     action: "clinic.credentials_resent",
     targetClinicId: app.clinic_id,
     details: { application_id: applicationId },

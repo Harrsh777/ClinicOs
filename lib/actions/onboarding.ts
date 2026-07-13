@@ -97,16 +97,6 @@ export async function saveOnboardingProgressAction(progress: OnboardingProgress)
   }
 }
 
-const DAY_MAP: Record<string, number> = {
-  sun: 0,
-  mon: 1,
-  tue: 2,
-  wed: 3,
-  thu: 4,
-  fri: 5,
-  sat: 6,
-};
-
 export async function completeOnboardingAction(progress: OnboardingProgress) {
   const profile = await requireRole(["clinic_owner"]);
   if (!profile.clinic_id) return { error: "No clinic assigned" };
@@ -181,6 +171,8 @@ export async function completeOnboardingAction(progress: OnboardingProgress) {
       opening_hours: Object.keys(openingHours).length ? openingHours : undefined,
       settings: {
         onboarding_doctors: doctors,
+        onboarding_schedules: progress.step4?.schedules ?? {},
+        onboarding_doctors_provisioned: 0,
         setup_completed_at: new Date().toISOString(),
       },
       clinic_setup_completed: true,
@@ -207,91 +199,6 @@ export async function completeOnboardingAction(progress: OnboardingProgress) {
     digital_signature_url: s5.digitalSignatureUrl || null,
     social_links: socialLinks,
   });
-
-  const ownerDoctor = doctors[0]!;
-  const { data: existingDoctor } = await supabase
-    .from("doctors")
-    .select("id")
-    .eq("profile_id", profile.id)
-    .maybeSingle();
-
-  const doctorPayload = {
-    clinic_id: clinicId,
-    profile_id: profile.id,
-    specialization: ownerDoctor.specialization || null,
-    consultation_fee: parseFloat(s3.normalConsultation) || 500,
-    slot_duration_mins: parseInt(ownerDoctor.consultationDuration, 10) || 15,
-    degree: ownerDoctor.degree || null,
-    experience_years: ownerDoctor.experience ? parseInt(ownerDoctor.experience, 10) : null,
-    registration_number: ownerDoctor.registrationNumber || null,
-    languages: ownerDoctor.languages
-      ? ownerDoctor.languages.split(",").map((l) => l.trim()).filter(Boolean)
-      : [],
-    biography: ownerDoctor.biography || null,
-    buffer_mins: firstSchedule ? parseInt(firstSchedule.bufferTime, 10) || 5 : 5,
-    max_daily_patients: firstSchedule ? parseInt(firstSchedule.maxDailyPatients, 10) || null : null,
-    emergency_slots: firstSchedule ? parseInt(firstSchedule.emergencySlots, 10) || 2 : 2,
-  };
-
-  let doctorRowId = existingDoctor?.id;
-  if (existingDoctor) {
-    await supabase.from("doctors").update(doctorPayload).eq("id", existingDoctor.id);
-  } else {
-    const { data: inserted } = await supabase.from("doctors").insert(doctorPayload).select("id").single();
-    doctorRowId = inserted?.id;
-  }
-
-  await supabase
-    .from("profiles")
-    .update({
-      full_name: ownerDoctor.name || profile.full_name,
-      specialization: ownerDoctor.specialization || null,
-      avatar_url: ownerDoctor.profileImageUrl || null,
-    })
-    .eq("id", profile.id);
-
-  if (firstSchedule?.weekly && doctorRowId) {
-    const doctorId = doctorRowId;
-    for (const [day, hours] of Object.entries(firstSchedule.weekly)) {
-      const dow = DAY_MAP[day];
-      if (dow === undefined) continue;
-      if (hours.closed) {
-        await supabase
-          .from("doctor_schedules")
-          .delete()
-          .eq("doctor_id", doctorId)
-          .eq("day_of_week", dow);
-      } else {
-        await supabase.from("doctor_schedules").upsert(
-          {
-            doctor_id: doctorId,
-            clinic_id: clinicId,
-            day_of_week: dow,
-            start_time: hours.open,
-            end_time: hours.close,
-            is_available: true,
-          },
-          { onConflict: "doctor_id,day_of_week" }
-        );
-      }
-    }
-
-    const holidayDates = (firstSchedule.holidays ?? "")
-      .split(",")
-      .map((d) => d.trim())
-      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-    const leaveDates = (firstSchedule.leave ?? "")
-      .split(",")
-      .map((d) => d.trim())
-      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-
-    for (const blockedDate of [...holidayDates, ...leaveDates]) {
-      await supabase.from("doctor_blocked_dates").upsert(
-        { doctor_id: doctorId, clinic_id: clinicId, blocked_date: blockedDate, reason: "Holiday/leave" },
-        { onConflict: "doctor_id,blocked_date" }
-      );
-    }
-  }
 
   if (s5.whatsappNumber) {
     await supabase.from("clinic_branding").upsert({

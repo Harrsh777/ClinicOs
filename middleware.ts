@@ -9,6 +9,10 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_ROUTES, type Profile } from "@/lib/types/database";
 import { getClinicFeatures, getFeatureRouteGuard, isFeatureEnabled } from "@/lib/clinic/features";
 import { isShortClinicPortalPath, resolveAnyShortClinicPath } from "@/lib/portal/public-urls";
+import {
+  PLATFORM_ADMIN_COOKIE,
+  verifyPlatformAdminSession,
+} from "@/lib/auth/platform-admin";
 
 const PUBLIC_ROUTES = ["/", "/login", "/signup", "/register", "/invite", "/privacy", "/terms", "/pricing", "/forgot-password"];
 const PUBLIC_PREFIXES = ["/check-in/", "/queue/", "/c/", "/api/health", "/api/webhooks/", "/api/portal/", "/activate/", "/reset-password/"];
@@ -72,6 +76,33 @@ function attachProfileContext(
   return response;
 }
 
+function withPathname(
+  request: NextRequest,
+  supabaseResponse: NextResponse,
+  pathname: string,
+  profileContext: Record<string, string> = {}
+) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
+  for (const [key, value] of Object.entries(profileContext)) {
+    requestHeaders.set(key, value);
+  }
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+
+  for (const cookie of supabaseResponse.cookies.getAll()) {
+    response.cookies.set(cookie.name, cookie.value, cookie);
+  }
+
+  return response;
+}
+
+function hasPlatformAdminSession(request: NextRequest) {
+  return verifyPlatformAdminSession(request.cookies.get(PLATFORM_ADMIN_COOKIE)?.value);
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") ?? "";
@@ -84,6 +115,20 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/cron/");
 
   const { supabase, user, supabaseResponse } = await updateSession(request);
+
+  if (pathname === "/admin/login") {
+    if (hasPlatformAdminSession(request)) {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
+    return withPathname(request, supabaseResponse, pathname);
+  }
+
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    if (!hasPlatformAdminSession(request)) {
+      return NextResponse.redirect(new URL("/admin/login", request.url));
+    }
+    return withPathname(request, supabaseResponse, pathname);
+  }
 
   const subSlug = resolveSubdomainSlug(host);
   if (

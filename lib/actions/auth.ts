@@ -453,10 +453,16 @@ export async function acceptInviteAction(formData: FormData) {
     .eq("id", user.id);
 
   if (invite.role === "doctor") {
-    await supabase.from("doctors").insert({
-      profile_id: user.id,
-      clinic_id: invite.clinic_id,
-    });
+    const { data: doctorRow } = await supabase
+      .from("doctors")
+      .insert({ profile_id: user.id, clinic_id: invite.clinic_id })
+      .select("id")
+      .single();
+
+    if (doctorRow?.id) {
+      const { enrichDoctorFromOnboarding } = await import("@/lib/clinic/doctor-setup");
+      await enrichDoctorFromOnboarding(supabase, invite.clinic_id, doctorRow.id, user.id);
+    }
   }
 
   const moduleKeys = invite.module_keys as string[];

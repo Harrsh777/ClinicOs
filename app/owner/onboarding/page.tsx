@@ -41,7 +41,7 @@ export default async function OwnerOnboardingPage() {
               <ul className="mt-8 space-y-3 text-sm text-slate-300">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--secondary)]" />
-                  Doctors, clinic profile &amp; fees
+                  Doctor profiles saved for your public page — staff logins created later
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--secondary)]" />

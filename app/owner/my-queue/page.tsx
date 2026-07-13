@@ -16,11 +16,14 @@ export default async function OwnerMyQueuePage() {
         <PageHeader title="My Queue" subtitle="Doctor view of your patient queue" />
         <div className="clinic-card p-6 space-y-3">
           <p className="text-[var(--text-secondary)]">
-            Your owner account is not linked to a doctor profile yet. Complete clinic setup with your
-            doctor details, or ask staff to link your profile in the doctors table.
+            Your owner account is not linked to a doctor profile yet. Enable clinical access from{" "}
+            <Link href="/owner/staff" className="font-medium text-[var(--brand-600)] hover:underline">
+              Staff Management
+            </Link>
+            , or create a doctor staff account for someone else.
           </p>
-          <Link href="/owner/settings">
-            <Button variant="secondary" size="sm">Clinic Settings</Button>
+          <Link href="/owner/staff">
+            <Button variant="secondary" size="sm">Go to Staff Management</Button>
           </Link>
         </div>
       </div>

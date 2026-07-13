@@ -1,15 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { BookDemoModal } from "@/components/landing/book-demo-modal";
 import { useLandingEffects } from "@/components/landing/use-landing-effects";
 import "./landing.css";
 
-const ACCENT = "#16C784";
-const AI = "#6EC6FF";
-const TEAL = "#0F766E";
-const GOLD = "#F5C542";
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=90&w=3840&auto=format&fit=crop";
+
+function fmtINR(n: number) {
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+}
+
+function calcROI(doctorsPerDay: number, patientsPerMonth: number, consultationFee: number, noShowPercent: number) {
+  const capacityFactor = Math.max(0.045, 0.055 - (doctorsPerDay - 20) * 0.0005);
+  const leakRate = noShowPercent / 100 + capacityFactor;
+  const totalLoss = patientsPerMonth * consultationFee * leakRate;
+  const recovery = totalLoss * 0.56;
+  return { totalLoss, recovery };
+}
 
 function openDemo(setDemoOpen: (v: boolean) => void) {
   return (e: React.MouseEvent) => {
@@ -18,742 +28,276 @@ function openDemo(setDemoOpen: (v: boolean) => void) {
   };
 }
 
+function LogoMark() {
+  return (
+    <span className="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round">
+        <path d="M12 4v16M4 12h16" />
+      </svg>
+    </span>
+  );
+}
+
 export function ClinicosLanding() {
   const [demoOpen, setDemoOpen] = useState(false);
+  const [doctorsPerDay, setDoctorsPerDay] = useState(20);
+  const [patientsPerMonth, setPatientsPerMonth] = useState(400);
+  const [consultationFee, setConsultationFee] = useState(1000);
+  const [noShowPercent, setNoShowPercent] = useState(15);
+
   useLandingEffects();
+
+  const roi = useMemo(
+    () => calcROI(doctorsPerDay, patientsPerMonth, consultationFee, noShowPercent),
+    [doctorsPerDay, patientsPerMonth, consultationFee, noShowPercent],
+  );
 
   return (
     <div className="landing">
-      <nav className="nav" id="landing-nav">
-        <Link href="#hero" className="nav-logo">
-          <span className="pulse" aria-hidden />
-          Clinic<span className="os">OS</span>
-        </Link>
-        <div className="nav-actions">
-          <Link className="nav-signin" href="/login">
-            Sign In
-          </Link>
-          <button type="button" className="btn btn-primary nav-cta magnetic" onClick={openDemo(setDemoOpen)}>
-            Book a Demo
-          </button>
-        </div>
+      <nav>
+        <a className="logo" href="#hero">
+          <LogoMark />
+          ClinicOS
+        </a>
+        <ul className="nav-links">
+          <li>
+            <a href="#problems">Problems</a>
+          </li>
+          <li>
+            <a href="#how-it-works">How It Works</a>
+          </li>
+          <li>
+            <a href="#ai-employees">AI Team</a>
+          </li>
+          <li>
+            <a href="#platform">Platform</a>
+          </li>
+          <li>
+            <a href="#pricing">Pricing</a>
+          </li>
+        </ul>
+        <button type="button" className="nav-cta" onClick={openDemo(setDemoOpen)}>
+          Book a demo <span className="arr">↗</span>
+        </button>
       </nav>
 
       {/* HERO */}
-      <section id="hero">
-        <canvas id="hero-canvas" />
-        <div className="mouselight" />
+      <header className="hero" id="hero">
+        <div className="hero-img">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            id="heroPhoto"
+            alt="Confident Indian doctor in a modern clinic"
+            src={HERO_IMAGE}
+          />
+        </div>
+        <div className="hero-shade" />
+        <div className="hero-grain" />
 
-        <div className="hero-stage">
-          <div className="hero-lines" id="heroLines">
-            <p className="hero-line" id="hl1">
-              A clinic running at its best.
-            </p>
-            <p className="hero-line" id="hl2">
-              Then reality <em>catches up</em>.
-            </p>
-          </div>
-
-          <div className="paper-field" id="paperField">
-            <div className="paper" data-depth="0.06" style={{ top: "14%", left: "9%" }}>
-              <small>Lost revenue</small>₹1.4L/mo · no-shows
-            </div>
-            <div className="paper" data-depth="0.1" style={{ top: "22%", right: "11%" }}>
-              <small>Empty slots</small>Tuesday 3–5 PM · unused
-            </div>
-            <div className="paper alert" data-depth="0.14" style={{ top: "64%", left: "12%" }}>
-              <small>Follow-ups</small>27% never returned
-            </div>
-            <div className="paper wa" data-depth="0.08" style={{ top: "72%", right: "14%" }}>
-              <small>WhatsApp</small>&quot;Any slot today?&quot; · unread
-            </div>
-            <div className="paper" data-depth="0.12" style={{ top: "40%", left: "4%" }}>
-              <small>Google</small>3.6 ★ · ranking #12
-            </div>
-            <div className="paper" data-depth="0.05" style={{ top: "47%", right: "5%" }}>
-              <small>Recall list</small>14 diabetics · overdue
-            </div>
-            <div className="paper" data-depth="0.16" style={{ top: "84%", left: "38%" }}>
-              <small>Referrals</small>0 this month
-            </div>
-            <div className="paper alert" data-depth="0.09" style={{ top: "8%", left: "44%" }}>
-              <small>Reviews</small>3 unhappy · unanswered
-            </div>
-          </div>
-
-          <div className="core" id="core" />
-
-          <div className="hero-reveal" id="heroReveal">
-            <h1 className="hero-headline rvh">
-              <span className="hero-headline-line">India&apos;s First</span>
-              <span className="hero-headline-line">AI-Powered</span>
-              <span className="hero-headline-line accent">Clinic Growth Operating System</span>
-            </h1>
-            <p className="hero-tagline rvh">
-              Helping doctors grow their practice, not just manage it.
-            </p>
-            <div className="hero-ctas rvh">
-              <button type="button" className="btn btn-primary magnetic" onClick={openDemo(setDemoOpen)}>
-                Book a Demo <span className="btn-arrow">→</span>
-              </button>
-              <Link href="/login" className="btn btn-ghost magnetic">
-                Sign In
-              </Link>
-            </div>
-            <div className="hero-floats glass rvh" id="heroFloats" data-depth="0.04">
-              <div className="float-panel">
-                <small>Revenue</small>
-                <strong>₹14.2L</strong>
-                <span>+32% this month</span>
-              </div>
-              <div className="float-panel">
-                <small>Patients</small>
-                <strong>61%</strong>
-                <span>returning on schedule</span>
-              </div>
-              <div className="float-panel">
-                <small>Appointments</small>
-                <strong>94%</strong>
-                <span>slots filled today</span>
-              </div>
-              <div className="float-panel">
-                <small>Google Reviews</small>
-                <strong className="gold">4.8 ★</strong>
-                <span className="gold">+214 this quarter</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="hero-scrollhint" id="scrollHint">
-            <span>Scroll to begin</span>
-            <span className="bar" />
+        <div className="hero-pill pill-1">
+          <span className="ic">⚡</span>
+          <div>
+            <b>AI receptionist</b> <span>answers every call &amp; WhatsApp, 24×7.</span>
           </div>
         </div>
-      </section>
-
-      {/* PROBLEM */}
-      <section id="problem" className="scene scene--alt">
-        <div className="wrap">
-          <div className="scene-head">
-            <span className="eyebrow rv">The growth gap</span>
-            <h2 className="h-xl rv rv-d1">
-              Great doctors. Stagnant practices.
-              <br />
-              Sound familiar?
-            </h2>
-            <p className="lead rv rv-d2">
-              You didn&apos;t study medicine to chase follow-ups, fight for Google reviews, or watch revenue leak through empty slots. Yet that&apos;s what most clinics spend their days doing.
-            </p>
-          </div>
-
-          <div className="clinic-floor">
-            <div className="chaos bad c-span4 rv">
-              <small>Revenue left on table</small>
-              <strong>₹1.4L / month</strong>
-              <p>No-shows, missed recalls, unbilled procedures — silently draining growth.</p>
-            </div>
-            <div className="chaos bad c-span4 rv rv-d1">
-              <small>Patient retention</small>
-              <strong>27% lost</strong>
-              <p>Chronic patients drift away — nobody had time to bring them back.</p>
-            </div>
-            <div className="chaos bad c-span4 rv rv-d2">
-              <small>Google rating</small>
-              <strong>3.6 ★</strong>
-              <p>&quot;Long wait, billing confusion&quot; — the review new patients read first.</p>
-            </div>
-            <div className="chaos c-span4 rv rv-d1">
-              <small>Empty capacity</small>
-              <strong>18 hrs / week</strong>
-              <div className="queue-strip">
-                <span className="q-dot">—</span>
-                <span className="q-dot">—</span>
-                <span className="q-dot">—</span>
-                <span className="q-more">unfilled slots</span>
-              </div>
-            </div>
-            <div className="chaos bad c-span4 rv rv-d2">
-              <small>Referrals</small>
-              <strong>Near zero</strong>
-              <p>Happy patients leave without reviewing, referring, or returning on schedule.</p>
-            </div>
-            <div className="chaos c-span4 rv rv-d3">
-              <small>Your time</small>
-              <strong>60% admin</strong>
-              <p>Growth work — recalls, reputation, marketing — always gets pushed to &quot;tomorrow.&quot;</p>
-            </div>
-          </div>
-
-          <div className="problem-close">
-            <span className="eyebrow rv">The real problem</span>
-            <h2 className="h-xl rv rv-d1" style={{ marginTop: 20 }}>
-              You&apos;re running a practice.
-              <br />
-              Nobody&apos;s growing it.
-            </h2>
+        <div className="hero-pill pill-2">
+          <span className="ic">📈</span>
+          <div>
+            <b>35% more bookings</b> <span>on average within 90 days.</span>
           </div>
         </div>
-      </section>
+        <div className="hero-pill pill-3">
+          <span className="ic">🩺</span>
+          <div>
+            <b>Clinic on autopilot</b> <span>follow-ups, recalls &amp; reviews handled by AI.</span>
+          </div>
+        </div>
 
-      {/* TRANSFORM */}
-      <section id="transform" className="scene scene--white">
-        <div className="mouselight" />
-        <div className="orbit-line" />
-        <div className="wrap">
-          <span className="eyebrow rv" style={{ justifyContent: "center" }}>
-            The shift
-          </span>
-          <h2 className="h-xl rv rv-d1" style={{ marginTop: 22 }}>
-            One Growth OS.
+        <div className="hero-inner">
+          <div className="hero-eyebrow">
+            <span className="dot" />
+            India&apos;s First AI Clinic Growth Platform
+          </div>
+          <h1>
+            Grow Your Clinic.
             <br />
-            Every lever to scale.
-          </h2>
-          <p className="lead rv rv-d2" style={{ margin: "22px auto 0" }}>
-            ClinicOS doesn&apos;t store records — it grows your practice. Revenue recovery, patient retention, reputation, and AI automation — one intelligent system.
+            <em>Let AI Handle Everything Else.</em>
+          </h1>
+          <p className="hero-sub">
+            India&apos;s first AI-powered clinic growth platform that helps doctors attract more patients,
+            automate operations, recover missed revenue, and spend more time treating patients instead of
+            managing a clinic.
           </p>
-
-          <div className="modules" id="modules">
-            {[
-              { label: "Revenue", sub: "Recover lost income", ai: false },
-              { label: "Retention", sub: "Bring patients back", ai: false },
-              { label: "Reputation", sub: "Google reviews on autopilot", ai: false },
-              { label: "Queue", sub: "Fill every slot", ai: false },
-              { label: "WhatsApp", sub: "24/7 patient engagement", ai: false },
-              { label: "AI Assistant", sub: "Watches, warns, grows", ai: true },
-              { label: "Analytics", sub: "Owner growth briefing", ai: false },
-              { label: "Operations", sub: "Runs while you consult", ai: false },
-            ].map((m) => (
-              <div key={m.label} className="module glass rv">
-                <span className={`mi ${m.ai ? "mi--ai" : ""}`}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                    <circle cx="12" cy="12" r="3.2" />
-                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-                  </svg>
-                </span>
-                <b>{m.label}</b>
-                <span>{m.sub}</span>
-              </div>
-            ))}
+          <div className="hero-metrics">
+            <span className="hero-metric-pill">
+              <b>35%</b> More Bookings
+            </span>
+            <span className="hero-metric-pill">
+              <b>42%</b> Higher Retention
+            </span>
+            <span className="hero-metric-pill">
+              <b>6 hrs</b> Saved Weekly
+            </span>
+            <span className="hero-metric-pill">
+              <b>4.9★</b> Google Rating
+            </span>
+          </div>
+          <div className="hero-ctas">
+            <button type="button" className="btn-primary" onClick={openDemo(setDemoOpen)}>
+              Book Free Demo <span className="arr">↗</span>
+            </button>
           </div>
         </div>
-      </section>
 
-      {/* DASHBOARD */}
-      <section id="dash" className="scene scene--alt">
-        <div className="wrap">
-          <div className="scene-head">
-            <span className="eyebrow rv">Growth command centre</span>
-            <h2 className="h-xl rv rv-d1">
-              Your practice health.
-              <br />
-              One screen.
-            </h2>
-            <p className="lead rv rv-d2">Revenue, retention, reputation, queue — everything that grows your clinic, alive in one place.</p>
+        <div className="metric-card">
+          <div className="label">
+            Monthly Bookings <span className="dots">···</span>
           </div>
-
-          <div className="dash-space">
-            <div className="dash-group" id="dashGroup">
-              <div className="dcard glass d-span4 rv" style={{ "--z": "40px" } as React.CSSProperties}>
-                <small>
-                  <i /> Patient retention
-                </small>
-                <div className="drow">
-                  <span className="avatar">AR</span>
-                  <div>
-                    <div className="dnum" style={{ fontSize: 19 }}>
-                      Anita Rao, 34
-                    </div>
-                    <div className="dsub">Diabetes · last visit 92 days ago · at risk</div>
-                  </div>
-                </div>
-                <div style={{ marginTop: 14 }}>
-                  <span className="chip">Recall queued</span> <span className="chip">₹2,400 at risk</span>
-                </div>
-              </div>
-              <div className="dcard glass d-span4 rv rv-d1" style={{ "--z": "70px" } as React.CSSProperties}>
-                <small>
-                  <i /> Revenue · today
-                </small>
-                <div className="dnum" data-count="42300" data-prefix="₹">
-                  ₹0<em>+18% vs last Tue</em>
-                </div>
-                <div className="dsub">31 consults · 9 procedures · 0 unbilled</div>
-                <svg viewBox="0 0 220 44" fill="none" style={{ marginTop: 12 }}>
-                  <path className="draw-path" d="M2 40 C 30 38, 48 26, 74 27 S 128 14, 160 11 S 200 6, 218 3" stroke={ACCENT} strokeWidth="2.5" strokeLinecap="round" />
-                </svg>
-              </div>
-              <div className="dcard glass d-span4 rv rv-d2" style={{ "--z": "50px" } as React.CSSProperties}>
-                <small>
-                  <i /> Slot fill rate
-                </small>
-                <div className="dnum" style={{ fontSize: 19 }}>
-                  94% full
-                </div>
-                <div className="dsub">2 online bookings just now · evening OPD maxed</div>
-                <div style={{ marginTop: 14 }}>
-                  <span className="chip">+3 weekend slots suggested</span>
-                </div>
-              </div>
-              <div className="dcard glass d-span5 rv rv-d1" style={{ "--z": "80px" } as React.CSSProperties}>
-                <small>
-                  <i className="ai-dot" /> AI growth assistant
-                </small>
-                <p className="ai-line">
-                  &quot;<b>5 patients</b> missed follow-up. Sending recalls could recover <b>₹18,400</b> this week. Approve?&quot;
-                </p>
-                <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
-                  <span className="chip chip--ai">Approve all</span>
-                  <span className="chip chip--ai" style={{ opacity: 0.6 }}>
-                    Review list
-                  </span>
-                </div>
-              </div>
-              <div className="dcard glass d-span3 rv rv-d2" style={{ "--z": "36px" } as React.CSSProperties}>
-                <small>
-                  <i /> Google reviews
-                </small>
-                <div className="dnum" data-count="4.8" data-decimals="1">
-                  0<em>214 reviews</em>
-                </div>
-                <div className="stars">★★★★★</div>
-                <div className="dsub">3 new this week — all five stars</div>
-              </div>
-              <div className="dcard glass d-span4 rv rv-d3" style={{ "--z": "60px" } as React.CSSProperties}>
-                <small>
-                  <i /> Growth score
-                </small>
-                <div className="dnum" style={{ fontSize: 19 }}>
-                  84 / 100
-                </div>
-                <div className="dsub">+12 this quarter · reviews are your next lever</div>
-                <div className="queue-viz">
-                  {[60, 85, 45, 95, 55, 75, 40, 65].map((h, i) => (
-                    <i key={i} style={{ height: `${h}%` }} />
-                  ))}
-                </div>
-              </div>
+          <div className="num">+35%</div>
+          <div className="sub">Appointment bookings have increased</div>
+          <div className="metric-bars">
+            <div className="bar purple">
+              <i />
+            </div>
+            <div className="bar grey">
+              <i />
             </div>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* JOURNEY - abbreviated with key steps */}
-      <section id="journey" className="scene scene--white" style={{ padding: 0 }}>
-        <div className="journey-pin" id="journeyPin">
-          <div className="journey-head">
-            <span className="eyebrow rv">Patient journey</span>
-            <h2 className="h-lg rv rv-d1" style={{ marginTop: 18 }}>
-              Every touchpoint builds loyalty.
+      {/* PROBLEMS */}
+      <section id="problems">
+        <div className="wrap">
+          <div className="reveal">
+            <div className="eyebrow">The biggest problems</div>
+            <h2>
+              Every Clinic Leaks Revenue.
               <br />
-              Every visit grows the practice.
+              Most Doctors Never Know Where.
             </h2>
           </div>
-          <div className="journey-track" id="journeyTrack">
+          <div className="why-grid">
             {[
-              { n: "01", title: "She discovers you", body: "4.8★ on Google. Ranks #1 for 'clinic near me'. Trust before the first visit.", tag: "Reputation → growth" },
-              { n: "02", title: "Books on WhatsApp", body: "AI confirms slot in 8 seconds. No phone tag. No empty afternoon slots.", tag: "Fill rate +23%" },
-              { n: "03", title: "Walks in, zero wait", body: "Token on phone. Vitals pre-captured. Doctor sees full history instantly.", tag: "4 extra min consulting" },
-              { n: "04", title: "Leaves delighted", body: "Bill on UPI. Rx on WhatsApp. Review request at the perfect moment.", tag: "5★ review auto-sent" },
-              { n: "05", title: "Comes back on schedule", body: "Day 28: AI books her review. Day 90: recall if she slips. The loop never breaks.", tag: "Retention engineered" },
-              { n: "06", title: "Refers a friend", body: "Happy patients become your marketing. Referral tracked. Growth compounds.", tag: "Organic acquisition" },
+              { icon: "☎", title: "Missed Calls", lines: ["Patients call after clinic hours.", "Lose them forever."] },
+              { icon: "📉", title: "No Follow-ups", lines: ["Patients never come back."] },
+              { icon: "⭐", title: "Poor Google Reviews", lines: ["Happy patients never leave reviews."] },
+              { icon: "📄", title: "Paperwork", lines: ["Doctors spend hours writing."] },
+              { icon: "💬", title: "WhatsApp Chaos", lines: ["Staff manually messages every patient."] },
+              { icon: "💰", title: "Empty Appointment Slots", lines: ["Revenue disappears."] },
+            ].map((card) => (
+              <div key={card.title} className="why-card reveal">
+                <div className="why-ic">{card.icon}</div>
+                <h3>{card.title}</h3>
+                {card.lines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="problems-close reveal">
+            <h3>ClinicOS fixes all of it automatically.</h3>
+          </div>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section className="timeline-section" id="how-it-works">
+        <div className="wrap">
+          <div className="reveal" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
+            <div className="eyebrow" style={{ justifyContent: "center" }}>
+              How ClinicOS Works
+            </div>
+            <h2 style={{ margin: "0 auto" }}>From first call to lifelong patient — on autopilot.</h2>
+          </div>
+          <div className="timeline">
+            {[
+              { icon: "📅", title: "Patient Books", desc: "Online, WhatsApp, or phone — any channel." },
+              { icon: "🤖", title: "AI Receptionist answers", desc: "24×7 in 10 languages. No missed enquiries." },
+              { icon: "🏥", title: "Patient Visits", desc: "Smart queue, zero crowding, on-time consults." },
+              { icon: "🩺", title: "Doctor treats patient", desc: "Full focus on care. AI handles the rest." },
+              { icon: "💬", title: "AI sends follow-up", desc: "Medicine reminders, care instructions, check-ins." },
+              { icon: "⭐", title: "Google review request", desc: "Timed perfectly — happy patients leave 5★ reviews." },
+              { icon: "🔔", title: "Recall after 6 months", desc: "Chronic patients brought back before they drift." },
+              { icon: "🔄", title: "Patient returns", desc: "The loop never breaks. Revenue compounds." },
             ].map((step) => (
-              <div key={step.n} className="jstep glass">
-                <span className="jn">{step.n}</span>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
-                <span className="jt">
-                  <i />
-                  {step.tag}
-                </span>
+              <div key={step.title} className="timeline-step">
+                <div className="timeline-dot">{step.icon}</div>
+                <div className="timeline-content">
+                  <h3>{step.title}</h3>
+                  <p>{step.desc}</p>
+                </div>
               </div>
             ))}
           </div>
-          <div className="j-progress">
-            <div className="fill" id="jFill" />
-            <div className="walker" id="jWalker" />
-          </div>
         </div>
       </section>
 
-      {/* AI */}
-      <section id="ai" className="scene scene--alt">
-        <canvas id="ai-canvas" />
-        <div className="mouselight mouselight--ai" />
+      {/* AI EMPLOYEES */}
+      <section className="ai-section" id="ai-employees">
         <div className="wrap">
+          <div className="reveal" style={{ textAlign: "center", maxWidth: 720, margin: "0 auto" }}>
+            <div className="eyebrow" style={{ justifyContent: "center" }}>
+              AI Employees
+            </div>
+            <h2 style={{ margin: "0 auto" }}>
+              Meet Your New Team.
+              <br />
+              They never sleep.
+            </h2>
+          </div>
           <div className="ai-grid">
-            <div>
-              <div className="ai-orb rv" />
-              <span className="eyebrow eyebrow--ai rv rv-d1">AI growth engine</span>
-              <h2 className="h-xl rv rv-d2" style={{ margin: "20px 0 18px" }}>
-                It grows your practice
-                <br />
-                while you see patients.
-              </h2>
-              <p className="lead rv rv-d3">
-                Not a chatbot. An AI that reads every gap in your schedule, every missed follow-up, every unhappy review — and turns them into revenue, retention, and reputation.
-              </p>
-              <div className="ai-feed" id="aiFeed" style={{ marginTop: 36 }}>
-                <div className="ai-msg">
-                  <small>Revenue recovery</small>
-                  &quot;Recover <b>₹18,400</b> this week from 5 missed follow-ups. Send recalls?&quot;
-                </div>
-                <div className="ai-msg">
-                  <small>Slot optimization</small>
-                  &quot;Open <b>Saturday 10 AM–1 PM</b>. 34 patients searched for weekend slots last month.&quot;
-                </div>
-                <div className="ai-msg">
-                  <small>Reputation</small>
-                  &quot;<b>22 happy patients</b> haven&apos;t been asked for a review. Your rating can hit 4.9.&quot;
-                </div>
-                <div className="ai-msg">
-                  <small>Retention alert</small>
-                  &quot;<b>12 diabetic patients</b> overdue for review. Auto-booking Thursday slots.&quot;
-                </div>
+            {[
+              { emoji: "🧠", title: "AI Receptionist", lines: ["Books appointments.", "Answers WhatsApp.", "Handles calls."] },
+              { emoji: "📈", title: "Growth AI", lines: ["Finds patients who haven't returned."] },
+              { emoji: "⭐", title: "Reputation AI", lines: ["Gets Google Reviews."] },
+              { emoji: "💊", title: "Follow-up AI", lines: ["Medicine reminders."] },
+              { emoji: "📄", title: "AI Scribe", lines: ["Writes notes."] },
+              { emoji: "📢", title: "Marketing AI", lines: ["Creates campaigns."] },
+            ].map((card) => (
+              <div key={card.title} className="ai-card reveal">
+                <span className="ai-emoji">{card.emoji}</span>
+                <h3>{card.title}</h3>
+                {card.lines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
               </div>
-            </div>
-            <div className="ai-visual">
-              <div className="ai-chart glass rv rv-d2">
-                <small>Revenue · recovered by AI</small>
-                <svg viewBox="0 0 320 130" fill="none">
-                  <path d="M0 118 H320" stroke="rgba(17,17,17,.06)" />
-                  <path className="draw-path" d="M6 112 C 44 108, 66 92, 96 90 S 150 70, 186 58 S 258 30, 314 14" stroke={AI} strokeWidth="2.5" strokeLinecap="round" />
-                  <path className="draw-fill" d="M6 112 C 44 108, 66 92, 96 90 S 150 70, 186 58 S 258 30, 314 14 V126 H6 Z" fill="url(#aig)" opacity="0" />
-                  <defs>
-                    <linearGradient id="aig" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0" stopColor={AI} stopOpacity=".28" />
-                      <stop offset="1" stopColor={AI} stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
-              <div className="ai-chart glass rv rv-d3">
-                <small>Wait time · shrinking</small>
-                <svg viewBox="0 0 320 96" fill="none">
-                  <g>
-                    {[14, 24, 34, 44, 54, 62, 68].map((y, i) => (
-                      <rect key={i} x={10 + i * 45} y={y} width="30" height={70 - y + 14} rx="5" fill={i < 2 ? "rgba(17,17,17,.08)" : i < 4 ? `rgba(110,198,255,${0.25 + i * 0.08})` : AI} />
-                    ))}
-                  </g>
-                  <text x="10" y="94" fill="#5C6470" fontSize="9" fontFamily="IBM Plex Mono">
-                    38 min
-                  </text>
-                  <text x="278" y="94" fill={AI} fontSize="9" fontFamily="IBM Plex Mono">
-                    → 14 min
-                  </text>
-                </svg>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* GROWTH METRICS */}
-      <section id="growth" className="scene scene--white">
+      {/* PRODUCT SHOWCASE */}
+      <section className="bento-section" id="platform">
         <div className="wrap">
-          <div className="scene-head">
-            <span className="eyebrow rv">90 days later</span>
-            <h2 className="h-xl rv rv-d1">
-              The practice stops leaking.
-              <br />
-              Then it starts compounding.
-            </h2>
+          <div className="reveal">
+            <div className="eyebrow">Product showcase</div>
+            <h2>One workflow. Every touchpoint. Zero manual work.</h2>
+            <p className="lead">
+              See how a single patient journey flows through ClinicOS — from first enquiry to return visit.
+            </p>
           </div>
-          <div className="metric-grid">
-            <div className="metric glass rv">
-              <small>Monthly revenue</small>
-              <div className="val">
-                <span data-count="32">0</span>
-                <sup>%↑</sup>
-              </div>
-              <p>Recovered follow-ups, fuller slots, zero unbilled procedures.</p>
-            </div>
-            <div className="metric glass rv rv-d1">
-              <small>Returning patients</small>
-              <div className="val">
-                <span data-count="41">0</span>
-                <sup>%↑</sup>
-              </div>
-              <p>Automatic recalls bring chronic patients back on schedule.</p>
-            </div>
-            <div className="metric glass rv rv-d2">
-              <small>Google rating</small>
-              <div className="val">
-                3.6 → <span data-count="4.8" data-decimals="1">0</span>
-                <sup>★</sup>
-              </div>
-              <p>Happy patients, asked at the exact right moment.</p>
-            </div>
-            <div className="metric glass rv rv-d3">
-              <small>Referrals</small>
-              <div className="val">
-                <span data-count="3">0</span>
-                <sup>x</sup>
-              </div>
-              <p>Reputation flywheel — reviews bring new patients who review.</p>
-            </div>
-          </div>
-          <div className="bigchart glass rv rv-d2">
-            <svg viewBox="0 0 900 260" fill="none">
-              <g stroke="rgba(17,17,17,.06)">
-                <path d="M0 60H900M0 120H900M0 180H900M0 240H900" />
-              </g>
-              <path className="draw-path" d="M20 236 C 110 230, 160 214, 240 208 S 380 178, 470 152 S 630 96, 730 66 S 840 34, 884 22" stroke={ACCENT} strokeWidth="3" strokeLinecap="round" />
-              <path className="draw-fill" d="M20 236 C 110 230, 160 214, 240 208 S 380 178, 470 152 S 630 96, 730 66 S 840 34, 884 22 V254 H20 Z" fill="url(#gg)" opacity="0" />
-              <defs>
-                <linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" stopColor={ACCENT} stopOpacity=".2" />
-                  <stop offset="1" stopColor={ACCENT} stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <text x="20" y="252" fill="#5C6470" fontSize="11" fontFamily="IBM Plex Mono">
-                MONTH 1
-              </text>
-              <text x="820" y="252" fill={ACCENT} fontSize="11" fontFamily="IBM Plex Mono">
-                MONTH 6
-              </text>
-            </svg>
-          </div>
-        </div>
-      </section>
-
-      {/* REPUTATION */}
-      <section id="rep" className="scene scene--alt">
-        <div className="wrap">
-          <div className="scene-head">
-            <span className="eyebrow rv">Reputation = acquisition</span>
-            <h2 className="h-xl rv rv-d1">
-              Build trust before
-              <br />
-              patients walk in.
-            </h2>
-            <p className="lead rv rv-d2">After every great visit, ClinicOS asks for the review — at the moment patients are happiest. Your map pin starts to glow.</p>
-          </div>
-          <div className="rep-grid">
-            <div className="rep-cards" id="repCards">
-              {[
-                { initials: "SK", name: "Suresh K.", grad: `linear-gradient(135deg,${GOLD},#e8a317)`, quote: "In and out in 25 minutes. Got everything on WhatsApp. This is how clinics should work.", top: 0, left: 0, rot: -2 },
-                { initials: "PM", name: "Priya M.", grad: `linear-gradient(135deg,${AI},${ACCENT})`, quote: "They remembered my mother's diabetes review before we did. Unheard of.", top: 150, right: 0, rot: 2, delay: "1.2s" },
-                { initials: "RD", name: "Rahul D.", grad: `linear-gradient(135deg,${ACCENT},${TEAL})`, quote: "Token on my phone, no queue. Waited from the chai shop next door.", top: 300, left: "8%", rot: -1, delay: "2.1s" },
-              ].map((r) => (
-                <div
-                  key={r.name}
-                  className="rcard glass floaty"
-                  style={{
-                    top: r.top,
-                    left: r.left,
-                    right: r.right,
-                    "--rot": `${r.rot}deg`,
-                    animationDelay: r.delay,
-                  } as React.CSSProperties}
-                >
-                  <div className="rhead">
-                    <span className="avatar" style={{ background: r.grad }}>{r.initials}</span>
-                    <div>
-                      <b>{r.name}</b>
-                      <small>Google review</small>
-                    </div>
-                    <span className="g-badge">
-                      {"Google".split("").map((c, i) => (
-                        <span key={i}>{c}</span>
-                      ))}
-                    </span>
-                  </div>
-                  <div className="stars">★★★★★</div>
-                  <p>&quot;{r.quote}&quot;</p>
-                </div>
-              ))}
-            </div>
-            <div className="map-panel glass rv rv-d1">
-              <svg viewBox="0 0 420 300" id="mapSvg">
-                <rect width="420" height="300" rx="14" fill="#F5F7F8" />
-                <g stroke="rgba(17,17,17,.08)" strokeWidth="7" strokeLinecap="round" opacity=".9">
-                  <path d="M-10 80 C 90 70, 150 110, 240 96 S 380 60, 440 76" fill="none" />
-                  <path d="M60 -10 C 70 80, 40 160, 80 230 S 110 290, 100 320" fill="none" />
-                  <path d="M-10 200 C 120 190, 210 230, 300 214 S 400 180, 440 196" fill="none" />
-                </g>
-                <g id="mapPins" />
-                <g id="clinicPin">
-                  <circle cx="210" cy="150" r="6" fill={ACCENT} />
-                  <circle cx="210" cy="150" r="6" fill="none" stroke={ACCENT} strokeWidth="2">
-                    <animate attributeName="r" values="6;24" dur="2s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values=".8;0" dur="2s" repeatCount="indefinite" />
-                  </circle>
-                  <text x="210" y="132" textAnchor="middle" fontSize="11" fontFamily="IBM Plex Mono" fill="#111111" fontWeight="600">
-                    YOUR CLINIC
-                  </text>
-                </g>
-              </svg>
-              <div className="rank-line">
-                <span>&quot;clinic near me&quot; ranking</span>
-                <b>#12 → #1</b>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* WHATSAPP */}
-      <section id="wa" className="scene scene--white">
-        <div className="mouselight" />
-        <div className="wrap">
-          <div className="wa-grid">
-            <div>
-              <span className="eyebrow rv">Growth on autopilot</span>
-              <h2 className="h-xl rv rv-d1" style={{ margin: "20px 0 18px" }}>
-                Thousands of touchpoints.
-                <br />
-                Zero staff hours.
-              </h2>
-              <p className="lead rv rv-d2">Recalls, reminders, review requests, birthday wishes — composed, personalised, and sent by AI. Your front desk focuses on patients, not typing.</p>
-              <div className="wa-counter rv rv-d3">
-                <b data-count="12480">0</b>&nbsp;&nbsp;growth messages this month · <span style={{ color: "#25D366" }}>0 typed by staff</span>
-              </div>
-            </div>
-            <div className="wa-stream" id="waStream">
-              {[
-                { tag: "Recall · revenue", text: "It's been 90 days since your diabetes review. Dr. Mehta has kept Thursday 11 AM for you." },
-                { tag: "Review request", text: "Thank you for visiting! Would you share your experience on Google? It helps other patients find us. ⭐" },
-                { tag: "Appointment", text: "Reminder: Dr. Mehta, 4:30 PM tomorrow. Reply 1 to confirm, 2 to reschedule." },
-                { tag: "Medicine · 9 PM", text: "Namaste Anita ji 🌙 Time for Metformin 500mg. Take after dinner." },
-                { tag: "Birthday", text: "Happy birthday, Suresh ji! 🎂 Wishing you great health — from all of us." },
-                { tag: "Report ready", text: "Your lab report is ready. View securely: clinic.os/r/8x2k 🔒" },
-              ].map((b) => (
-                <div key={b.tag} className="wa-bubble">
-                  <small>{b.tag}</small>
-                  {b.text}
-                  <span className="tick">✓✓</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* BI */}
-      <section id="bi" className="scene scene--alt">
-        <div className="wrap">
-          <div className="scene-head">
-            <span className="eyebrow rv">Owner&apos;s growth briefing</span>
-            <h2 className="h-xl rv rv-d1">Not charts. Answers.</h2>
-            <p className="lead rv rv-d2">Every evening, ClinicOS tells you what grew, what leaked, and exactly what to do tomorrow to build a bigger practice.</p>
-          </div>
-          <div className="bi-grid">
-            <div className="bi glass rv">
-              <small>Today&apos;s revenue</small>
-              <span className="v" data-count="42300" data-prefix="₹">
-                ₹0
-              </span>
-              <p>31 consults · 9 procedures · UPI 78%</p>
-            </div>
-            <div className="bi glass rv rv-d1">
-              <small>Revenue at risk</small>
-              <span className="v" style={{ color: GOLD }} data-count="6800" data-prefix="₹">
-                ₹0
-              </span>
-              <p>3 no-shows, 2 unbilled — recovery messages queued.</p>
-            </div>
-            <div className="bi glass rv rv-d2">
-              <small>Returning patients</small>
-              <span className="v">
-                <span data-count="61">0</span>%
-              </span>
-              <p>Up from 43% before ClinicOS.</p>
-            </div>
-            <div className="bi glass rv rv-d1">
-              <small>Growth score</small>
-              <span className="v" style={{ color: GOLD }}>
-                <span data-count="84">0</span>/100
-              </span>
-              <p>+12 this quarter. Reviews are your next lever.</p>
-            </div>
-            <div className="bi glass rv rv-d2">
-              <small>Patients / hour</small>
-              <span className="v">
-                <span data-count="4.2" data-decimals="1">
-                  0
-                </span>
-                /hr
-              </span>
-              <p>More patients, without rushing consults.</p>
-            </div>
-            <div className="bi glass rv rv-d3">
-              <small>Peak demand</small>
-              <span className="v">6–8 PM</span>
-              <p>Evening OPD 92% full. Saturday mornings = untapped.</p>
-            </div>
-            <div className="bi suggest glass rv rv-d2">
-              <span className="chip chip--ai" style={{ flex: "none" }}>
-                AI suggestion
-              </span>
-              <div>
-                <span className="v">Open Saturday mornings, 10 AM – 1 PM.</span>
-                <p>34 patients searched for weekend slots last month. Projected: +₹68,000/month.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SCORE */}
-      <section id="score">
-        <div className="score-pin" id="scorePin">
-          <div className="score-glow" id="scoreGlow" />
-          <div className="wrap">
-            <div style={{ textAlign: "center", marginBottom: 56 }}>
-              <span className="eyebrow" style={{ justifyContent: "center" }}>
-                One number for your whole practice
-              </span>
-              <h2 className="h-lg" style={{ marginTop: 18 }}>
-                Your Clinic Growth Score.
-                <br />
-                Watch it climb.
-              </h2>
-            </div>
-            <div className="score-layout">
-              <div className="score-ring">
-                <svg viewBox="0 0 200 200">
-                  <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(17,17,17,.06)" strokeWidth="10" />
-                  <circle
-                    id="scoreArc"
-                    cx="100"
-                    cy="100"
-                    r="88"
-                    fill="none"
-                    stroke="url(#scoreGrad)"
-                    strokeWidth="10"
-                    strokeLinecap="round"
-                    strokeDasharray="553"
-                    strokeDashoffset="155"
-                    style={{ filter: "drop-shadow(0 0 14px rgba(245,197,66,.4))" }}
-                  />
-                  <defs>
-                    <linearGradient id="scoreGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0" stopColor={GOLD} />
-                      <stop offset="1" stopColor="#f8d56a" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="score-num">
-                  <b id="scoreNum">72</b>
-                  <small>Growth Score</small>
-                </div>
-              </div>
-              <div className="score-metrics" id="scoreMetrics">
+          <div className="bento">
+            <div className="b-card b-12 reveal">
+              <span className="b-tag">End-to-end workflow</span>
+              <h3>The complete patient journey — automated</h3>
+              <p>Every step connected. Every gap closed. Revenue recovered at every stage.</p>
+              <div className="workflow-chain">
                 {[
-                  { label: "Patient retention", start: 62, end: 94 },
-                  { label: "Revenue health", start: 68, end: 92 },
-                  { label: "Google reviews", start: 71, end: 96 },
-                  { label: "Slot utilization", start: 55, end: 97 },
-                  { label: "Referral rate", start: 64, end: 95 },
-                ].map((row) => (
-                  <div key={row.label} className="sm-row">
-                    <small>
-                      {row.label} <b data-to={row.end}>{row.start}%</b>
-                    </small>
-                    <div className="sm-bar">
-                      <i data-w={row.end} />
-                    </div>
-                  </div>
+                  "AI Receptionist",
+                  "Appointment",
+                  "Billing",
+                  "Prescription",
+                  "Review",
+                  "Return Visit",
+                ].map((step, i) => (
+                  <span key={step} style={{ display: "contents" }}>
+                    {i > 0 && <span className="workflow-arrow">↓</span>}
+                    <span className="workflow-step">
+                      <span className="wf-num">{i + 1}</span>
+                      {step}
+                    </span>
+                  </span>
                 ))}
               </div>
             </div>
@@ -761,133 +305,340 @@ export function ClinicosLanding() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
-      <section id="testi" className="scene scene--white">
+      {/* RESULTS */}
+      <section id="results">
         <div className="wrap">
-          <div className="scene-head">
-            <span className="eyebrow rv">Doctors who grew</span>
-            <h2 className="h-xl rv rv-d1">Bigger practices. Same doctors.</h2>
+          <div className="reveal" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
+            <div className="eyebrow" style={{ justifyContent: "center" }}>
+              Real results
+            </div>
+            <h2 style={{ margin: "0 auto" }}>What Happens After Switching?</h2>
           </div>
-          <div className="testi-field">
+          <div className="results-grid">
             {[
-              { q: "I used to stay till 9 PM doing admin. Now I leave at 7 and my revenue is up 28%. ClinicOS didn't digitise my clinic — it grew it.", who: "Dr. Vikram Singh", sub: "Family physician · Jaipur", initials: "VS" },
-              { q: "The AI recalls brought back 40 diabetic patients we'd quietly lost. That's not software. That's a growth engine that never sleeps.", who: "Dr. Meera Iyer", sub: "Diabetologist · Chennai", initials: "MI", grad: `linear-gradient(135deg,${AI},${ACCENT})` },
-              { q: "We went from 3.4 to 4.8 on Google in five months. New patients now say 'we read your reviews' instead of 'we were passing by.'", who: "Dr. Arjun Kulkarni", sub: "Paediatrician · Pune", initials: "AK", grad: `linear-gradient(135deg,${GOLD},#e8a317)` },
-            ].map((t, i) => (
-              <div key={t.who} className={`testi glass floaty rv ${i > 0 ? `rv-d${i}` : ""}`} style={{ "--rot": "0deg", animationDelay: i === 1 ? "1.4s" : i === 2 ? "2.2s" : undefined } as React.CSSProperties}>
-                <q>{t.q}</q>
-                <div className="who">
-                  <span className="avatar" style={t.grad ? { background: t.grad } : undefined}>{t.initials}</span>
-                  <div>
-                    <b>{t.who}</b>
-                    <small>{t.sub}</small>
-                  </div>
-                </div>
+              { val: "35%", label: "More Bookings" },
+              { val: "42%", label: "More Returning Patients" },
+              { val: "75%", label: "Less Reception Work" },
+              { val: "4.9★", label: "Google Rating" },
+              { val: "6 hrs", label: "Saved Per Doctor Weekly" },
+              { val: "₹3L+", label: "Average Additional Revenue" },
+            ].map((stat) => (
+              <div key={stat.label} className="result-card reveal">
+                <div className="val">{stat.val}</div>
+                <div className="label">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* SECURITY */}
-      <section id="security" className="scene scene--alt">
-        <div className="mouselight" />
+      {/* PRICING */}
+      <section className="pricing-section" id="pricing">
         <div className="wrap">
-          <div className="scene-head">
-            <span className="eyebrow rv">Enterprise-grade trust</span>
-            <h2 className="h-xl rv rv-d1">
-              Growth without compromise.
-              <br />
-              Security built in.
-            </h2>
-            <p className="lead rv rv-d2">Encrypted records, role-based access, automatic backups — so you focus on growing, not worrying.</p>
+          <div className="reveal" style={{ textAlign: "center" }}>
+            <div className="eyebrow" style={{ justifyContent: "center" }}>
+              Pricing
+            </div>
+            <h2 style={{ margin: "0 auto" }}>Choose How Fast You Want To Grow.</h2>
           </div>
-          <div className="sec-grid">
-            <div className="sec glass rv">
-              <h3>Encrypted at rest & in transit</h3>
-              <p>Every patient record protected. Only authorised eyes see real data.</p>
-              <div className="enc-record">
-                <span className="lock">🔒 AES-256</span> · patient_record #2210
-                <br />
-                Name: <span className="blur">Anita Rao</span> · Age: <span className="blur">34</span>
-                <br />
-                Dx: <span className="blur">Type 2 Diabetes</span>
+          <div className="price-grid">
+            <div className="price-card reveal">
+              <span className="plan-tag">Launch</span>
+              <div className="price">
+                ₹2,999<small>/month</small>
+              </div>
+              <p className="plan-desc">For new clinics.</p>
+              <ul className="feat-list">
+                {[
+                  "Online Booking",
+                  "Patient CRM",
+                  "WhatsApp Reminders",
+                  "Payment Reminders",
+                  "Dashboard",
+                  "Basic Analytics",
+                  "1 Doctor",
+                ].map((f) => (
+                  <li key={f}>
+                    <span className="tick">✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
+                Start free trial
+              </button>
+            </div>
+            <div className="price-card featured reveal">
+              <span className="pop-badge">Most Popular</span>
+              <span className="plan-tag">Growth AI ⭐</span>
+              <div className="price">
+                ₹7,999<small>/month</small>
+              </div>
+              <p className="plan-desc">Everything above +</p>
+              <ul className="feat-list">
+                {[
+                  "AI Follow-ups",
+                  "AI Recall Engine",
+                  "AI No-show Prediction",
+                  "Google Review Automation",
+                  "AI Marketing",
+                  "Revenue Insights",
+                  "Multi-user",
+                  "Priority Support",
+                ].map((f) => (
+                  <li key={f}>
+                    <span className="tick">✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
+                Start free trial
+              </button>
+            </div>
+            <div className="price-card reveal">
+              <span className="plan-tag">Elite Growth Partner</span>
+              <div className="price">
+                ₹24,999<small>/month</small>
+              </div>
+              <p className="plan-desc">Your own dedicated digital growth team.</p>
+              <ul className="feat-list">
+                {[
+                  "Everything above +",
+                  "Premium Website Development",
+                  "SEO",
+                  "Google Business Optimization",
+                  "Social Media Management",
+                  "AI Marketing Campaigns",
+                  "Dedicated Growth Manager",
+                  "Full ClinicOS Suite",
+                  "Unlimited Staff",
+                  "Monthly Strategy Calls",
+                ].map((f) => (
+                  <li key={f}>
+                    <span className="tick">✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
+                Talk to sales
+              </button>
+            </div>
+          </div>
+          <p className="price-note">
+            All plans include a <b>14-day free trial</b>, free onboarding, and migration from your current
+            software — done for you in 48 hours.
+          </p>
+        </div>
+      </section>
+
+      {/* ROI CALCULATOR */}
+      <section className="roi-section" id="roi">
+        <div className="wrap">
+          <div className="reveal">
+            <div className="eyebrow">ROI Calculator</div>
+            <h2>See what your clinic is leaving on the table.</h2>
+            <p className="lead">
+              Most clinics lose thousands every month to no-shows, missed calls, and forgotten follow-ups.
+              See your numbers in seconds.
+            </p>
+          </div>
+          <div className="roi-layout">
+            <div className="roi-form reveal">
+              <div className="roi-field">
+                <label htmlFor="doctorsPerDay">Doctors Per Day</label>
+                <input
+                  id="doctorsPerDay"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={doctorsPerDay}
+                  onChange={(e) => setDoctorsPerDay(Number(e.target.value) || 0)}
+                />
+              </div>
+              <div className="roi-field">
+                <label htmlFor="patientsPerMonth">Patients Per Month</label>
+                <input
+                  id="patientsPerMonth"
+                  type="number"
+                  min={10}
+                  max={5000}
+                  value={patientsPerMonth}
+                  onChange={(e) => setPatientsPerMonth(Number(e.target.value) || 0)}
+                />
+              </div>
+              <div className="roi-field">
+                <label htmlFor="consultationFee">Consultation Fee (₹)</label>
+                <input
+                  id="consultationFee"
+                  type="number"
+                  min={100}
+                  max={50000}
+                  value={consultationFee}
+                  onChange={(e) => setConsultationFee(Number(e.target.value) || 0)}
+                />
+              </div>
+              <div className="roi-field">
+                <label htmlFor="noShowPercent">No-show %</label>
+                <input
+                  id="noShowPercent"
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={noShowPercent}
+                  onChange={(e) => setNoShowPercent(Number(e.target.value) || 0)}
+                />
               </div>
             </div>
-            <div className="sec glass rv rv-d1">
-              <h3>Role-based access</h3>
-              <p>Reception sees the queue. Doctors see clinical data. You control everything.</p>
-              <div className="role-chips">
-                <span className="chip">Owner · full</span>
-                <span className="chip">Doctor · clinical</span>
-                <span className="chip">Reception · desk</span>
+            <div className="roi-results reveal">
+              <div className="roi-loss">
+                <small>You lose approximately</small>
+                <div className="amount">{fmtINR(roi.totalLoss)}/month</div>
               </div>
-            </div>
-            <div className="sec glass rv rv-d1">
-              <h3>Automatic backups</h3>
-              <p>Every night at 2 AM, your entire clinic is safely copied across Indian data centres.</p>
-              <div className="backup-line">
-                <i />
-                <s />
-                <span>Clinic</span>
-                <s />
-                <i />
-                <s />
-                <span>Mumbai DC</span>
-                <s />
-                <i />
-                <s />
-                <span>Hyderabad DC</span>
-                <s />
-                <i />
+              <div className="roi-recover">
+                <small>ClinicOS could recover</small>
+                <div className="amount">{fmtINR(roi.recovery)}/month</div>
               </div>
-            </div>
-            <div className="sec glass rv rv-d2">
-              <h3>Compliance, handled</h3>
-              <p>DPDP Act ready. ABDM-compatible. Audits are a formality, not a fire drill.</p>
-              <div className="role-chips">
-                <span className="chip">DPDP-ready</span>
-                <span className="chip">ABDM-compatible</span>
-                <span className="chip">Audit logs · 100%</span>
+              <div className="roi-cta">
+                <button type="button" className="btn-primary" onClick={openDemo(setDemoOpen)}>
+                  Book Demo <span className="arr">↗</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* FINALE */}
-      <section id="finale">
+      {/* COMPARISON */}
+      <section className="compare-section" id="compare">
         <div className="wrap">
-          <span className="eyebrow rv" style={{ justifyContent: "center" }}>
-            Start growing
-          </span>
-          <h2 className="rv rv-d1" style={{ marginTop: 26 }}>
-            You heal patients.
-            <br />
-            <em>We grow your practice.</em>
-          </h2>
-          <div className="fin-logo rv rv-d2">
-            Clinic<span>OS</span>
+          <div className="reveal" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
+            <div className="eyebrow" style={{ justifyContent: "center" }}>
+              Why switch
+            </div>
+            <h2 style={{ margin: "0 auto" }}>Manual clinic vs. ClinicOS</h2>
           </div>
-          <div className="fin-tag rv rv-d3">India&apos;s First AI-Powered Clinic Growth Operating System</div>
-          <div className="hero-ctas rv rv-d4">
-            <button type="button" className="btn btn-primary magnetic" onClick={openDemo(setDemoOpen)}>
-              Book a Live Demo <span className="btn-arrow">→</span>
-            </button>
-            <Link href="/login" className="btn btn-ghost magnetic">
-              Sign In to Your Clinic
-            </Link>
+          <div className="compare-table reveal">
+            <table>
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>Manual Clinic</th>
+                  <th>ClinicOS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { feature: "Missed Calls", manual: "❌", clinicos: "✅ AI Answers" },
+                  { feature: "Follow-ups", manual: "Staff", clinicos: "Automatic" },
+                  { feature: "Google Reviews", manual: "Manual", clinicos: "AI" },
+                  { feature: "Patient Recall", manual: "None", clinicos: "Automatic" },
+                  { feature: "Revenue Insights", manual: "Excel", clinicos: "Live Dashboard" },
+                  { feature: "Marketing", manual: "Agency", clinicos: "AI" },
+                ].map((row) => (
+                  <tr key={row.feature}>
+                    <td>{row.feature}</td>
+                    <td className="compare-bad">{row.manual}</td>
+                    <td className="compare-good">{row.clinicos}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-        <footer className="footer">
-          <span>© 2026 ClinicOS · Made in India 🇮🇳</span>
-          <span>
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/terms">Terms</Link>
-            <Link href="/register">Register Clinic</Link>
-          </span>
-        </footer>
       </section>
+
+      {/* FOOTER CTA */}
+      <footer>
+        <div className="wrap">
+          <div className="foot-cta reveal">
+            <h2 className="serif">Your Next Patient Is Probably Calling Right Now.</h2>
+            <p>Don&apos;t let them book somewhere else.</p>
+            <button type="button" className="btn-primary" onClick={openDemo(setDemoOpen)}>
+              Book Your Free Demo <span className="arr">↗</span>
+            </button>
+          </div>
+          <div className="foot-grid">
+            <div className="foot-brand">
+              <a className="logo" href="#hero">
+                <LogoMark />
+                ClinicOS
+              </a>
+              <p>
+                India&apos;s first AI-powered clinic growth platform. Built in Bengaluru, trusted from
+                Srinagar to Kochi.
+              </p>
+            </div>
+            <div>
+              <h4>Product</h4>
+              <ul>
+                <li>
+                  <a href="#problems">Problems</a>
+                </li>
+                <li>
+                  <a href="#how-it-works">How It Works</a>
+                </li>
+                <li>
+                  <a href="#ai-employees">AI Team</a>
+                </li>
+                <li>
+                  <a href="#pricing">Pricing</a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4>Company</h4>
+              <ul>
+                <li>
+                  <Link href="/login">Sign In</Link>
+                </li>
+                <li>
+                  <Link href="/register">Register Clinic</Link>
+                </li>
+                <li>
+                  <Link href="/privacy">Privacy</Link>
+                </li>
+                <li>
+                  <Link href="/terms">Terms</Link>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4>Get started</h4>
+              <ul>
+                <li>
+                  <button
+                    type="button"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "rgba(252,251,248,.75)",
+                      font: "inherit",
+                      fontSize: "14.5px",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                    onClick={openDemo(setDemoOpen)}
+                  >
+                    Book a demo
+                  </button>
+                </li>
+                <li>
+                  <a href="#roi">ROI Calculator</a>
+                </li>
+                <li>
+                  <a href="#compare">Compare</a>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div className="foot-bottom">
+            <span>© 2026 ClinicOS Technologies Pvt. Ltd. · Bengaluru, India</span>
+            <span>Made with care for Indian healthcare 🇮🇳</span>
+          </div>
+        </div>
+      </footer>
 
       <BookDemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
     </div>

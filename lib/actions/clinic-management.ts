@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth/session";
+import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { logPlatformAuditEvent } from "@/lib/auth/audit";
 
 export type ClinicManagementStatus = "pending" | "approved" | "rejected" | "suspended" | "active" | "trial";
@@ -29,7 +29,7 @@ export interface ClinicManagementRow {
 export async function getClinicManagementRows(
   statusFilter?: ClinicManagementStatus | "all"
 ): Promise<ClinicManagementRow[]> {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const service = await createServiceClient();
 
   const [{ data: applications }, { data: clinics }] = await Promise.all([
@@ -105,7 +105,7 @@ export async function getClinicManagementRows(
 }
 
 export async function reactivateClinicAction(clinicId: string) {
-  const admin = await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const supabase = await createClient();
 
   const { data: clinic } = await supabase
@@ -125,7 +125,7 @@ export async function reactivateClinicAction(clinicId: string) {
   if (error) return { error: error.message };
 
   await logPlatformAuditEvent({
-    adminId: admin.id,
+    adminId: null,
     action: "clinic.reactivated",
     targetClinicId: clinicId,
   });

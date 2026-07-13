@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { createStaffAccount } from "@/lib/clinic/provision";
+import { enrichDoctorFromOnboarding } from "@/lib/clinic/doctor-setup";
 import { activationUrl } from "@/lib/auth/activation";
 import { sendEmail } from "@/lib/email/send";
 import { staffActivationEmail, staffInviteEmail } from "@/lib/email/templates";
@@ -177,6 +178,44 @@ export async function createStaffAccountAction(formData: FormData) {
       activationUrl: emailSent ? undefined : activationLink,
     },
   };
+}
+
+/** Link the owner's profile to a doctor record for clinical workflows (no separate login). */
+export async function enableOwnerClinicalAccessAction() {
+  const profile = await requireRole(["clinic_owner"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("doctors")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+
+  if (existing) return { error: "Your account already has clinical access" };
+
+  const { data: inserted, error } = await supabase
+    .from("doctors")
+    .insert({ profile_id: profile.id, clinic_id: profile.clinic_id, is_accepting_appointments: true })
+    .select("id")
+    .single();
+
+  if (error || !inserted) return { error: error?.message ?? "Failed to enable clinical access" };
+
+  await enrichDoctorFromOnboarding(supabase, profile.clinic_id, inserted.id, profile.id);
+
+  await logAuditEvent({
+    clinicId: profile.clinic_id,
+    actorId: profile.id,
+    action: "owner.clinical_access_enabled",
+    entityType: "doctor",
+    entityId: inserted.id,
+  });
+
+  revalidatePath("/owner");
+  revalidatePath("/owner/staff");
+  revalidatePath("/owner/my-queue");
+  return { success: true };
 }
 
 export async function getPendingInvites(clinicId: string) {

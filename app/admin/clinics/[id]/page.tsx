@@ -54,12 +54,52 @@ export default async function AdminClinicDetailPage({
           </dl>
         </div>
 
+        <div className="clinic-card p-5 lg:col-span-2">
+          <h3 className="font-semibold mb-3">Login credentials</h3>
+          <p className="mb-4 text-sm text-[var(--text-muted)]">
+            Staff sign in at <span className="font-mono">/login</span> with Clinic ID + Staff ID + password.
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Role</TableHead>
+                <TableHead>Name / Email</TableHead>
+                <TableHead>Clinic ID</TableHead>
+                <TableHead>Staff ID</TableHead>
+                <TableHead>Password</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.credentials.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-[var(--text-muted)]">
+                    No stored credentials — approve or create the clinic to capture owner login details.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data.credentials.map((cred) => (
+                  <TableRow key={cred.id}>
+                    <TableCell className="capitalize">{cred.role.replace(/_/g, " ")}</TableCell>
+                    <TableCell>
+                      <p className="font-medium">{cred.email}</p>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{cred.clinic_code}</TableCell>
+                    <TableCell className="font-mono text-sm">{cred.staff_code}</TableCell>
+                    <TableCell className="font-mono text-sm">{cred.initial_password}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
         <div className="clinic-card p-5">
-          <h3 className="font-semibold mb-3">Staff</h3>
+          <h3 className="font-semibold mb-3">Staff accounts</h3>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Staff ID</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -67,7 +107,11 @@ export default async function AdminClinicDetailPage({
             <TableBody>
               {data.staff.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="font-medium">{s.full_name}</TableCell>
+                  <TableCell>
+                    <p className="font-medium">{s.full_name}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{s.email}</p>
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">{s.staff_code ?? "—"}</TableCell>
                   <TableCell className="capitalize text-sm">{s.role.replace(/_/g, " ")}</TableCell>
                   <TableCell><StatusBadge status={s.is_active ? "active" : "suspended"} /></TableCell>
                 </TableRow>

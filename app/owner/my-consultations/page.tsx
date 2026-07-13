@@ -16,9 +16,12 @@ export default async function OwnerMyConsultationsPage() {
       <div>
         <PageHeader title="My Consultations" subtitle="Your active and recent consultations" />
         <EmptyState
-          title="Doctor profile not linked"
-          description="Link your owner account to a doctor profile to write consultations from the owner portal."
+          title="Clinical access not enabled"
+          description="Enable clinical access from Staff Management to write consultations from the owner portal."
         />
+        <Link href="/owner/staff">
+          <Button variant="secondary" size="sm">Go to Staff Management</Button>
+        </Link>
       </div>
     );
   }

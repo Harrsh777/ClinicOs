@@ -8,10 +8,13 @@ import { CreateStaffForm } from "@/components/owner/create-staff-form";
 import { InviteStaffForm } from "@/components/owner/invite-staff-form";
 import { DeactivateStaffButton } from "@/components/owner/deactivate-staff-button";
 import { PendingInviteActions } from "@/components/owner/pending-invite-actions";
+import { EnableClinicalAccessCard } from "@/components/owner/enable-clinical-access-card";
+import { getLinkedDoctor } from "@/lib/auth/linked-doctor";
 import { Users } from "lucide-react";
 
 export default async function StaffPage() {
   const profile = await requireRole(["clinic_owner"]);
+  const linkedDoctor = await getLinkedDoctor(profile.id);
   const supabase = await createClient();
   const [{ data: clinic }, staff, pendingInvites, departments] = await Promise.all([
     supabase.from("clinics").select("clinic_code").eq("id", profile.clinic_id!).single(),
@@ -24,9 +27,10 @@ export default async function StaffPage() {
     <div>
       <PageHeader
         title="Staff Management"
-        subtitle={`Create accounts for doctors & receptionists — Clinic ID: ${clinic?.clinic_code ?? "—"}`}
+        subtitle={`Create doctor & staff login accounts when you are ready — Clinic ID: ${clinic?.clinic_code ?? "—"}`}
       />
-      <div className="grid gap-6 lg:grid-cols-2 mb-6">
+      {!linkedDoctor && <EnableClinicalAccessCard />}
+      <div className="grid gap-6 lg:grid-cols-2 mb-6 mt-6">
         <CreateStaffForm clinicCode={clinic?.clinic_code ?? ""} departments={departments} />
         <InviteStaffForm />
       </div>

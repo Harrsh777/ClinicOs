@@ -1,10 +1,10 @@
-import { requireRole } from "@/lib/auth/session";
+import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { getPlatformAnalytics } from "@/lib/actions/platform-admin";
 import { PageHeader } from "@/components/ui/card";
 import { PlatformAnalytics } from "@/components/admin/platform-analytics";
 
 export default async function AdminAnalyticsPage() {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const analytics = await getPlatformAnalytics();
 
   return (

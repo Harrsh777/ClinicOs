@@ -51,7 +51,7 @@ export function StatCard({
   value,
   icon,
   trend,
-  accent = "#14B8A6",
+  accent = "#2563EB",
 }: {
   label: string;
   value: string | number;
@@ -60,7 +60,7 @@ export function StatCard({
   accent?: string;
 }) {
   return (
-    <div className="clinic-stat-card overflow-hidden relative">
+    <div className="clinic-stat-card clinic-card-hover overflow-hidden relative">
       <div
         className="absolute inset-x-0 top-0 h-1"
         style={{ background: `linear-gradient(90deg, ${accent}, rgba(6, 182, 212, 0.35))` }}

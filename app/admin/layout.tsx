@@ -1,11 +1,15 @@
-import { requireRole } from "@/lib/auth/session";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { headers } from "next/headers";
+import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
+import { PlatformAdminShell } from "@/components/admin/platform-admin-shell";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const profile = await requireRole(["super_admin"]);
-  return (
-    <DashboardShell profile={profile} basePath="/admin">
-      {children}
-    </DashboardShell>
-  );
+  const pathname = (await headers()).get("x-pathname") ?? "";
+
+  if (pathname === "/admin/login") {
+    return <>{children}</>;
+  }
+
+  await requirePlatformAdmin();
+
+  return <PlatformAdminShell>{children}</PlatformAdminShell>;
 }

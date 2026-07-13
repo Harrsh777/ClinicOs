@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth/session";
+import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { slugify } from "@/lib/utils";
 import { z } from "zod";
 
@@ -15,7 +15,7 @@ const createClinicSchema = z.object({
 });
 
 export async function createClinicAction(formData: FormData) {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
 
   const parsed = createClinicSchema.safeParse({
     name: formData.get("name"),
@@ -64,7 +64,7 @@ export async function createClinicAction(formData: FormData) {
 }
 
 export async function suspendClinicAction(clinicId: string, suspend: boolean) {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const supabase = await createClient();
 
   let portalEnabled: boolean | undefined;
@@ -97,7 +97,7 @@ export async function getPlans() {
 }
 
 export async function getClinics() {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const supabase = await createClient();
   const { data } = await supabase
     .from("clinics")

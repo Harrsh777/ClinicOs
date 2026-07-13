@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { ClinicosLanding } from "@/components/landing/clinicos-landing";
 
 export const metadata: Metadata = {
-  title: "ClinicOS — India's First AI-Powered Clinic Growth OS",
+  title: "ClinicOS — India's First AI-Powered Clinic Growth Platform",
   description:
-    "ClinicOS helps doctors build a bigger practice. Grow revenue, win patients back, build reputation, and scale — India's AI-powered clinic growth operating system.",
+    "Grow your clinic. Let AI handle everything else. Attract more patients, automate operations, recover missed revenue, and spend more time treating patients.",
   openGraph: {
-    title: "ClinicOS — India's First AI-Powered Clinic Growth OS",
-    description: "Not EMR. Not practice management. The AI growth operating system that builds your practice.",
+    title: "ClinicOS — Grow Your Clinic. Let AI Handle Everything Else.",
+    description:
+      "India's first AI-powered clinic growth platform for doctors who want more patients, less admin, and higher revenue.",
   },
 };
 

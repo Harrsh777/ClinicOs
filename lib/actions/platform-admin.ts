@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { requireRole } from "@/lib/auth/session";
+import { getAllPlatformCredentials, getClinicCredentials } from "@/lib/clinic/credentials";
 import { z } from "zod";
 
 export async function getPlatformOverview() {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const service = await createServiceClient();
 
   const [
@@ -50,7 +52,7 @@ export async function getPlatformOverview() {
 }
 
 export async function getClinicPlatformDetail(clinicId: string) {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const service = await createServiceClient();
 
   const [
@@ -61,6 +63,7 @@ export async function getClinicPlatformDetail(clinicId: string) {
     { data: staff },
     { data: patients },
     { data: subscription },
+    credentialsResult,
   ] = await Promise.all([
     service.from("clinics").select("*").eq("id", clinicId).single(),
     service.from("patients").select("*", { count: "exact", head: true }).eq("clinic_id", clinicId),
@@ -75,7 +78,7 @@ export async function getClinicPlatformDetail(clinicId: string) {
       .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     service
       .from("profiles")
-      .select("id, full_name, email, role, is_active, created_at")
+      .select("id, full_name, email, role, staff_code, is_active, first_login, created_at")
       .eq("clinic_id", clinicId)
       .order("created_at", { ascending: false }),
     service
@@ -89,6 +92,7 @@ export async function getClinicPlatformDetail(clinicId: string) {
       .select("*, plans(name, slug, price_monthly)")
       .eq("clinic_id", clinicId)
       .maybeSingle(),
+    getClinicCredentials(service, clinicId),
   ]);
 
   return {
@@ -99,11 +103,18 @@ export async function getClinicPlatformDetail(clinicId: string) {
     staff: staff ?? [],
     patients: patients ?? [],
     subscription,
+    credentials: credentialsResult,
   };
 }
 
+export async function getPlatformCredentials() {
+  await requirePlatformAdmin();
+  const service = await createServiceClient();
+  return getAllPlatformCredentials(service);
+}
+
 export async function getPlatformAnalytics() {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const service = await createServiceClient();
 
   const [{ data: clinics }, { data: subscriptions }, { data: aiLogs }] = await Promise.all([
@@ -145,7 +156,7 @@ export async function getPlatformAnalytics() {
 }
 
 export async function updateClinicPlanAction(clinicId: string, planId: string) {
-  await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const service = await createServiceClient();
 
   const { error } = await service
@@ -254,14 +265,14 @@ export async function getClinicBranding(clinicId: string) {
 }
 
 export async function logImpersonationAction(targetClinicId: string) {
-  const profile = await requireRole(["super_admin"]);
+  await requirePlatformAdmin();
   const supabase = await createClient();
 
   await supabase.from("platform_audit_logs").insert({
-    admin_id: profile.id,
+    admin_id: null,
     action: "clinic_impersonation_view",
     target_clinic_id: targetClinicId,
-    details: { timestamp: new Date().toISOString() },
+    details: { timestamp: new Date().toISOString(), source: "platform_password_admin" },
   });
 
   return { success: true };

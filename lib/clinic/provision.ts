@@ -1,6 +1,8 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { slugify } from "@/lib/utils";
 import { createActivationToken } from "@/lib/auth/activation";
+import { enrichDoctorFromOnboarding } from "@/lib/clinic/doctor-setup";
+import { savePlatformClinicCredentials } from "@/lib/clinic/credentials";
 import type { UserRole } from "@/lib/types/database";
 
 const ASSIGNABLE_STAFF_ROLES: UserRole[] = [
@@ -133,6 +135,16 @@ export async function createClinicWithOwner(params: {
     payment_methods: { cash: true, upi: true, card: true, insurance: true },
   });
 
+  await savePlatformClinicCredentials(service, {
+    clinicId: clinic.id,
+    profileId: authUser.user.id,
+    clinicCode,
+    staffCode: ownerStaffCode,
+    email: params.ownerEmail,
+    initialPassword: tempPassword,
+    role: "clinic_owner",
+  });
+
   return {
     clinic,
     clinicCode,
@@ -195,10 +207,15 @@ export async function createStaffAccount(params: {
   });
 
   if (params.role === "doctor") {
-    await service.from("doctors").upsert(
-      { profile_id: authUser.user.id, clinic_id: params.clinicId },
-      { onConflict: "profile_id" }
-    );
+    const { data: doctorRow } = await service
+      .from("doctors")
+      .upsert({ profile_id: authUser.user.id, clinic_id: params.clinicId }, { onConflict: "profile_id" })
+      .select("id")
+      .single();
+
+    if (doctorRow?.id) {
+      await enrichDoctorFromOnboarding(service, params.clinicId, doctorRow.id, authUser.user.id);
+    }
   }
 
   const moduleKeys = params.moduleKeys ?? [];

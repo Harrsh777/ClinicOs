@@ -15,10 +15,10 @@ export default async function OwnerAIDoctorPage() {
         <PageHeader title="AI Doctor" subtitle="Clinical decision support for practicing physicians" />
         <div className="clinic-card p-6 space-y-3">
           <p className="text-[var(--text-secondary)]">
-            AI Doctor is available when your owner account is linked to a doctor profile.
+            Enable clinical access from Staff Management to use AI Doctor on your owner account.
           </p>
-          <Link href="/owner/settings">
-            <Button variant="secondary" size="sm">Clinic Settings</Button>
+          <Link href="/owner/staff">
+            <Button variant="secondary" size="sm">Go to Staff Management</Button>
           </Link>
         </div>
       </div>

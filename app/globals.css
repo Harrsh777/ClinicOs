@@ -6,46 +6,46 @@
    ============================================================================= */
 
 :root {
-  /* Brand */
-  --primary: #0f172a;
-  --secondary: #14b8a6;
-  --accent: #06b6d4;
-  --brand-50: #ecfeff;
-  --brand-100: #cffafe;
-  --brand-200: #a5f3fc;
-  --brand-300: #67e8f9;
-  --brand-400: #22d3ee;
-  --brand-500: #06b6d4;
-  --brand-600: #0891b2;
-  --brand-700: #0e7490;
-  --brand-800: #155e75;
-  --brand-900: #164e63;
+  /* Brand — bright blue primary */
+  --primary: #2563eb;
+  --secondary: #2563eb;
+  --accent: #3b82f6;
+  --brand-50: #eff6ff;
+  --brand-100: #dbeafe;
+  --brand-200: #bfdbfe;
+  --brand-300: #93c5fd;
+  --brand-400: #60a5fa;
+  --brand-500: #3b82f6;
+  --brand-600: #2563eb;
+  --brand-700: #1d4ed8;
+  --brand-800: #1e40af;
+  --brand-900: #1e3a8a;
 
-  /* Teal accent — healthcare trust */
-  --accent-50: #f0fdfa;
-  --accent-100: #ccfbf1;
-  --accent-500: #14b8a6;
-  --accent-600: #0d9488;
-  --accent-700: #0f766e;
+  /* Accent */
+  --accent-50: #eff6ff;
+  --accent-100: #dbeafe;
+  --accent-500: #2563eb;
+  --accent-600: #1d4ed8;
+  --accent-700: #1e40af;
 
   /* Neutrals */
   --surface-0: #ffffff;
   --surface-1: #f8fafc;
   --surface-2: #f1f5f9;
-  --surface-3: #e2e8f0;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --surface-3: #e5e7eb;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
 
   /* Text */
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
   --text-inverse: #ffffff;
 
   /* Semantic */
   --success-50: #f0fdf4;
-  --success-500: #10b981;
-  --success-700: #047857;
+  --success-500: #22c55e;
+  --success-700: #15803d;
   --warning-50: #fffbeb;
   --warning-500: #f59e0b;
   --warning-700: #b45309;
@@ -53,27 +53,28 @@
   --danger-500: #ef4444;
   --danger-700: #b91c1c;
   --info-50: #eff6ff;
-  --info-500: #3b82f6;
+  --info-500: #2563eb;
 
   /* Layout */
-  --sidebar-width: 280px;
-  --header-height: 64px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --navbar-height: 72px;
+  --header-height: 72px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.03);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 10px 20px -18px rgba(15, 23, 42, 0.35);
-  --shadow-lg: 0 24px 60px -36px rgba(15, 23, 42, 0.38);
-  --shadow-brand: 0 16px 40px -24px rgba(20, 184, 166, 0.65);
+  --shadow-xs: 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow-sm: 0 1px 3px rgba(17, 24, 39, 0.06), 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow-md: 0 4px 16px -4px rgba(17, 24, 39, 0.1), 0 2px 6px -2px rgba(17, 24, 39, 0.06);
+  --shadow-lg: 0 12px 40px -12px rgba(17, 24, 39, 0.14);
+  --shadow-brand: 0 8px 24px -8px rgba(37, 99, 235, 0.45);
+  --shadow-glass: 0 8px 32px -8px rgba(17, 24, 39, 0.08);
 
   /* Typography */
-  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, monospace;
 
   /* Legacy compat */
   --background: var(--surface-1);
@@ -111,9 +112,7 @@ html {
 
 body {
   min-height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(20, 184, 166, 0.08), transparent 32rem),
-    linear-gradient(180deg, #ffffff 0%, var(--surface-1) 34rem);
+  background: var(--surface-1);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 0.875rem;
@@ -126,14 +125,13 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
-.clinic-card-hover {
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
 .clinic-card-hover:hover {
   box-shadow: var(--shadow-md);
   border-color: var(--border-strong);
+  transform: translateY(-1px);
 }
 
 .clinic-input {
@@ -148,8 +146,8 @@ body {
   outline: none;
 }
 .clinic-input:focus {
-  border-color: var(--secondary);
-  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.14);
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 .clinic-input::placeholder { color: var(--text-muted); }
 
@@ -182,12 +180,12 @@ body {
 }
 
 .clinic-btn-primary {
-  background: linear-gradient(135deg, var(--primary), #1e293b);
+  background: var(--brand-600);
   color: var(--text-inverse);
   box-shadow: var(--shadow-brand);
 }
 .clinic-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #020617, var(--primary));
+  background: var(--brand-700);
   transform: translateY(-1px);
 }
 
@@ -258,7 +256,242 @@ body {
 }
 .clinic-table tr:hover td { background: var(--surface-1); }
 
-.clinic-sidebar {
+/* Top Navigation — floating pill navbar */
+.clinic-topnav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 1rem 1.5rem 0;
+  background: transparent;
+}
+
+.clinic-topnav-inner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.625rem 1rem 0.625rem 1.25rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-glass);
+}
+
+.clinic-topnav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.clinic-topnav-logo {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-400));
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.clinic-topnav-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+}
+.clinic-topnav-pills::-webkit-scrollbar { display: none; }
+
+.clinic-topnav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.clinic-topnav-pill:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.clinic-topnav-pill.active {
+  background: var(--brand-600);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.clinic-topnav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.clinic-topnav-icon-btn {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-0);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.clinic-topnav-icon-btn:hover {
+  background: var(--brand-50);
+  border-color: var(--brand-200);
+  color: var(--brand-600);
+}
+
+.clinic-topnav-user {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.375rem 0.625rem 0.375rem 0.375rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface-0);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.clinic-topnav-user:hover {
+  background: var(--brand-50);
+  border-color: var(--brand-200);
+}
+
+.clinic-topnav-avatar {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-400));
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.clinic-topnav-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 12rem;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-0);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 60;
+}
+.clinic-topnav-dropdown.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.clinic-topnav-dropdown-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.clinic-topnav-dropdown-item:hover {
+  background: var(--surface-1);
+}
+.clinic-topnav-dropdown-item.active {
+  color: var(--brand-600);
+  background: var(--brand-50);
+}
+.clinic-topnav-dropdown-item.danger {
+  color: var(--danger-500);
+}
+.clinic-topnav-dropdown-item.danger:hover {
+  background: var(--danger-50);
+}
+
+.clinic-topnav-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding: 0.75rem 1.5rem 0;
+}
+
+.clinic-topnav-subpill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  background: var(--surface-0);
+  transition: all 0.2s ease;
+}
+.clinic-topnav-subpill:hover {
+  border-color: var(--brand-200);
+  color: var(--brand-600);
+  background: var(--brand-50);
+}
+.clinic-topnav-subpill.active {
+  border-color: var(--brand-600);
+  color: var(--brand-600);
+  background: var(--brand-50);
+}
+
+.clinic-main-content {
+  padding: 1.5rem 1.5rem 2rem;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .clinic-topnav { padding: 0.75rem 1rem 0; }
+  .clinic-topnav-inner { padding: 0.5rem 0.75rem; }
+  .clinic-main-content { padding: 1rem; }
+}
+
+/* Legacy sidebar — kept for reference, no longer used */
   width: var(--sidebar-width);
   background:
     linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 1) 100%);
