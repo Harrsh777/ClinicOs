@@ -151,6 +151,17 @@ body {
 }
 .clinic-input::placeholder { color: var(--text-muted); }
 
+/* Left icon inside input — overrides default horizontal padding */
+.clinic-input--icon-left {
+  padding-left: 2.5rem;
+}
+
+input[type="search"].clinic-input::-webkit-search-decoration,
+input[type="search"].clinic-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .clinic-label {
   display: block;
   font-size: 0.8125rem;
@@ -946,7 +957,7 @@ body {
   box-shadow: var(--shadow-xs);
 }
 .clinic-stat-value {
-  font-size: 2.25rem;
+  font-size: clamp(1.25rem, 3.5vw, 2.25rem);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.2;
@@ -955,6 +966,7 @@ body {
   font-size: 0.8125rem;
   color: var(--text-muted);
   margin-top: 0.25rem;
+  word-break: break-word;
 }
 
 .clinic-page-header {

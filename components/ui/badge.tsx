@@ -46,6 +46,9 @@ export function StatusBadge({ status }: { status: string }) {
     emergency: { label: "Emergency", variant: "danger" },
     vip: { label: "VIP", variant: "brand" },
     normal: { label: "Normal", variant: "neutral" },
+    draft: { label: "Draft", variant: "warning" },
+    finalized: { label: "Finalized", variant: "success" },
+    dispensed: { label: "Dispensed", variant: "info" },
   };
 
   const cfg = map[status] ?? { label: status, variant: "neutral" as const };

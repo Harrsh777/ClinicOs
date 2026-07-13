@@ -78,6 +78,8 @@ export interface PrescriptionItem {
   allergy_acknowledged?: boolean;
 }
 
+export type PrescriptionStatus = "draft" | "finalized" | "dispensed";
+
 export interface Prescription {
   id: string;
   consultation_id: string;
@@ -85,6 +87,8 @@ export interface Prescription {
   doctor_id: string;
   notes: string | null;
   pdf_path: string | null;
+  status?: PrescriptionStatus;
+  shared_at?: string | null;
   created_at: string;
   prescription_items?: PrescriptionItem[];
 }

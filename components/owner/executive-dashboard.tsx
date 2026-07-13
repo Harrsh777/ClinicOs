@@ -467,13 +467,19 @@ export function ExecutiveDashboard({
         </div>
         <div className="flex flex-nowrap items-center gap-2">
           <div className="relative min-w-[12rem] flex-1 sm:min-w-[16rem] sm:flex-none sm:w-64">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]"
+              aria-hidden
+            />
             <input
-              type="search"
+              type="text"
+              inputMode="search"
+              enterKeyHint="search"
+              aria-label="Search dashboard"
               placeholder="Search anything here..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="clinic-input h-10 w-full rounded-2xl py-2.5 pl-10 pr-4"
+              className="clinic-input clinic-input--icon-left h-10 w-full rounded-2xl !py-2 !pr-4"
             />
           </div>
           <select

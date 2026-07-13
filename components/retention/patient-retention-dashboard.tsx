@@ -215,7 +215,7 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+      <div className="mb-6 grid gap-4 grid-cols-2 md:grid-cols-4">
         <StatCard label="Total patients" value={data.stats.totalPatients} icon={<Users className="h-5 w-5" />} />
         <StatCard label="Visited" value={data.stats.totalVisited} icon={<CalendarClock className="h-5 w-5" />} />
         <StatCard

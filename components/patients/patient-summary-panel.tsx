@@ -98,10 +98,27 @@ export function PatientSummaryPanel({ summary }: PatientSummaryPanelProps) {
         {prescriptions.length > 0 && (
           <Card className="!p-4">
             <h3 className="mb-3 font-semibold">Prescriptions</h3>
-            <ul className="space-y-1 text-sm">
-              {prescriptions.map((rx) => (
-                <li key={rx.id}>{new Date(rx.created_at).toLocaleDateString()} — Prescription</li>
-              ))}
+            <ul className="space-y-2 text-sm">
+              {prescriptions.map((rx) => {
+                const doc = rx.doctors?.profiles;
+                const docName = Array.isArray(doc) ? doc[0]?.full_name : doc?.full_name;
+                return (
+                  <li key={rx.id} className="flex justify-between items-center border-b border-[var(--border)] pb-2 last:border-0">
+                    <span>
+                      {new Date(rx.created_at).toLocaleDateString()}
+                      {docName ? ` · Dr. ${docName}` : ""}
+                    </span>
+                    <a
+                      href={`/print/prescription/${rx.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--brand-600)] hover:underline text-xs font-medium"
+                    >
+                      View
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         )}

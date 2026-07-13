@@ -7,7 +7,14 @@ import { logAuditEvent } from "@/lib/auth/audit";
 import { generatePatientCode } from "@/lib/db/sequences";
 import { createServiceClient } from "@/lib/supabase/server";
 import { validateIndianPhone } from "@/lib/validations/phone";
+import { parsePatientCsv } from "@/lib/patients/csv";
 import { z } from "zod";
+
+function revalidatePatientPaths() {
+  revalidatePath("/receptionist/patients");
+  revalidatePath("/doctor/patients");
+  revalidatePath("/owner/patients");
+}
 
 const patientSchema = z.object({
   fullName: z.string().min(2),
@@ -86,9 +93,103 @@ export async function createPatientAction(formData: FormData) {
     entityId: data.id,
   });
 
-  revalidatePath("/receptionist/patients");
-  revalidatePath("/doctor/patients");
+  revalidatePatientPaths();
   return { success: true, patientId: data.id };
+}
+
+export async function bulkImportPatientsAction(csvText: string): Promise<{
+  imported: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const profile = await requireAuth();
+  if (!profile.clinic_id) return { imported: 0, skipped: 0, errors: ["No clinic assigned"] };
+
+  const { rows, errors: parseErrors } = parsePatientCsv(csvText);
+  if (parseErrors.length && rows.length === 0) {
+    return { imported: 0, skipped: 0, errors: parseErrors };
+  }
+
+  const supabase = await createClient();
+  const service = await createServiceClient();
+  let imported = 0;
+  let skipped = 0;
+  const errors = [...parseErrors];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2;
+
+    const phoneResult = validateIndianPhone(row.phone);
+    if ("error" in phoneResult) {
+      errors.push(`Row ${rowNum}: ${phoneResult.error}`);
+      skipped++;
+      continue;
+    }
+
+    if (row.email && !z.string().email().safeParse(row.email).success) {
+      errors.push(`Row ${rowNum}: invalid email address`);
+      skipped++;
+      continue;
+    }
+
+    if (row.aadhaar_last_four && !/^\d{4}$/.test(row.aadhaar_last_four)) {
+      errors.push(`Row ${rowNum}: aadhaar_last_four must be exactly 4 digits`);
+      skipped++;
+      continue;
+    }
+
+    const { data: existing } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("clinic_id", profile.clinic_id)
+      .eq("phone", phoneResult.phone)
+      .maybeSingle();
+
+    if (existing) {
+      errors.push(`Row ${rowNum}: phone ${phoneResult.phone} already registered`);
+      skipped++;
+      continue;
+    }
+
+    const patientCode = await generatePatientCode(service, profile.clinic_id);
+    const { error: insertError } = await supabase.from("patients").insert({
+      clinic_id: profile.clinic_id,
+      full_name: row.full_name.trim(),
+      phone: phoneResult.phone,
+      email: row.email?.trim() || null,
+      date_of_birth: row.date_of_birth?.trim() || null,
+      gender: row.gender?.trim().toLowerCase() || null,
+      blood_group: row.blood_group?.trim() || null,
+      address: row.address?.trim() || null,
+      emergency_contact_name: row.emergency_contact_name?.trim() || null,
+      emergency_contact_phone: row.emergency_contact_phone?.trim() || null,
+      aadhaar_last_four: row.aadhaar_last_four?.trim() || null,
+      notes: row.notes?.trim() || null,
+      patient_code: patientCode,
+      created_by: profile.id,
+    });
+
+    if (insertError) {
+      errors.push(`Row ${rowNum}: ${insertError.message}`);
+      skipped++;
+    } else {
+      imported++;
+    }
+  }
+
+  if (imported > 0) {
+    await logAuditEvent({
+      clinicId: profile.clinic_id,
+      actorId: profile.id,
+      action: "bulk_create",
+      entityType: "patient",
+      metadata: { count: imported },
+    });
+    revalidatePatientPaths();
+  }
+
+  return { imported, skipped, errors };
 }
 
 const vitalsSchema = z.object({

@@ -65,19 +65,19 @@ export function StatCard({
         className="absolute inset-x-0 top-0 h-1"
         style={{ background: `linear-gradient(90deg, ${accent}, rgba(6, 182, 212, 0.35))` }}
       />
-      <div className="flex h-full items-start justify-between gap-4">
-        <div>
-          <div className="clinic-stat-value">{value}</div>
-          <div className="clinic-stat-label">{label}</div>
+      <div className="flex h-full items-start justify-between gap-2 sm:gap-3 min-w-0">
+        <div className="min-w-0 flex-1">
+          <div className="clinic-stat-value break-words">{value}</div>
+          <div className="clinic-stat-label leading-snug">{label}</div>
           {trend && (
-            <div className="mt-3 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+            <div className="mt-3 inline-flex max-w-full rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
               {trend}
             </div>
           )}
         </div>
         {icon && (
           <div
-            className="flex h-11 w-11 items-center justify-center rounded-2xl"
+            className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl"
             style={{
               background: `${accent}18`,
               color: accent,

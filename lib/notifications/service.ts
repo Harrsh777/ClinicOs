@@ -188,30 +188,32 @@ export async function notifyInvoiceGenerated(params: {
 
 export async function notifyPrescriptionReady(params: {
   clinicId: string;
-  doctorId: string;
+  patientId: string;
+  doctorProfileId: string;
   patientName: string;
+  doctorName: string;
   prescriptionId: string;
 }) {
   const service = await createServiceClient();
-  const { data: patientProfile } = await service
+  const { data: patient } = await service
     .from("patients")
     .select("user_id")
-    .eq("clinic_id", params.clinicId)
+    .eq("id", params.patientId)
     .maybeSingle();
 
-  if (patientProfile?.user_id) {
+  if (patient?.user_id) {
     await createNotification({
-      userId: patientProfile.user_id,
+      userId: patient.user_id,
       clinicId: params.clinicId,
       type: "prescription_ready",
       title: "Prescription ready",
-      body: `Your prescription from ${params.patientName} is ready to view.`,
+      body: `Dr. ${params.doctorName} has issued your prescription. Tap to view.`,
       metadata: { prescription_id: params.prescriptionId },
     });
   }
 
   await createNotification({
-    userId: params.doctorId,
+    userId: params.doctorProfileId,
     clinicId: params.clinicId,
     type: "prescription_ready",
     title: "Prescription saved",

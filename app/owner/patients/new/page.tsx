@@ -1,13 +1,14 @@
 import { PageHeader } from "@/components/ui/card";
-import { PatientForm } from "@/components/patients/patient-form";
+import { PatientRegistrationHub } from "@/components/patients/patient-registration-hub";
 
 export default function OwnerNewPatientPage() {
   return (
     <div>
-      <PageHeader title="Register Patient" subtitle="Add a new patient to the clinic" />
-      <div className="max-w-2xl">
-        <PatientForm basePath="/owner/patients" />
-      </div>
+      <PageHeader
+        title="Register Patients"
+        subtitle="Add a single patient or import many at once from a spreadsheet"
+      />
+      <PatientRegistrationHub basePath="/owner/patients" backHref="/owner/patients" />
     </div>
   );
 }
