@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/session";
+import { getConsultationsBasePath } from "@/lib/auth/linked-doctor";
 import { calculateBillTotals } from "@/lib/billing/calculator";
 import { z } from "zod";
 
@@ -27,7 +28,7 @@ export async function startConsultationAction(params: {
     .maybeSingle();
 
   if (existing) {
-    redirect(`/doctor/consultations/${existing.id}`);
+    redirect(`${getConsultationsBasePath(profile.role)}/${existing.id}`);
   }
 
   const { data, error } = await supabase
@@ -66,7 +67,11 @@ export async function startConsultationAction(params: {
   }
 
   revalidatePath("/doctor/consultations");
-  redirect(`/doctor/consultations/${data.id}`);
+  revalidatePath("/owner/consultations");
+  revalidatePath("/owner/my-consultations");
+  revalidatePath("/owner/patients");
+  revalidatePath("/doctor/patients");
+  redirect(`${getConsultationsBasePath(profile.role)}/${data.id}`);
 }
 
 const notesSchema = z.object({
@@ -74,6 +79,8 @@ const notesSchema = z.object({
   symptoms: z.string().optional(),
   diagnosis: z.string().optional(),
   clinicalNotes: z.string().optional(),
+  advice: z.string().optional(),
+  followUpDate: z.string().optional(),
 });
 
 export async function saveConsultationNotesAction(formData: FormData) {
@@ -83,6 +90,8 @@ export async function saveConsultationNotesAction(formData: FormData) {
     symptoms: formData.get("symptoms"),
     diagnosis: formData.get("diagnosis"),
     clinicalNotes: formData.get("clinicalNotes"),
+    advice: formData.get("advice"),
+    followUpDate: formData.get("followUpDate") || undefined,
   });
   if (!parsed.success) return { error: "Invalid notes" };
 
@@ -90,13 +99,18 @@ export async function saveConsultationNotesAction(formData: FormData) {
   const { error } = await supabase
     .from("consultation_notes")
     .update({
-      symptoms: parsed.data.symptoms,
-      diagnosis: parsed.data.diagnosis,
-      clinical_notes: parsed.data.clinicalNotes,
+      symptoms: parsed.data.symptoms || null,
+      diagnosis: parsed.data.diagnosis || null,
+      clinical_notes: parsed.data.clinicalNotes || null,
+      advice: parsed.data.advice || null,
+      follow_up_date: parsed.data.followUpDate || null,
     })
     .eq("consultation_id", parsed.data.consultationId);
 
   if (error) return { error: error.message };
+  revalidatePath("/owner/patients");
+  revalidatePath("/doctor/patients");
+  revalidatePath("/receptionist/patients");
   return { success: true };
 }
 
@@ -108,7 +122,13 @@ export async function endConsultationAction(consultationId: string) {
 
   const { data: consultation } = await supabase
     .from("consultations")
-    .select("*, consultation_notes(*), doctors(consultation_fee, profiles(full_name))")
+    .select(`
+      *,
+      consultation_notes(*),
+      doctors(consultation_fee, profiles(full_name)),
+      patients(full_name, phone),
+      appointments(notes, booking_symptoms)
+    `)
     .eq("id", consultationId)
     .single();
 
@@ -117,6 +137,13 @@ export async function endConsultationAction(consultationId: string) {
   const notes = Array.isArray(consultation.consultation_notes)
     ? consultation.consultation_notes[0]
     : consultation.consultation_notes;
+
+  if (!notes?.diagnosis?.trim()) {
+    return { error: "Diagnosis is required before ending consultation" };
+  }
+  if (!notes?.follow_up_date) {
+    return { error: "Follow-up date is required before ending consultation" };
+  }
 
   const { data: vitals } = await supabase
     .from("patient_vitals")
@@ -131,26 +158,59 @@ export async function endConsultationAction(consultationId: string) {
     .select("*, prescription_items(*)")
     .eq("consultation_id", consultationId);
 
+  const { data: labOrders } = await supabase
+    .from("lab_orders")
+    .select("id, lab_order_items(lab_tests(name))")
+    .eq("consultation_id", consultationId);
+
+  const appointment = consultation.appointments as
+    | { notes?: string | null; booking_symptoms?: string | null }
+    | { notes?: string | null; booking_symptoms?: string | null }[]
+    | null;
+  const apt = Array.isArray(appointment) ? appointment[0] : appointment;
+  const chiefComplaint =
+    notes?.symptoms?.trim() ||
+    apt?.booking_symptoms?.trim() ||
+    apt?.notes?.trim() ||
+    null;
+
+  const tests =
+    labOrders?.flatMap((order) => {
+      const items = order.lab_order_items as { lab_tests?: { name: string } | { name: string }[] }[];
+      return (items ?? []).map((item) => {
+        const test = item.lab_tests;
+        return Array.isArray(test) ? test[0]?.name : test?.name;
+      }).filter(Boolean);
+    }) ?? [];
+
   const { data: visitNum } = await supabase.rpc("get_next_visit_number", {
     p_patient_id: consultation.patient_id,
   });
 
   const visitNumber = visitNum ?? 1;
+  const doctorName = (consultation.doctors as { profiles?: { full_name: string } })?.profiles?.full_name;
 
-  await supabase.from("emr_records").insert({
-    clinic_id: profile.clinic_id,
-    patient_id: consultation.patient_id,
-    consultation_id: consultationId,
-    visit_number: visitNumber,
-    summary: {
-      symptoms: notes?.symptoms,
-      diagnosis: notes?.diagnosis,
-      clinical_notes: notes?.clinical_notes,
-      doctor: (consultation.doctors as { profiles?: { full_name: string } })?.profiles?.full_name,
-      prescriptions: prescriptions ?? [],
-    },
-    vitals_snapshot: vitals,
-  });
+  const { data: emrRecord } = await supabase
+    .from("emr_records")
+    .insert({
+      clinic_id: profile.clinic_id,
+      patient_id: consultation.patient_id,
+      consultation_id: consultationId,
+      visit_number: visitNumber,
+      summary: {
+        symptoms: chiefComplaint,
+        diagnosis: notes?.diagnosis,
+        clinical_notes: notes?.clinical_notes,
+        advice: notes?.advice,
+        follow_up_date: notes?.follow_up_date,
+        doctor: doctorName,
+        prescriptions: prescriptions ?? [],
+        tests,
+      },
+      vitals_snapshot: vitals,
+    })
+    .select("id")
+    .single();
 
   const endedAt = new Date().toISOString();
 
@@ -188,6 +248,50 @@ export async function endConsultationAction(consultationId: string) {
       .from("appointments")
       .update({ status: "completed" })
       .eq("id", consultation.appointment_id);
+
+    await supabase
+      .from("clinic_visits")
+      .update({ check_in_status: "completed" })
+      .eq("appointment_id", consultation.appointment_id);
+
+    const { completeFollowUpRemindersForVisit } = await import("@/lib/actions/follow-up-reminders");
+    await completeFollowUpRemindersForVisit(consultation.patient_id, profile.clinic_id);
+  }
+
+  const patient = consultation.patients as { full_name: string; phone: string };
+  if (emrRecord?.id && notes?.follow_up_date && patient) {
+    const { scheduleFollowUpReminder } = await import("@/lib/actions/follow-up-reminders");
+    await scheduleFollowUpReminder({
+      clinicId: profile.clinic_id,
+      patientId: consultation.patient_id,
+      patientName: patient.full_name,
+      patientPhone: patient.phone,
+      emrRecordId: emrRecord.id,
+      consultationId,
+      followUpDate: notes.follow_up_date,
+      diagnosis: notes.diagnosis,
+      complaint: chiefComplaint,
+      doctorName: doctorName ?? undefined,
+      advice: notes.advice ?? undefined,
+    });
+
+    if (prescriptions?.length) {
+      const { scheduleMedicineReminder } = await import("@/lib/actions/engagement-reminders");
+      const medicineNames = prescriptions.flatMap((rx) => {
+        const items = (rx as { prescription_items?: { medicine_name: string }[] }).prescription_items ?? [];
+        return items.map((i) => i.medicine_name);
+      });
+      if (medicineNames.length) {
+        await scheduleMedicineReminder({
+          clinicId: profile.clinic_id,
+          patientId: consultation.patient_id,
+          patientName: patient.full_name,
+          patientPhone: patient.phone,
+          prescriptionId: prescriptions[0].id,
+          medicineNames,
+        });
+      }
+    }
   }
 
   const doctor = consultation.doctors as { consultation_fee: number | null } | null;
@@ -246,15 +350,15 @@ export async function endConsultationAction(consultationId: string) {
     });
   }
 
-  const { data: patient } = await supabase
+  const { data: patientAccount } = await supabase
     .from("patients")
     .select("user_id")
     .eq("id", consultation.patient_id)
     .single();
 
-  if (patient?.user_id) {
+  if (patientAccount?.user_id) {
     await supabase.from("notifications").insert({
-      user_id: patient.user_id,
+      user_id: patientAccount.user_id,
       clinic_id: profile.clinic_id,
       title: "Consultation Complete",
       body: `Visit #${visitNumber} recorded. Bill ${bill?.invoice_number} generated — ₹${totalAmount}`,
@@ -263,7 +367,15 @@ export async function endConsultationAction(consultationId: string) {
   }
 
   revalidatePath("/doctor/consultations");
+  revalidatePath("/owner/consultations");
+  revalidatePath("/owner/my-consultations");
+  revalidatePath("/owner/patients");
+  revalidatePath("/doctor/patients");
   revalidatePath("/receptionist/billing");
+  revalidatePath("/receptionist/queue");
+  revalidatePath(`/doctor/patients/${consultation.patient_id}`);
+  revalidatePath(`/receptionist/patients/${consultation.patient_id}`);
+  revalidatePath(`/owner/patients/${consultation.patient_id}`);
   return { success: true, billId: bill?.id, visitNumber };
 }
 
@@ -276,7 +388,8 @@ export async function getConsultation(consultationId: string) {
       patients(*),
       doctors(*, profiles(full_name, specialization)),
       consultation_notes(*),
-      prescriptions(*, prescription_items(*))
+      prescriptions(*, prescription_items(*)),
+      appointments(notes, booking_symptoms, appointment_date, appointment_time)
     `)
     .eq("id", consultationId)
     .single();
@@ -287,7 +400,7 @@ export async function getPatientEmrRecords(patientId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("emr_records")
-    .select("*")
+    .select("*, consultations(appointment_id)")
     .eq("patient_id", patientId)
     .order("visit_number", { ascending: false });
   return data ?? [];
@@ -302,4 +415,16 @@ export async function getDoctorConsultations(doctorId: string) {
     .order("started_at", { ascending: false })
     .limit(20);
   return data ?? [];
+}
+
+export async function getActiveConsultationForPatient(patientId: string, doctorId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("consultations")
+    .select("id, status, started_at, consultation_notes(diagnosis, symptoms, clinical_notes)")
+    .eq("patient_id", patientId)
+    .eq("doctor_id", doctorId)
+    .eq("status", "in_progress")
+    .maybeSingle();
+  return data;
 }

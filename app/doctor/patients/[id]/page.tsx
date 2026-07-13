@@ -1,20 +1,25 @@
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/session";
 import { getPatientDetail, getPatientSummary } from "@/lib/actions/patients";
-import { getPatientEmrRecords } from "@/lib/actions/consultations";
+import { getPatientVisitTimeline } from "@/lib/actions/visits";
 import { PageHeader } from "@/components/ui/card";
 import { PatientProfileTabs } from "@/components/patients/patient-profile-tabs";
 import { PatientSummaryPanel } from "@/components/patients/patient-summary-panel";
+import { getPatientAIBriefAction } from "@/lib/actions/ai-patient-brief";
+import { AIPatientBriefPanel } from "@/components/patients/ai-patient-brief";
 
 export default async function DoctorPatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole(["doctor", "clinic_owner"]);
   const { id } = await params;
 
-  const [data, summary, emrRecords] = await Promise.all([
+  const [data, summary, visitTimeline, aiBrief] = await Promise.all([
     getPatientDetail(id),
     profile.clinic_id ? getPatientSummary(id, profile.clinic_id) : null,
-    getPatientEmrRecords(id),
+    getPatientVisitTimeline(id),
+    profile.clinic_id ? getPatientAIBriefAction(id).catch(() => null) : null,
   ]);
+
+  const { emrRecords, clinicVisits } = visitTimeline;
 
   if (!data.patient) notFound();
   if (profile.clinic_id && data.patient.clinic_id !== profile.clinic_id) notFound();
@@ -31,8 +36,9 @@ export default async function DoctorPatientDetailPage({ params }: { params: Prom
         backHref="/doctor/patients"
         backLabel="All patients"
       />
-      {enrichedSummary && <PatientSummaryPanel summary={enrichedSummary as Parameters<typeof PatientSummaryPanel>[0]["summary"]} />}
-      <PatientProfileTabs {...data} canEdit={false} emrRecords={emrRecords} />
+      {aiBrief && <AIPatientBriefPanel brief={aiBrief} />}
+      {enrichedSummary && <PatientSummaryPanel summary={enrichedSummary as unknown as Parameters<typeof PatientSummaryPanel>[0]["summary"]} />}
+      <PatientProfileTabs {...data} canEdit={false} emrRecords={emrRecords} clinicVisits={clinicVisits} />
     </div>
   );
 }

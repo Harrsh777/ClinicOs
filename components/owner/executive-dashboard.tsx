@@ -453,6 +453,9 @@ export function ExecutiveDashboard({
   const queueStatus = liveOps.queueStatus;
 
   const hasRevenue = dailyRevenue.some((d) => d.revenue > 0);
+  const hasInvoices = dailyRevenue.some((d) => d.invoices > 0);
+  const periodRevenueTotal = dailyRevenue.reduce((sum, d) => sum + d.revenue, 0);
+  const periodInvoiceTotal = dailyRevenue.reduce((sum, d) => sum + d.invoices, 0);
   const hasPaymentMix = data.charts.paymentMix.some((d) => d.amount > 0);
   const hasCollection = data.charts.collectionHealth.some((d) => d.value > 0);
   const totalPatients =
@@ -570,61 +573,134 @@ export function ExecutiveDashboard({
             </Badge>
           }
         >
-          <div className="relative h-[300px] sm:h-[340px]">
+          <div className="relative space-y-6">
             {revenueLoading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/60">
                 <RefreshCw className="h-5 w-5 animate-spin text-[var(--text-muted)]" />
               </div>
             )}
-            {hasRevenue ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={dailyRevenue} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="execRevenueGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#14B8A6" stopOpacity={0.28} />
-                      <stop offset="95%" stopColor="#14B8A6" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-                    tickFormatter={(v) => (Number(v) >= 1000 ? `₹${Number(v) / 1000}k` : `₹${v}`)}
-                    width={52}
-                  />
-                  <Tooltip
-                    content={
-                      <ChartTooltip
-                        formatter={(v, name) =>
-                          name === "revenue"
-                            ? [formatCurrency(v), "Revenue"]
-                            : [String(v), "Invoices"]
-                        }
-                      />
-                    }
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#14B8A6"
-                    strokeWidth={2.5}
-                    fill="url(#execRevenueGrad)"
-                    activeDot={{ r: 5, fill: "#14B8A6", stroke: "#fff", strokeWidth: 2 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-1)] text-sm text-[var(--text-secondary)]">
-                Revenue data will appear as payments are recorded
+
+            <div className="h-[220px]">
+              {hasRevenue ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={dailyRevenue} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="execRevenueGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#14B8A6" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#14B8A6" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                      tickFormatter={(v) => (Number(v) >= 1000 ? `₹${Number(v) / 1000}k` : `₹${v}`)}
+                      width={52}
+                    />
+                    <Tooltip
+                      content={
+                        <ChartTooltip
+                          formatter={(v, name) =>
+                            name === "revenue"
+                              ? [formatCurrency(v), "Revenue"]
+                              : [String(v), "Invoices"]
+                          }
+                        />
+                      }
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#14B8A6"
+                      strokeWidth={2.5}
+                      fill="url(#execRevenueGrad)"
+                      activeDot={{ r: 5, fill: "#14B8A6", stroke: "#fff", strokeWidth: 2 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-1)] text-sm text-[var(--text-secondary)]">
+                  Revenue data will appear as payments are recorded
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Period total", value: formatCurrency(periodRevenueTotal) },
+                {
+                  label: "Avg per day",
+                  value: formatCurrency(Math.round(periodRevenueTotal / revenueDays)),
+                },
+                {
+                  label: "Invoices",
+                  value: String(periodInvoiceTotal),
+                },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2.5 text-center"
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                    {stat.label}
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-[var(--text-primary)]">{stat.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-[var(--border)] pt-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">Invoice volume</p>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Bills created per day over the last {revenueDays} days
+                  </p>
+                </div>
+                <ChartLegend items={[{ color: "#3B82F6", label: "Invoices" }]} />
               </div>
-            )}
+              <div className="h-[160px]">
+                {hasInvoices ? (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={dailyRevenue} barSize={revenueDays <= 7 ? 28 : revenueDays <= 14 ? 18 : 10}>
+                      <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                        interval={revenueDays > 14 ? 2 : 0}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                        allowDecimals={false}
+                        width={28}
+                      />
+                      <Tooltip
+                        content={
+                          <ChartTooltip formatter={(v) => [String(v), "Invoices"]} />
+                        }
+                        cursor={{ fill: "rgba(59,130,246,0.06)" }}
+                      />
+                      <Bar dataKey="invoices" fill="#3B82F6" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-1)] text-sm text-[var(--text-secondary)]">
+                    Invoice volume will appear as bills are created
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </SectionCard>
 
@@ -763,7 +839,13 @@ export function ExecutiveDashboard({
                   <span style={{ color: row.color }}>{row.icon}</span>
                   {row.label}
                 </div>
-                <span className="text-sm font-bold text-[var(--text-primary)]">{row.value}</span>
+                {row.label === "At risk (90d+)" ? (
+                  <Link href="/owner/retention" className="text-sm font-bold text-[var(--brand-600)] hover:underline">
+                    {row.value} →
+                  </Link>
+                ) : (
+                  <span className="text-sm font-bold text-[var(--text-primary)]">{row.value}</span>
+                )}
               </div>
             ))}
           </div>

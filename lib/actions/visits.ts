@@ -5,6 +5,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireAuth, requireRole } from "@/lib/auth/session";
 import { signVisit, verifyVisitSignature } from "@/lib/visits/qr";
 import { generateQueueTokenWithSeries } from "@/lib/actions/appointments";
+import type { ClinicVisitWithAppointment, PatientVisitTimeline } from "@/lib/types/clinical";
 
 type VisitType = "scheduled" | "walk_in" | "emergency";
 type PaymentStatus = "not_required" | "pending" | "paid";
@@ -335,4 +336,71 @@ export async function getPatientActiveVisit(patientId: string) {
     .maybeSingle();
 
   return data;
+}
+
+export async function getPatientVisitTimeline(patientId: string): Promise<PatientVisitTimeline> {
+  const supabase = await createClient();
+
+  const [emrResult, visitsResult] = await Promise.all([
+    supabase
+      .from("emr_records")
+      .select("*, consultations(appointment_id)")
+      .eq("patient_id", patientId)
+      .order("visit_number", { ascending: false }),
+    supabase
+      .from("clinic_visits")
+      .select(`
+        id,
+        visit_code,
+        booking_id,
+        appointment_id,
+        visit_type,
+        payment_status,
+        check_in_status,
+        token_label,
+        receipt_number,
+        created_at,
+        checked_in_at,
+        appointments(
+          appointment_date,
+          appointment_time,
+          status,
+          appointment_number,
+          notes,
+          booking_symptoms,
+          booking_notes,
+          doctors(profiles(full_name))
+        )
+      `)
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const emrRecords = emrResult.data ?? [];
+  const clinicVisits = (visitsResult.data ?? []).map((visit) => {
+    const appointments = visit.appointments;
+    const appointment = Array.isArray(appointments) ? appointments[0] ?? null : appointments;
+    return {
+      ...visit,
+      appointments: appointment,
+    } as ClinicVisitWithAppointment;
+  });
+
+  const emrAppointmentIds = new Set(
+    emrRecords
+      .map((record) => {
+        const consultation = record.consultations as { appointment_id?: string | null } | null;
+        return consultation?.appointment_id ?? null;
+      })
+      .filter((id): id is string => Boolean(id))
+  );
+
+  const pendingVisits = clinicVisits.filter(
+    (visit) => !visit.appointment_id || !emrAppointmentIds.has(visit.appointment_id)
+  );
+
+  return {
+    emrRecords,
+    clinicVisits: pendingVisits,
+  };
 }

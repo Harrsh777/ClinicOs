@@ -9,12 +9,14 @@ import {
 } from "@/lib/validations/demo-request";
 
 const COLORS = {
-  primary: "#0F172A",
-  accent: "#14B8A6",
-  accent2: "#06B6D4",
+  primary: "#FCFCFA",
+  card: "#FFFFFF",
+  text: "#111111",
+  accent: "#16C784",
+  accent2: "#6EC6FF",
   white: "#FFFFFF",
-  border: "#E2E8F0",
-  muted: "#64748B",
+  border: "rgba(17,17,17,0.1)",
+  muted: "#5C6470",
 };
 
 const CLINIC_TYPES = [
@@ -40,7 +42,7 @@ const fieldStyle: React.CSSProperties = {
   border: `1px solid ${COLORS.border}`,
   fontSize: 14,
   fontFamily: "Inter, sans-serif",
-  color: COLORS.primary,
+  color: COLORS.text,
   background: COLORS.white,
   outline: "none",
 };
@@ -114,6 +116,7 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
     <dialog
       ref={dialogRef}
       onClose={onClose}
+      className="demo-modal"
       style={{
         position: "fixed",
         inset: 0,
@@ -125,8 +128,9 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
         border: "none",
         borderRadius: 20,
         padding: 0,
-        background: COLORS.white,
-        boxShadow: "0 24px 80px rgba(15,23,42,0.25)",
+        background: COLORS.card,
+        color: COLORS.text,
+        boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
       }}
     >
       <div style={{ padding: "28px 28px 24px", borderBottom: `1px solid ${COLORS.border}` }}>
@@ -135,8 +139,8 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
             <p style={{ fontSize: 12, fontWeight: 700, color: COLORS.accent, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "Inter, sans-serif" }}>
               Book a Demo
             </p>
-            <h2 style={{ marginTop: 6, fontSize: 24, fontWeight: 800, color: COLORS.primary, fontFamily: "Geist, Inter, sans-serif", letterSpacing: "-0.03em" }}>
-              Schedule your Clinicos walkthrough
+            <h2 style={{ marginTop: 6, fontSize: 24, fontWeight: 800, color: COLORS.text, fontFamily: "Sora, Inter, sans-serif", letterSpacing: "-0.03em" }}>
+              Grow your practice — live walkthrough
             </h2>
             <p style={{ marginTop: 8, fontSize: 14, color: COLORS.muted, lineHeight: 1.6, fontFamily: "Inter, sans-serif" }}>
               Pick a date and time, share your clinic details, and our team will reach out to confirm.
@@ -166,7 +170,7 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
       {success ? (
         <div style={{ padding: 28, textAlign: "center" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>✓</div>
-          <h3 style={{ fontSize: 20, fontWeight: 700, color: COLORS.primary, fontFamily: "Inter, sans-serif" }}>Demo request received</h3>
+          <h3 style={{ fontSize: 20, fontWeight: 700, color: COLORS.text, fontFamily: "Inter, sans-serif" }}>Demo request received</h3>
           <p style={{ marginTop: 8, fontSize: 14, color: COLORS.muted, lineHeight: 1.6, fontFamily: "Inter, sans-serif" }}>
             Thanks for your interest in Clinicos. We&apos;ll email you shortly to confirm your demo slot.
           </p>
@@ -179,7 +183,7 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
               borderRadius: 12,
               border: "none",
               background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.accent2})`,
-              color: COLORS.white,
+              color: "#FFFFFF",
               fontWeight: 700,
               cursor: "pointer",
               fontFamily: "Inter, sans-serif",
@@ -304,7 +308,7 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
                 padding: "12px 20px",
                 borderRadius: 12,
                 border: `1px solid ${COLORS.border}`,
-                background: COLORS.white,
+                background: "transparent",
                 color: COLORS.muted,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -321,7 +325,7 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
                 borderRadius: 12,
                 border: "none",
                 background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.accent2})`,
-                color: COLORS.white,
+                color: "#FFFFFF",
                 fontWeight: 700,
                 cursor: loading ? "wait" : "pointer",
                 opacity: loading ? 0.7 : 1,

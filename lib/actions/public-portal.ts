@@ -13,7 +13,8 @@ import { upsertPortalPatientFull, type PortalPatientInput } from "@/lib/portal/p
 import { isSlotAvailable } from "@/lib/portal/slots";
 import { generateBookingId, reserveAppointmentSlot } from "@/lib/db/sequences";
 import { sanitizeText } from "@/lib/security/sanitize";
-import { notifyBookingCreated, notifyPaymentReceived } from "@/lib/notifications/service";
+import { notifyBookingCreated, notifyPaymentReceived, notifyDoctorTeleconsultBooked } from "@/lib/notifications/service";
+import { ensureTeleconsultSession } from "@/lib/teleconsult/sessions";
 import { z } from "zod";
 
 const publicBookSchema = z.object({
@@ -57,6 +58,29 @@ async function getFeeForConsultationType(
   if (consultationType === "emergency") return Number(billing?.emergency_consultation_fee ?? base * 1.5);
   if (consultationType === "video") return Number(billing?.video_consultation_fee ?? base * 0.8);
   return base;
+}
+
+async function setupVideoConsultAfterBooking(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  params: {
+    appointmentId: string;
+    doctorId: string;
+    clinicId: string;
+    patientName: string;
+    date: string;
+    time: string;
+    bookingId?: string;
+  }
+) {
+  await ensureTeleconsultSession(service, params.appointmentId);
+  await notifyDoctorTeleconsultBooked({
+    doctorId: params.doctorId,
+    clinicId: params.clinicId,
+    patientName: params.patientName,
+    date: params.date,
+    time: params.time,
+    bookingId: params.bookingId,
+  });
 }
 
 /** Phase 2 public booking — no OTP required */
@@ -115,7 +139,13 @@ export async function createPublicBookingAction(input: z.infer<typeof publicBook
     };
 
     const patientResult = await upsertPortalPatientFull(service, clinic.id, patientInput);
-    const aptType = parsed.data.consultationType === "emergency" ? "emergency" : "scheduled";
+    const isVideoConsult = parsed.data.consultationType === "video";
+    const aptType =
+      parsed.data.consultationType === "emergency"
+        ? "emergency"
+        : isVideoConsult
+          ? "teleconsult"
+          : "scheduled";
     const priority = parsed.data.consultationType === "emergency" ? "emergency" : "normal";
 
     const reservation = await reserveAppointmentSlot(service, {
@@ -234,6 +264,20 @@ export async function createPublicBookingAction(input: z.infer<typeof publicBook
         date: parsed.data.date,
         time: parsed.data.time,
       });
+
+      if (isVideoConsult) {
+        await setupVideoConsultAfterBooking(service, {
+          appointmentId,
+          doctorId: parsed.data.doctorId,
+          clinicId: clinic.id,
+          patientName: patientInput.fullName,
+          date: parsed.data.date,
+          time: parsed.data.time,
+          bookingId,
+        });
+        revalidatePath("/doctor/teleconsult");
+        revalidatePath("/owner/teleconsult");
+      }
 
       return {
         success: true,
@@ -783,7 +827,7 @@ export async function fulfillPortalPayment(
 
   const { data: visit } = await service
     .from("clinic_visits")
-    .select("*, appointments(id, doctor_id, appointment_date, status, type)")
+    .select("*, appointments(id, doctor_id, appointment_date, appointment_time, status, type, consultation_type)")
     .eq("id", visitId)
     .single();
 
@@ -828,8 +872,16 @@ export async function fulfillPortalPayment(
     await service.from("appointments").update({ status: "confirmed" }).eq("id", visit.appointment_id);
   }
 
-  const apt = visit.appointments as { doctor_id: string; appointment_date: string; type: string } | null;
+  const apt = visit.appointments as {
+    doctor_id: string;
+    appointment_date: string;
+    appointment_time: string;
+    type: string;
+    consultation_type?: string | null;
+  } | null;
+  const isVideoConsult = apt?.type === "teleconsult" || apt?.consultation_type === "video";
   const shouldIssueToken =
+    !isVideoConsult &&
     !visit.queue_token_id &&
     (visit.visit_type === "walk_in" ||
       visit.visit_type === "emergency" ||
@@ -885,6 +937,20 @@ export async function fulfillPortalPayment(
     bookingId: visit.booking_id ?? undefined,
     invoiceNumber: bill.invoice_number,
   });
+
+  if (isVideoConsult && visit.appointment_id) {
+    await setupVideoConsultAfterBooking(service, {
+      appointmentId: visit.appointment_id,
+      doctorId: apt!.doctor_id,
+      clinicId: visit.clinic_id,
+      patientName: patient?.full_name ?? "Patient",
+      date: apt!.appointment_date,
+      time: apt!.appointment_time,
+      bookingId: visit.booking_id ?? undefined,
+    });
+    revalidatePath("/doctor/teleconsult");
+    revalidatePath("/owner/teleconsult");
+  }
 
   return { success: true, tokenLabel, bookingId: visit.booking_id };
 }

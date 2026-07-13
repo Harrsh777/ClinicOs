@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth/session";
 import { logAuditEvent } from "@/lib/auth/audit";
 import { generatePatientCode } from "@/lib/db/sequences";
 import { createServiceClient } from "@/lib/supabase/server";
+import { validateIndianPhone } from "@/lib/validations/phone";
 import { z } from "zod";
 
 const patientSchema = z.object({
@@ -42,6 +43,9 @@ export async function createPatientAction(formData: FormData) {
 
   if (!parsed.success) return { error: "Please fill required fields" };
 
+  const phoneResult = validateIndianPhone(parsed.data.phone);
+  if ("error" in phoneResult) return { error: phoneResult.error };
+
   const supabase = await createClient();
   const service = await createServiceClient();
   const patientCode = await generatePatientCode(service, profile.clinic_id);
@@ -51,7 +55,7 @@ export async function createPatientAction(formData: FormData) {
     .insert({
       clinic_id: profile.clinic_id,
       full_name: parsed.data.fullName,
-      phone: parsed.data.phone.replace(/\D/g, ""),
+      phone: phoneResult.phone,
       email: parsed.data.email || null,
       date_of_birth: parsed.data.dateOfBirth || null,
       gender: parsed.data.gender || null,
@@ -67,7 +71,12 @@ export async function createPatientAction(formData: FormData) {
     .select()
     .single();
 
-  if (error) return { error: error.message };
+  if (error) {
+    if (error.code === "23505") {
+      return { error: "A patient with this phone number already exists at this clinic" };
+    }
+    return { error: error.message };
+  }
 
   await logAuditEvent({
     clinicId: profile.clinic_id,
@@ -397,6 +406,114 @@ export async function getPatients(clinicId: string, search?: string) {
 
   const { data } = await query;
   return data ?? [];
+}
+
+export type PatientDoctorNote = {
+  note: string;
+  notedAt: string;
+  doctorName?: string;
+  consultationId?: string;
+  inProgress?: boolean;
+};
+
+function formatDoctorNote(
+  notes: {
+    diagnosis?: string | null;
+    symptoms?: string | null;
+    clinical_notes?: string | null;
+  } | null | undefined
+): string | null {
+  if (!notes) return null;
+  return notes.diagnosis?.trim() || notes.symptoms?.trim() || notes.clinical_notes?.trim() || null;
+}
+
+/** Latest saved doctor note per patient (in-progress consult notes or completed EMR). */
+export async function getPatientDoctorNotesMap(
+  clinicId: string,
+  patientIds: string[]
+): Promise<Record<string, PatientDoctorNote>> {
+  if (patientIds.length === 0) return {};
+
+  const supabase = await createClient();
+  const result: Record<string, PatientDoctorNote> = {};
+
+  const { data: consultations } = await supabase
+    .from("consultations")
+    .select(`
+      id,
+      patient_id,
+      status,
+      started_at,
+      consultation_notes(diagnosis, symptoms, clinical_notes),
+      doctors(profiles(full_name))
+    `)
+    .eq("clinic_id", clinicId)
+    .in("patient_id", patientIds)
+    .order("started_at", { ascending: false });
+
+  for (const row of consultations ?? []) {
+    if (result[row.patient_id]) continue;
+    const rawNotes = row.consultation_notes;
+    const noteRow = Array.isArray(rawNotes) ? rawNotes[0] : rawNotes;
+    const note = formatDoctorNote(noteRow);
+    if (!note) continue;
+
+    const profiles = (row.doctors as { profiles?: { full_name: string } | { full_name: string }[] })?.profiles;
+    const doctorName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+
+    result[row.patient_id] = {
+      note,
+      notedAt: row.started_at,
+      doctorName: doctorName ?? undefined,
+      consultationId: row.id,
+      inProgress: row.status === "in_progress",
+    };
+  }
+
+  const missingIds = patientIds.filter((id) => !result[id]);
+  if (missingIds.length === 0) return result;
+
+  const { data: emrRows } = await supabase
+    .from("emr_records")
+    .select("patient_id, created_at, summary")
+    .eq("clinic_id", clinicId)
+    .in("patient_id", missingIds)
+    .order("created_at", { ascending: false });
+
+  for (const row of emrRows ?? []) {
+    if (result[row.patient_id]) continue;
+    const summary = (row.summary ?? {}) as {
+      diagnosis?: string;
+      symptoms?: string;
+      clinical_notes?: string;
+      doctor?: string;
+    };
+    const note = summary.diagnosis?.trim() || summary.symptoms?.trim() || summary.clinical_notes?.trim();
+    if (!note) continue;
+    result[row.patient_id] = {
+      note,
+      notedAt: row.created_at,
+      doctorName: summary.doctor,
+    };
+  }
+
+  return result;
+}
+
+export async function getPatientsWithDoctorNotes(clinicId: string, search?: string) {
+  const patients = await getPatients(clinicId, search);
+  const notesMap = await getPatientDoctorNotesMap(
+    clinicId,
+    patients.map((p) => p.id)
+  );
+
+  return patients.map((p) => ({
+    ...p,
+    doctor_note: notesMap[p.id]?.note ?? null,
+    doctor_note_at: notesMap[p.id]?.notedAt ?? null,
+    doctor_name: notesMap[p.id]?.doctorName ?? null,
+    in_progress_consultation_id: notesMap[p.id]?.inProgress ? notesMap[p.id]?.consultationId : null,
+  }));
 }
 
 export async function getPatientDetail(patientId: string) {

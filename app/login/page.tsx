@@ -6,18 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { Activity, Building2, ShieldCheck, Sparkles } from "lucide-react";
 import { loginAction } from "@/lib/actions/auth";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 
 function formatClinicId(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, "");
-}
-
-function formatUserId(value: string) {
-  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9-@.]/g, "");
-  if (normalized.includes("@") || normalized.includes("-")) return normalized;
-  const match = normalized.match(/^([A-Z]+)(\d+)$/);
-  return match ? `${match[1]}-${match[2]}` : normalized;
 }
 
 function friendlyLoginError(message: string) {
@@ -38,7 +32,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [clinicId, setClinicId] = useState("");
-  const [userId, setUserId] = useState("");
+  const [email, setEmail] = useState("");
   const searchParams = useSearchParams();
   const suspended = searchParams.get("error") === "account_suspended";
   const profileMissing = searchParams.get("error") === "profile_missing";
@@ -53,7 +47,7 @@ function LoginForm() {
     formData.set("clinicId", formatClinicId(String(formData.get("clinicId") ?? "")));
 
     if (!isPlatform) {
-      formData.set("staffId", formatUserId(String(formData.get("staffId") ?? "")));
+      formData.set("staffId", String(formData.get("staffId") ?? "").trim().toLowerCase());
     }
 
     const result = await loginAction(formData);
@@ -86,7 +80,7 @@ function LoginForm() {
               Clinical operations, revenue, and AI workflows in one secure workspace.
             </h1>
             <p className="mt-3 max-w-md text-sm text-slate-300">
-              Sign in with your Clinic ID, User ID, and password. Owners and staff use the same login.
+              Sign in with your Clinic ID, email, and password. Owners and staff use the same login.
             </p>
           </div>
 
@@ -119,7 +113,7 @@ function LoginForm() {
 
             {activated && (
               <Alert variant="success" className="mb-4">
-                Account activated! Sign in with your Clinic ID, User ID, and password.
+                Account activated! Sign in with your Clinic ID, email, and password.
               </Alert>
             )}
 
@@ -157,18 +151,19 @@ function LoginForm() {
                 <Input label="Email" name="email" type="email" required placeholder="admin@clinic.com" />
               ) : (
                 <Input
-                  label="User ID"
+                  label="Email"
                   name="staffId"
+                  type="email"
                   required
-                  placeholder="OWN-0001 or DOC-0001"
-                  autoComplete="username"
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value.toUpperCase())}
-                  onBlur={(e) => setUserId(formatUserId(e.target.value))}
+                  placeholder="owner@cityclinic.demo"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={(e) => setEmail(e.target.value.trim().toLowerCase())}
                 />
               )}
 
-              <Input label="Password" name="password" type="password" required placeholder="••••••••" />
+              <PasswordInput label="Password" name="password" required placeholder="••••••••" autoComplete="current-password" />
 
               <Button type="submit" loading={loading} className="w-full">
                 Sign In

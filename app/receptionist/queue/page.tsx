@@ -3,15 +3,20 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/card";
 import { LiveQueueHub } from "@/components/queue/live-queue-hub";
 import { CheckInPanel } from "@/components/receptionist/check-in-panel";
+import { ReminderStatusPanel } from "@/components/receptionist/reminder-status-panel";
+import { getClinicFollowUpReminders } from "@/lib/actions/follow-up-reminders";
 
 export default async function QueuePage() {
   const profile = await requireRole(["receptionist", "clinic_owner"]);
   const supabase = await createClient();
-  const { data: clinic } = await supabase
-    .from("clinics")
-    .select("slug")
-    .eq("id", profile.clinic_id!)
-    .single();
+  const [{ data: clinic }, reminders] = await Promise.all([
+    supabase
+      .from("clinics")
+      .select("slug")
+      .eq("id", profile.clinic_id!)
+      .single(),
+    getClinicFollowUpReminders(profile.clinic_id!),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -19,6 +24,7 @@ export default async function QueuePage() {
         title="Live Queue"
         subtitle="Reception control tower — check in patients and orchestrate flow"
       />
+      <ReminderStatusPanel reminders={reminders} />
       <LiveQueueHub
         clinicId={profile.clinic_id!}
         clinicSlug={clinic?.slug}

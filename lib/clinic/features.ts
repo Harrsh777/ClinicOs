@@ -71,7 +71,8 @@ export async function getClinicFeatures(clinicId: string | null): Promise<{
     limits: ClinicLimits;
   } | null;
 
-  if (!sub || sub.status === "canceled") {
+  const inactiveStatuses = ["canceled", "cancelled", "expired", "past_due"];
+  if (!sub || inactiveStatuses.includes(sub.status)) {
     return {
       features: { ...DEFAULT_FEATURES, teleconsult: false, ai_insights: false, analytics: false },
       limits: plan?.limits ?? {},

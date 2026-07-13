@@ -166,6 +166,7 @@ const brandingSchema = z.object({
   customDomain: z.string().optional(),
   whiteLabel: z.coerce.boolean().optional(),
   whatsappNumber: z.string().optional(),
+  whatsappMetaPhoneId: z.string().optional(),
   tagline: z.string().optional(),
   portalWalkInEnabled: z.coerce.boolean().optional(),
   portalMaxDailyWalkIns: z.coerce.number().int().min(1).max(1000).optional(),
@@ -181,6 +182,7 @@ export async function updateClinicBrandingAction(formData: FormData) {
     customDomain: formData.get("customDomain"),
     whiteLabel: formData.get("whiteLabel") === "on" || formData.get("whiteLabel") === "true",
     whatsappNumber: formData.get("whatsappNumber"),
+    whatsappMetaPhoneId: formData.get("whatsappMetaPhoneId"),
     tagline: formData.get("tagline"),
     portalWalkInEnabled: formData.get("portalWalkInEnabled") === "on" || formData.get("portalWalkInEnabled") === "true",
     portalMaxDailyWalkIns: formData.get("portalMaxDailyWalkIns")
@@ -228,6 +230,7 @@ export async function updateClinicBrandingAction(formData: FormData) {
       custom_domain: parsed.data.customDomain,
       white_label: parsed.data.whiteLabel ?? false,
       whatsapp_number: parsed.data.whatsappNumber,
+      whatsapp_meta_phone_id: parsed.data.whatsappMetaPhoneId,
       tagline: parsed.data.tagline,
       portal_walk_in_enabled: parsed.data.portalWalkInEnabled !== false,
       portal_max_daily_walk_ins: parsed.data.portalMaxDailyWalkIns ?? 200,

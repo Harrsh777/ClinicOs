@@ -15,7 +15,7 @@ import { InsurancePolicyForm } from "@/components/insurance/policy-form";
 import { Button } from "@/components/ui/button";
 import { deleteVitalAction, deleteAllergyAction } from "@/lib/actions/patients";
 import type { Patient, PatientVitals, PatientAllergy } from "@/lib/types/database";
-import type { EmrRecord } from "@/lib/types/clinical";
+import type { ClinicVisitWithAppointment, EmrRecord } from "@/lib/types/clinical";
 import { Activity } from "lucide-react";
 
 const TABS = ["Overview", "Vitals", "Allergies", "History", "Visits", "Documents", "Insurance"] as const;
@@ -36,6 +36,7 @@ interface Props {
   documents: { id: string; name: string; document_type: string; created_at: string; storage_path?: string }[];
   policies?: Policy[];
   emrRecords?: EmrRecord[];
+  clinicVisits?: ClinicVisitWithAppointment[];
   canEdit?: boolean;
   showInsurance?: boolean;
   basePath?: string;
@@ -49,6 +50,7 @@ export function PatientProfileTabs({
   documents,
   policies = [],
   emrRecords = [],
+  clinicVisits = [],
   canEdit,
   showInsurance,
   basePath = "/receptionist/patients",
@@ -198,7 +200,7 @@ export function PatientProfileTabs({
         )
       )}
 
-      {tab === "Visits" && <EmrTimeline records={emrRecords} />}
+      {tab === "Visits" && <EmrTimeline records={emrRecords} clinicVisits={clinicVisits} />}
 
       {tab === "Documents" && (
         <div className="space-y-2">

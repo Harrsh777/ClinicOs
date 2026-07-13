@@ -6,7 +6,11 @@ export type AIFeature =
   | "appointment_bot"
   | "billing_assistant"
   | "follow_up"
-  | "health_risk";
+  | "health_risk"
+  | "engagement_message"
+  | "recovery_analysis"
+  | "patient_brief"
+  | "doctor_assistant";
 
 const COST_PER_1K_TOKENS = 0.00015;
 

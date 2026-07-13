@@ -1,6 +1,7 @@
 "use client";
 
 import { VideoRoom } from "@/components/teleconsult/video-room";
+import { SendMeetLinkPanel } from "@/components/teleconsult/send-meet-link-panel";
 import { joinTeleconsultAction, endTeleconsultAction } from "@/lib/actions/teleconsult";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -13,6 +14,8 @@ interface TeleconsultRoomProps {
     id: string;
     room_id: string;
     daily_room_url?: string | null;
+    meeting_url?: string | null;
+    meet_link_sent_at?: string | null;
     status: string;
     patients: { full_name: string; phone: string };
     doctors: { profiles: { full_name: string } | null };
@@ -23,13 +26,32 @@ interface TeleconsultRoomProps {
 
 export function TeleconsultRoom({ session, role }: TeleconsultRoomProps) {
   const apt = session.appointments;
+  const meetingUrl = session.meeting_url ?? session.daily_room_url ?? null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 space-y-4">
+        {role === "doctor" ? (
+          <SendMeetLinkPanel
+            sessionId={session.id}
+            meetingUrl={meetingUrl}
+            meetLinkSentAt={session.meet_link_sent_at}
+            patientName={session.patients.full_name}
+          />
+        ) : (
+          <SendMeetLinkPanel
+            sessionId={session.id}
+            meetingUrl={meetingUrl}
+            meetLinkSentAt={session.meet_link_sent_at}
+            patientName={session.patients.full_name}
+            readOnly
+          />
+        )}
+
         <VideoRoom
           sessionId={session.id}
           roomId={session.room_id}
+          meetingUrl={meetingUrl}
           dailyRoomUrl={session.daily_room_url}
           role={role}
           status={session.status}

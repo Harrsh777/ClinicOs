@@ -3,7 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireAuth, requireRole } from "@/lib/auth/session";
+import {
+  buildTeleconsultMeetMessage,
+  isValidGoogleMeetUrl,
+  normalizeMeetUrl,
+} from "@/lib/teleconsult/meet-link";
+import { ensureTeleconsultSession } from "@/lib/teleconsult/sessions";
+import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
 import { z } from "zod";
+
+const sendMeetLinkSchema = z.object({
+  sessionId: z.string().uuid(),
+  meetUrl: z.string().min(10),
+});
 
 export async function getTeleconsultSessions(clinicId?: string) {
   const profile = await requireAuth();
@@ -14,7 +26,8 @@ export async function getTeleconsultSessions(clinicId?: string) {
     .select(`
       *,
       patients(full_name, phone),
-      doctors(id, profiles(full_name))
+      doctors(id, profiles(full_name)),
+      appointments(appointment_date, appointment_time, status)
     `)
     .order("created_at", { ascending: false });
 
@@ -54,62 +67,130 @@ export async function getTeleconsultSession(sessionId: string) {
 }
 
 export async function createTeleconsultSessionAction(appointmentId: string) {
-  const profile = await requireAuth();
-  const supabase = await createClient();
-
-  const { data: appointment } = await supabase
-    .from("appointments")
-    .select("*, doctors(id)")
-    .eq("id", appointmentId)
-    .single();
-
-  if (!appointment) return { error: "Appointment not found" };
-
-  const roomId = `clinicos-${appointmentId.slice(0, 8)}-${Date.now().toString(36)}`;
-
-  let dailyRoomUrl: string | null = null;
-  const dailyKey = process.env.DAILY_API_KEY;
-  if (dailyKey) {
-    try {
-      const res = await fetch("https://api.daily.co/v1/rooms", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${dailyKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: roomId,
-          properties: { exp: Math.floor(Date.now() / 1000) + 3600 },
-        }),
-      });
-      if (res.ok) {
-        const room = await res.json();
-        dailyRoomUrl = room.url;
-      }
-    } catch {
-      // Fallback to built-in room
-    }
-  }
-
-  const { data, error } = await supabase
-    .from("teleconsult_sessions")
-    .insert({
-      clinic_id: appointment.clinic_id,
-      appointment_id: appointmentId,
-      doctor_id: appointment.doctor_id,
-      patient_id: appointment.patient_id,
-      room_id: roomId,
-      daily_room_url: dailyRoomUrl,
-      status: "scheduled",
-    })
-    .select()
-    .single();
-
-  if (error) return { error: error.message };
+  await requireAuth();
+  const service = await createServiceClient();
+  const result = await ensureTeleconsultSession(service, appointmentId);
+  if ("error" in result) return { error: result.error };
 
   revalidatePath("/doctor/teleconsult");
   revalidatePath("/patient/teleconsult");
-  return { success: true, session: data };
+  revalidatePath("/owner/teleconsult");
+  return { success: true, sessionId: result.sessionId };
+}
+
+export async function sendMeetLinkAction(sessionId: string, meetUrl: string) {
+  const profile = await requireRole(["doctor", "clinic_owner"]);
+  const parsed = sendMeetLinkSchema.safeParse({ sessionId, meetUrl });
+  if (!parsed.success) return { error: "Invalid meeting link" };
+
+  const normalizedUrl = normalizeMeetUrl(parsed.data.meetUrl);
+  if (!normalizedUrl || !isValidGoogleMeetUrl(normalizedUrl)) {
+    return { error: "Please enter a valid Google Meet link (e.g. https://meet.google.com/abc-defg-hij)" };
+  }
+
+  const supabase = await createClient();
+  const { data: session } = await supabase
+    .from("teleconsult_sessions")
+    .select(`
+      id,
+      clinic_id,
+      doctor_id,
+      patient_id,
+      status,
+      patients(full_name, phone),
+      doctors(profiles(full_name)),
+      appointments(appointment_date, appointment_time),
+      clinics(name)
+    `)
+    .eq("id", sessionId)
+    .single();
+
+  if (!session) return { error: "Session not found" };
+  if (profile.role === "doctor") {
+    const { data: doctor } = await supabase
+      .from("doctors")
+      .select("id")
+      .eq("profile_id", profile.id)
+      .single();
+    if (!doctor || doctor.id !== session.doctor_id) {
+      return { error: "You can only send links for your own consultations" };
+    }
+  } else if (profile.clinic_id !== session.clinic_id) {
+    return { error: "Session not found" };
+  }
+
+  if (["completed", "cancelled", "no_show"].includes(session.status)) {
+    return { error: "This consultation has already ended" };
+  }
+
+  const patient = session.patients as unknown as { full_name: string; phone: string } | null;
+  if (!patient?.phone) return { error: "Patient phone number is missing" };
+
+  const doctorName =
+    (session.doctors as unknown as { profiles: { full_name: string } | null } | null)?.profiles?.full_name ??
+    "Doctor";
+  const appointment = session.appointments as unknown as {
+    appointment_date: string;
+    appointment_time: string;
+  } | null;
+  const clinicName = (session.clinics as unknown as { name: string } | null)?.name ?? "ClinicOS Clinic";
+
+  if (!appointment) return { error: "Appointment details not found" };
+
+  const message = buildTeleconsultMeetMessage({
+    patientName: patient.full_name,
+    doctorName,
+    clinicName,
+    appointmentDate: appointment.appointment_date,
+    appointmentTime: appointment.appointment_time,
+    meetUrl: normalizedUrl,
+  });
+
+  const now = new Date().toISOString();
+  const service = await createServiceClient();
+
+  const { error: updateError } = await service
+    .from("teleconsult_sessions")
+    .update({
+      meeting_url: normalizedUrl,
+      meet_link_sent_at: now,
+      daily_room_url: normalizedUrl,
+    })
+    .eq("id", sessionId);
+
+  if (updateError) return { error: updateError.message };
+
+  const whatsapp = await sendWhatsAppMessage({
+    clinicId: session.clinic_id,
+    patientId: session.patient_id,
+    patientPhone: patient.phone,
+    content: message,
+    intent: "teleconsult_meet_link",
+    metadata: {
+      sessionId,
+      meetUrl: normalizedUrl,
+      sentBy: profile.id,
+    },
+  });
+
+  revalidatePath("/doctor/teleconsult");
+  revalidatePath(`/doctor/teleconsult/${sessionId}`);
+  revalidatePath("/patient/teleconsult");
+  revalidatePath(`/patient/teleconsult/${sessionId}`);
+  revalidatePath("/owner/teleconsult");
+
+  if (!whatsapp.success && !whatsapp.simulated) {
+    return {
+      error: whatsapp.error ?? "Meeting link saved but WhatsApp delivery failed",
+      meetUrl: normalizedUrl,
+    };
+  }
+
+  return {
+    success: true,
+    meetUrl: normalizedUrl,
+    simulated: whatsapp.simulated,
+  };
 }
 
 export async function joinTeleconsultAction(sessionId: string, role: "doctor" | "patient") {
@@ -209,7 +290,8 @@ export async function bookTeleconsultAction(formData: FormData) {
   if (error) return { error: error.message };
 
   if (status === "confirmed") {
-    await createTeleconsultSessionAction(appointment.id);
+    const service = await createServiceClient();
+    await ensureTeleconsultSession(service, appointment.id);
   }
 
   revalidatePath("/patient/teleconsult");
@@ -223,11 +305,11 @@ export async function ensureTeleconsultSessionsForClinic(clinicId: string) {
     .from("appointments")
     .select("id")
     .eq("clinic_id", clinicId)
-    .eq("type", "teleconsult")
-    .eq("status", "confirmed")
+    .or("type.eq.teleconsult,consultation_type.eq.video")
+    .in("status", ["confirmed", "pending"])
     .not("id", "in", `(SELECT appointment_id FROM teleconsult_sessions)`);
 
   for (const apt of appointments ?? []) {
-    await createTeleconsultSessionAction(apt.id);
+    await ensureTeleconsultSession(service, apt.id);
   }
 }

@@ -153,6 +153,16 @@ export function WalkInQuickForm({
           type="tel"
           placeholder="9876543210"
           inputMode="numeric"
+          pattern="[6-9][0-9]{9}"
+          title="10-digit Indian mobile number"
+        />
+        <Input
+          label="Age"
+          name="age"
+          type="number"
+          min={0}
+          max={150}
+          placeholder="35"
         />
         <Select
           label="Gender"

@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from "@/lib/auth/session";
 import { logAuditEvent } from "@/lib/auth/audit";
 import type { DoctorQueueStatus, QueueJourneyStage } from "@/lib/queue/types";
 
-const QUEUE_PATHS = ["/owner/queue", "/receptionist/queue", "/doctor/queue", "/nurse/queue"];
+const QUEUE_PATHS = ["/owner/queue", "/owner/my-queue", "/receptionist/queue", "/doctor/queue", "/nurse/queue"];
 
 function revalidateQueue() {
   for (const p of QUEUE_PATHS) revalidatePath(p);

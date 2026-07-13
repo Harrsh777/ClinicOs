@@ -36,6 +36,36 @@ export interface EmrRecord {
   vitals_snapshot: Record<string, unknown> | null;
   addendum: string | null;
   created_at: string;
+  consultations?: { appointment_id: string | null } | null;
+}
+
+export interface ClinicVisitWithAppointment {
+  id: string;
+  visit_code: string;
+  booking_id: string;
+  appointment_id?: string | null;
+  visit_type: string;
+  payment_status: string;
+  check_in_status: string;
+  token_label: string | null;
+  receipt_number: string | null;
+  created_at: string;
+  checked_in_at: string | null;
+  appointments?: {
+    appointment_date: string;
+    appointment_time: string;
+    status: string;
+    appointment_number: string | null;
+    notes: string | null;
+    booking_symptoms: string | null;
+    booking_notes: string | null;
+    doctors?: { profiles?: { full_name: string } | { full_name: string }[] } | null;
+  } | null;
+}
+
+export interface PatientVisitTimeline {
+  emrRecords: EmrRecord[];
+  clinicVisits: ClinicVisitWithAppointment[];
 }
 
 export interface PrescriptionItem {

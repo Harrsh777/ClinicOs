@@ -31,6 +31,8 @@ interface LiveQueueHubProps {
   clinicSlug?: string;
   userRole: string;
   doctorId?: string;
+  /** When true, enables doctor queue actions (start consult, etc.) for owner-doctors. */
+  clinicalMode?: boolean;
   showCheckIn?: React.ReactNode;
 }
 
@@ -39,6 +41,7 @@ export function LiveQueueHub({
   clinicSlug,
   userRole,
   doctorId,
+  clinicalMode,
   showCheckIn,
 }: LiveQueueHubProps) {
   const {
@@ -56,9 +59,9 @@ export function LiveQueueHub({
   const [emergencyBanner, setEmergencyBanner] = useState<string | null>(null);
   const [showAudit, setShowAudit] = useState(false);
 
-  const canManage = ["receptionist", "clinic_owner", "nurse", "administrator"].includes(userRole);
-  const canOverride = ["clinic_owner", "administrator"].includes(userRole);
-  const isDoctor = userRole === "doctor";
+  const canManage = ["receptionist", "clinic_owner", "nurse", "administrator"].includes(userRole) && !clinicalMode;
+  const canOverride = ["clinic_owner", "administrator"].includes(userRole) && !clinicalMode;
+  const isDoctor = userRole === "doctor" || !!clinicalMode;
 
   const activeDoctors = doctors.filter(
     (d) => d.queue_status === "consulting" || d.queue_status === "available"

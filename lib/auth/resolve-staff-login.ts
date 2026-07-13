@@ -11,7 +11,8 @@ export async function resolveStaffLoginEmail(
   | { ok: false; error: string }
 > {
   const code = clinicIdInput.trim().toUpperCase();
-  const staffCode = normalizeStaffCode(staffIdInput);
+  const loginId = staffIdInput.trim();
+  const staffCode = normalizeStaffCode(loginId);
 
   if (code === "PLATFORM") {
     return { ok: false, error: "Platform admins sign in with email instead of Staff ID." };
@@ -27,6 +28,31 @@ export async function resolveStaffLoginEmail(
   }
 
   const service = await createServiceClient();
+
+  if (loginId.includes("@")) {
+    const { data: byEmail } = await service
+      .from("profiles")
+      .select("id, email, role, is_active, clinic_id, staff_code")
+      .eq("clinic_id", clinic.id)
+      .eq("email", loginId.toLowerCase())
+      .maybeSingle();
+
+    if (byEmail?.email) {
+      if (byEmail.is_active === false) {
+        return { ok: false, error: "Your account has been deactivated. Contact your clinic administrator." };
+      }
+      return {
+        ok: true,
+        email: byEmail.email,
+        profileId: byEmail.id,
+        role: byEmail.role as UserRole,
+        clinicId: clinic.id,
+      };
+    }
+
+    return { ok: false, error: "Invalid email for this clinic." };
+  }
+
   const { data: profile } = await service
     .from("profiles")
     .select("id, email, role, is_active, clinic_id, staff_code")
@@ -35,29 +61,7 @@ export async function resolveStaffLoginEmail(
     .maybeSingle();
 
   if (!profile) {
-    // Legacy fallback: accept email as Staff ID until staff_code is backfilled
-    if (staffIdInput.includes("@")) {
-      const { data: byEmail } = await service
-        .from("profiles")
-        .select("id, email, role, is_active, clinic_id, staff_code")
-        .eq("clinic_id", clinic.id)
-        .eq("email", staffIdInput.toLowerCase())
-        .maybeSingle();
-
-      if (byEmail?.email) {
-        if (byEmail.is_active === false) {
-          return { ok: false, error: "Your account has been deactivated. Contact your clinic administrator." };
-        }
-        return {
-          ok: true,
-          email: byEmail.email,
-          profileId: byEmail.id,
-          role: byEmail.role as UserRole,
-          clinicId: clinic.id,
-        };
-      }
-    }
-    return { ok: false, error: "Invalid User ID for this clinic." };
+    return { ok: false, error: "Invalid email for this clinic." };
   }
 
   if (!profile.email) {

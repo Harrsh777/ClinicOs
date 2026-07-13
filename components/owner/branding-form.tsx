@@ -16,6 +16,7 @@ interface BrandingFormProps {
     custom_domain?: string;
     white_label?: boolean;
     whatsapp_number?: string;
+    whatsapp_meta_phone_id?: string;
     tagline?: string;
     portal_walk_in_enabled?: boolean;
     portal_max_daily_walk_ins?: number;
@@ -72,6 +73,7 @@ export function BrandingForm({ clinicId, branding }: BrandingFormProps) {
           <div className="grid gap-4 sm:grid-cols-2">
           <Input name="tagline" label="Tagline" defaultValue={branding?.tagline ?? ""} placeholder="Your health, our priority" />
           <Input name="whatsappNumber" label="WhatsApp Business Number" defaultValue={branding?.whatsapp_number ?? ""} placeholder="+91 98765 43210" />
+          <Input name="whatsappMetaPhoneId" label="Meta Phone Number ID" defaultValue={branding?.whatsapp_meta_phone_id ?? ""} placeholder="From Meta Business Manager" />
           <Input name="logoUrl" label="Logo URL fallback" defaultValue={branding?.logo_url ?? ""} placeholder="https://..." />
           <Input name="customDomain" label="Custom Domain" defaultValue={branding?.custom_domain ?? ""} placeholder="clinic.example.com" />
           <div>

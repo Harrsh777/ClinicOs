@@ -89,6 +89,37 @@ export async function notifyBookingCreated(params: {
   });
 }
 
+export async function notifyDoctorTeleconsultBooked(params: {
+  doctorId: string;
+  clinicId: string;
+  patientName: string;
+  date: string;
+  time: string;
+  bookingId?: string;
+}) {
+  const service = await createServiceClient();
+  const { data: doctor } = await service
+    .from("doctors")
+    .select("profile_id")
+    .eq("id", params.doctorId)
+    .maybeSingle();
+
+  if (!doctor?.profile_id) return;
+
+  await createNotification({
+    userId: doctor.profile_id,
+    clinicId: params.clinicId,
+    type: "booking_created",
+    title: "New video consultation booked",
+    body: `${params.patientName} booked a video consultation for ${params.date} at ${params.time}. Send a Google Meet link before the appointment.`,
+    metadata: {
+      booking_id: params.bookingId,
+      doctor_id: params.doctorId,
+      consultation_type: "video",
+    },
+  });
+}
+
 export async function notifyPaymentReceived(params: {
   clinicId: string;
   patientName: string;

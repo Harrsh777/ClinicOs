@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/session";
 import { getPatientDetail, getPatientSummary } from "@/lib/actions/patients";
-import { getPatientEmrRecords } from "@/lib/actions/consultations";
+import { getPatientVisitTimeline } from "@/lib/actions/visits";
 import { getInsurancePolicies } from "@/lib/actions/insurance";
 import { PageHeader } from "@/components/ui/card";
 import { PatientProfileTabs } from "@/components/patients/patient-profile-tabs";
@@ -12,12 +12,14 @@ export default async function ReceptionistPatientDetailPage({ params }: { params
   const profile = await requireRole(["receptionist"]);
   const { id } = await params;
 
-  const [{ patient, vitals, allergies, history, documents }, emrRecords, policies, summary] = await Promise.all([
+  const [{ patient, vitals, allergies, history, documents }, visitTimeline, policies, summary] = await Promise.all([
     getPatientDetail(id),
-    getPatientEmrRecords(id),
+    getPatientVisitTimeline(id),
     getInsurancePolicies(id),
     profile.clinic_id ? getPatientSummary(id, profile.clinic_id) : null,
   ]);
+
+  const { emrRecords, clinicVisits } = visitTimeline;
 
   if (!patient) notFound();
   if (profile.clinic_id && patient.clinic_id !== profile.clinic_id) notFound();
@@ -35,7 +37,7 @@ export default async function ReceptionistPatientDetailPage({ params }: { params
         backLabel="All patients"
       />
       {enrichedSummary && (
-        <PatientSummaryPanel summary={enrichedSummary as Parameters<typeof PatientSummaryPanel>[0]["summary"]} />
+        <PatientSummaryPanel summary={enrichedSummary as unknown as Parameters<typeof PatientSummaryPanel>[0]["summary"]} />
       )}
       <PatientProfileTabs
         patient={patient}
@@ -45,6 +47,7 @@ export default async function ReceptionistPatientDetailPage({ params }: { params
         documents={documents}
         policies={policies}
         emrRecords={emrRecords}
+        clinicVisits={clinicVisits}
         canEdit
         showInsurance
         basePath="/receptionist/patients"

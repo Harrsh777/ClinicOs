@@ -7,6 +7,8 @@ export interface SidebarNavLeaf {
   path: string;
   moduleKey: string;
   roles?: UserRole[];
+  /** Only show when the user has a linked doctor profile (owner who also practices). */
+  requiresLinkedDoctor?: boolean;
 }
 
 export interface SidebarNavGroup {
@@ -17,6 +19,7 @@ export interface SidebarNavGroup {
   path?: string;
   items: SidebarNavLeaf[];
   roles?: UserRole[];
+  requiresLinkedDoctor?: boolean;
 }
 
 export interface SidebarSectionConfig {
@@ -25,6 +28,7 @@ export interface SidebarSectionConfig {
   icon: string;
   roles?: UserRole[];
   requiresFranchise?: boolean;
+  requiresLinkedDoctor?: boolean;
   groups: SidebarNavGroup[];
 }
 

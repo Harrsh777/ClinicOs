@@ -21,7 +21,7 @@ import { z } from "zod";
 
 const staffLoginSchema = z.object({
   clinicId: z.string().min(1, "Clinic ID is required"),
-  staffId: z.string().min(1, "User ID is required"),
+  staffId: z.string().min(1, "Email is required"),
   password: z.string().min(6),
 });
 
@@ -72,7 +72,7 @@ export async function loginAction(formData: FormData) {
 
   if (error) {
     await recordFailedLogin(resolved.profileId);
-    return { error: "Invalid Clinic ID, User ID, or password" };
+    return { error: "Invalid Clinic ID, email, or password" };
   }
 
   return finalizeLogin(parsed.data.clinicId, resolved.profileId, resolved.clinicId);

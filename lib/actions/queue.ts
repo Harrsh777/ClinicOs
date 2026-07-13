@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/session";
 import { logAuditEvent } from "@/lib/auth/audit";
 
-const QUEUE_PATHS = ["/receptionist/queue", "/owner/queue", "/doctor/queue", "/nurse/queue"];
+const QUEUE_PATHS = ["/receptionist/queue", "/owner/queue", "/owner/my-queue", "/doctor/queue", "/nurse/queue"];
 
 function revalidateQueuePaths() {
   for (const p of QUEUE_PATHS) revalidatePath(p);

@@ -1,4 +1,4 @@
-import { logAIUsage } from "@/lib/ai/usage-logger";
+import { aiChatCompletion, parseAIJson } from "@/lib/ai/client";
 
 export interface ScribeResult {
   symptoms: string;
@@ -30,15 +30,18 @@ export async function processScribeTranscript(
   clinicId: string,
   transcript: string
 ): Promise<ScribeResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || transcript.trim().length < 10) {
+  if (transcript.trim().length < 10) {
     return ruleBasedScribe(transcript);
   }
 
-  try {
-    const prompt = `You are a medical scribe for an Indian clinic. Extract structured clinical data from this doctor-patient conversation transcript.
-
-Return ONLY valid JSON with this shape:
+  const result = await aiChatCompletion({
+    clinicId,
+    feature: "scribe",
+    jsonMode: true,
+    maxTokens: 800,
+    systemPrompt:
+      "You are a medical scribe for an Indian clinic. Extract structured clinical data from doctor-patient conversation transcripts. Return valid JSON only.",
+    userPrompt: `Return JSON:
 {
   "symptoms": "string",
   "diagnosis": "string",
@@ -47,33 +50,14 @@ Return ONLY valid JSON with this shape:
 }
 
 Transcript:
-${transcript}`;
+${transcript}`,
+    metadata: { transcriptLength: transcript.length },
+  });
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 800,
-        response_format: { type: "json_object" },
-      }),
-    });
+  if (!result) return ruleBasedScribe(transcript);
 
-    if (!res.ok) throw new Error("OpenAI API error");
+  const parsed = parseAIJson<ScribeResult>(result.content);
+  if (!parsed?.symptoms) return ruleBasedScribe(transcript);
 
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content;
-    const tokensUsed = data.usage?.total_tokens ?? 0;
-    const parsed = JSON.parse(content) as ScribeResult;
-
-    await logAIUsage(clinicId, "scribe", tokensUsed, { transcriptLength: transcript.length });
-
-    return { ...parsed, tokensUsed };
-  } catch {
-    return ruleBasedScribe(transcript);
-  }
+  return { ...parsed, tokensUsed: result.tokensUsed };
 }

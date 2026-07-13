@@ -4,8 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { StartConsultationButton } from "@/components/consultations/start-consultation-button";
 import { formatPhone } from "@/lib/utils";
 import type { Patient } from "@/lib/types/database";
+
+type PatientRow = Patient & {
+  last_visit_at?: string | null;
+  visit_count?: number;
+  is_returning?: boolean;
+  doctor_note?: string | null;
+  doctor_note_at?: string | null;
+  doctor_name?: string | null;
+  in_progress_consultation_id?: string | null;
+};
 
 interface PatientListTableProps {
   patients: Patient[];
@@ -13,6 +24,10 @@ interface PatientListTableProps {
   canRegister?: boolean;
   registerHref?: string;
   readOnly?: boolean;
+  /** Show latest doctor diagnosis/note column (owner clinical view). */
+  showDoctorNotes?: boolean;
+  /** Linked doctor id — enables Write Consultation action per row. */
+  linkedDoctorId?: string;
 }
 
 export function PatientListTable({
@@ -21,6 +36,8 @@ export function PatientListTable({
   canRegister = false,
   registerHref,
   readOnly = false,
+  showDoctorNotes = false,
+  linkedDoctorId,
 }: PatientListTableProps) {
   if (patients.length === 0) {
     return (
@@ -46,6 +63,7 @@ export function PatientListTable({
           <TableRow>
             <TableHead>Patient</TableHead>
             <TableHead>Contact</TableHead>
+            {showDoctorNotes && <TableHead>Doctor&apos;s note</TableHead>}
             <TableHead>Status</TableHead>
             <TableHead>Visits</TableHead>
             <TableHead>Last visit</TableHead>
@@ -54,9 +72,10 @@ export function PatientListTable({
         </TableHeader>
         <TableBody>
           {patients.map((p) => {
-            const lastVisit = (p as Patient & { last_visit_at?: string | null }).last_visit_at;
-            const visitCount = (p as Patient & { visit_count?: number }).visit_count ?? 0;
-            const isReturning = (p as Patient & { is_returning?: boolean }).is_returning;
+            const row = p as PatientRow;
+            const lastVisit = row.last_visit_at;
+            const visitCount = row.visit_count ?? 0;
+            const isReturning = row.is_returning;
 
             return (
               <TableRow key={p.id} className="group">
@@ -77,6 +96,21 @@ export function PatientListTable({
                     <p className="text-xs capitalize text-[var(--text-muted)]">{p.gender}</p>
                   )}
                 </TableCell>
+                {showDoctorNotes && (
+                  <TableCell className="max-w-[220px]">
+                    {row.doctor_note ? (
+                      <div>
+                        <p className="text-sm line-clamp-2 text-[var(--text-primary)]">{row.doctor_note}</p>
+                        <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                          {row.doctor_name ? `Dr. ${row.doctor_name}` : "Doctor"}
+                          {row.in_progress_consultation_id ? " · Draft" : ""}
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-[var(--text-muted)]">—</span>
+                    )}
+                  </TableCell>
+                )}
                 <TableCell>
                   {isReturning ? (
                     <Badge variant="success">Returning</Badge>
@@ -91,11 +125,21 @@ export function PatientListTable({
                   {lastVisit ? new Date(lastVisit).toLocaleDateString() : "—"}
                 </TableCell>
                 <TableCell>
-                  <Link href={`${basePath}/${p.id}`}>
-                    <Button size="sm" variant="secondary">
-                      {readOnly ? "View Profile" : "View"}
-                    </Button>
-                  </Link>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    {linkedDoctorId && (
+                      <StartConsultationButton
+                        patientId={p.id}
+                        doctorId={linkedDoctorId}
+                        consultationId={row.in_progress_consultation_id}
+                        variant="secondary"
+                      />
+                    )}
+                    <Link href={`${basePath}/${p.id}`}>
+                      <Button size="sm" variant="ghost">
+                        {readOnly ? "View Profile" : "View"}
+                      </Button>
+                    </Link>
+                  </div>
                 </TableCell>
               </TableRow>
             );

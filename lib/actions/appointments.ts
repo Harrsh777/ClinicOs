@@ -8,6 +8,7 @@ import { createNotification, notifyCancellation } from "@/lib/notifications/serv
 import { createWalkInBillWithPayment, getClinicFeeSetup } from "@/lib/actions/billing";
 import { resolveOrCreateClinicPatient } from "@/lib/actions/patients";
 import { resolveWalkInFee } from "@/lib/billing/clinic-fees";
+import { validateIndianPhone, ageToApproxDateOfBirth } from "@/lib/validations/phone";
 import { z } from "zod";
 
 const bookSchema = z
@@ -133,6 +134,7 @@ export async function bookAppointmentAction(formData: FormData) {
 const walkInQuickSchema = z.object({
   fullName: z.string().min(2),
   phone: z.string().min(10),
+  age: z.coerce.number().int().min(0).max(150).optional(),
   gender: z.string().optional(),
   chiefComplaint: z.string().min(2),
   doctorId: z.string().uuid(),
@@ -172,6 +174,7 @@ export async function walkInQuickAction(formData: FormData) {
   const parsed = walkInQuickSchema.safeParse({
     fullName: formData.get("fullName"),
     phone: formData.get("phone"),
+    age: formData.get("age") || undefined,
     gender: formData.get("gender") || undefined,
     chiefComplaint: formData.get("chiefComplaint"),
     doctorId: formData.get("doctorId"),
@@ -189,10 +192,13 @@ export async function walkInQuickAction(formData: FormData) {
 
   if (!parsed.success) return { error: "Please fill required fields including payment method" };
 
+  const phoneResult = validateIndianPhone(parsed.data.phone);
+  if ("error" in phoneResult) return { error: phoneResult.error };
+
   const supabase = await createClient();
   const clinicId = profile.clinic_id;
   const today = new Date().toISOString().split("T")[0];
-  const phone = parsed.data.phone.replace(/\D/g, "");
+  const phone = phoneResult.phone;
 
   const { data: existingPatient } = await supabase
     .from("patients")
@@ -220,6 +226,7 @@ export async function walkInQuickAction(formData: FormData) {
         full_name: parsed.data.fullName.trim(),
         phone,
         gender: parsed.data.gender || null,
+        date_of_birth: parsed.data.age != null ? ageToApproxDateOfBirth(parsed.data.age) : null,
         patient_code: patientCode,
         created_by: profile.id,
       })
@@ -284,6 +291,7 @@ export async function walkInQuickAction(formData: FormData) {
       type: parsed.data.type,
       priority,
       notes: parsed.data.chiefComplaint.trim(),
+      booking_symptoms: parsed.data.chiefComplaint.trim(),
       booked_by: profile.id,
     })
     .select()

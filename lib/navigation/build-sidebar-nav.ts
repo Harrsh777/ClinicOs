@@ -1,4 +1,5 @@
 import { hasPermission } from "@/lib/auth/permissions";
+import { isFeatureEnabled, type ClinicFeatures } from "@/lib/clinic/features";
 import { SIDEBAR_SECTIONS } from "@/lib/navigation/sidebar-config";
 import type {
   PermissionMap,
@@ -7,6 +8,23 @@ import type {
   SidebarSectionResolved,
 } from "@/lib/navigation/types";
 import type { Profile, UserRole } from "@/lib/types/database";
+
+const MODULE_FEATURE_MAP: Partial<Record<string, keyof ClinicFeatures>> = {
+  teleconsult: "teleconsult",
+  ai_insights: "ai_insights",
+  pharmacy: "pharmacy",
+  lab: "lab",
+  revenue: "analytics",
+  franchise: "white_label",
+  branding: "white_label",
+};
+
+function isModuleAvailable(moduleKey: string, features?: ClinicFeatures): boolean {
+  if (!features) return true;
+  const featureKey = MODULE_FEATURE_MAP[moduleKey];
+  if (!featureKey) return true;
+  return isFeatureEnabled(features, featureKey);
+}
 
 function isRoleAllowed(allowed: UserRole[] | undefined, role: UserRole) {
   return !allowed || allowed.includes(role);
@@ -21,10 +39,14 @@ function filterLeaf(
   leaf: SidebarNavLeaf,
   role: UserRole,
   permissions: PermissionMap,
-  basePath: string
+  basePath: string,
+  features?: ClinicFeatures,
+  hasLinkedDoctor?: boolean
 ) {
   if (!isRoleAllowed(leaf.roles, role)) return null;
+  if (leaf.requiresLinkedDoctor && !hasLinkedDoctor) return null;
   if (!hasPermission(permissions, leaf.moduleKey, "read")) return null;
+  if (!isModuleAvailable(leaf.moduleKey, features)) return null;
   return {
     key: leaf.key,
     name: leaf.name,
@@ -37,13 +59,17 @@ function filterGroup(
   group: (typeof SIDEBAR_SECTIONS)[number]["groups"][number],
   role: UserRole,
   permissions: PermissionMap,
-  basePath: string
+  basePath: string,
+  features?: ClinicFeatures,
+  hasLinkedDoctor?: boolean
 ): SidebarNavGroupResolved | null {
   if (!isRoleAllowed(group.roles, role)) return null;
+  if (group.requiresLinkedDoctor && !hasLinkedDoctor) return null;
   if (!hasPermission(permissions, group.moduleKey, "read")) return null;
+  if (!isModuleAvailable(group.moduleKey, features)) return null;
 
   const items = group.items
-    .map((leaf) => filterLeaf(leaf, role, permissions, basePath))
+    .map((leaf) => filterLeaf(leaf, role, permissions, basePath, features, hasLinkedDoctor))
     .filter((item): item is NonNullable<typeof item> => item !== null);
 
   if (items.length === 0) return null;
@@ -61,19 +87,22 @@ export function buildSidebarNav(
   profile: Profile,
   permissions: PermissionMap,
   basePath: string,
-  options?: { showFranchise?: boolean }
+  options?: { showFranchise?: boolean; features?: ClinicFeatures; hasLinkedDoctor?: boolean }
 ): SidebarSectionResolved[] {
   const { role } = profile;
   const showFranchise = options?.showFranchise ?? false;
+  const features = options?.features;
+  const hasLinkedDoctor = options?.hasLinkedDoctor ?? false;
 
   return SIDEBAR_SECTIONS.map((section) => {
     if (!isRoleAllowed(section.roles, role)) return null;
+    if (section.requiresLinkedDoctor && !hasLinkedDoctor) return null;
     if (section.requiresFranchise && !showFranchise && section.key === "franchise") {
       // Franchise section visible to owners always (setup flow); hide cross-branch extras until multi-branch
     }
 
     const groups = section.groups
-      .map((group) => filterGroup(group, role, permissions, basePath))
+      .map((group) => filterGroup(group, role, permissions, basePath, features, hasLinkedDoctor))
       .filter((group): group is SidebarNavGroupResolved => group !== null);
 
     if (groups.length === 0) return null;

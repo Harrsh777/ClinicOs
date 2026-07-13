@@ -31,7 +31,7 @@ export async function reserveAppointmentSlot(
     consultationType: "normal" | "emergency" | "video";
     paymentMode: "online" | "at_clinic";
     priority: "normal" | "emergency";
-    aptType: "scheduled" | "emergency";
+    aptType: "scheduled" | "emergency" | "teleconsult";
     holdMinutes?: number;
   }
 ): Promise<{ ok: true; reservation: SlotReservation } | { ok: false; error: string }> {

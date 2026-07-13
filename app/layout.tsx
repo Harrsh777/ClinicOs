@@ -13,8 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClinicOS — Smart Clinic Management",
-  description: "Multi-tenant clinic operations platform with appointments, queue, and patient management",
+  title: {
+    default: "ClinicOS — India's First AI-Powered Clinic Growth OS",
+    template: "%s · ClinicOS",
+  },
+  description:
+    "ClinicOS helps doctors build a bigger practice — grow revenue, retain patients, and build reputation with India's AI-powered clinic growth operating system.",
 };
 
 export default function RootLayout({

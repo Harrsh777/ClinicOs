@@ -894,3 +894,8 @@ body {
   from { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2); }
   to { box-shadow: 0 8px 40px rgba(20, 184, 166, 0.12); }
 }
+
+.demo-modal::backdrop {
+  background: rgba(10, 10, 11, 0.75);
+  backdrop-filter: blur(8px);
+}

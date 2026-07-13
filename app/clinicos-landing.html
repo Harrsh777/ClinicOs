@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClinicOS — The AI Operating System That Grows Your Clinic</title>
+<meta name="description" content="ClinicOS is India's AI-powered clinic growth operating system. Manage patients, increase revenue, build reputation, save hours every day.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   ClinicOS — Design tokens
+   ============================================================ */
+:root{
+  --ink:        #0A0E0D;   /* near-black, green undertone */
+  --ink-2:      #101615;
+  --paper:      #F7F6F2;   /* warm off-white */
+  --mist:       #ECEAE4;
+  --line:       rgba(10,14,13,.08);
+  --line-dark:  rgba(255,255,255,.08);
+  --gray:       #6E7674;
+  --gray-2:     #9AA19E;
+  --emerald:    #0EA371;
+  --emerald-2:  #34D399;
+  --emerald-3:  #A7F3D0;
+  --glow:       rgba(52,211,153,.35);
+  --gold:       #E8B341;
+
+  --font-display: "Sora", -apple-system, "SF Pro Display", "Segoe UI", sans-serif;
+  --font-body:    "Inter", -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-mono:    "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+
+  --r-lg: 28px;
+  --r-md: 20px;
+  --r-sm: 14px;
+
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-spring: cubic-bezier(.34,1.56,.64,1);
+}
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+html{ scroll-behavior:auto; }
+body{
+  font-family:var(--font-body);
+  background:var(--ink);
+  color:var(--paper);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+  line-height:1.6;
+}
+::selection{ background:var(--emerald); color:#fff; }
+
+/* Custom cursor */
+@media (pointer:fine){
+  body.cursor-on, body.cursor-on a, body.cursor-on button{ cursor:none; }
+}
+.cursor-dot,.cursor-ring{
+  position:fixed; top:0; left:0; z-index:9999; pointer-events:none;
+  border-radius:50%; transform:translate(-50%,-50%);
+  will-change:transform; display:none;
+}
+@media (pointer:fine){ .cursor-dot,.cursor-ring{ display:block; } }
+.cursor-dot{ width:6px; height:6px; background:var(--emerald-2); }
+.cursor-ring{
+  width:34px; height:34px; border:1px solid rgba(52,211,153,.5);
+  transition:width .3s var(--ease-out), height .3s var(--ease-out), border-color .3s;
+}
+.cursor-ring.is-hover{ width:56px; height:56px; border-color:rgba(52,211,153,.9); }
+
+/* ============================================================
+   Primitives
+   ============================================================ */
+.wrap{ width:min(1160px, calc(100% - 48px)); margin:0 auto; position:relative; }
+
+.eyebrow{
+  font-family:var(--font-mono); font-size:12px; letter-spacing:.28em;
+  text-transform:uppercase; color:var(--emerald); font-weight:500;
+  display:inline-flex; align-items:center; gap:12px;
+}
+.eyebrow::before{ content:""; width:28px; height:1px; background:var(--emerald); display:inline-block; }
+
+h1,h2,h3{ font-family:var(--font-display); font-weight:600; letter-spacing:-0.03em; line-height:1.08; }
+.h-hero{ font-size:clamp(38px,6vw,76px); }
+.h-xl{ font-size:clamp(32px,4.6vw,58px); }
+.h-lg{ font-size:clamp(26px,3.4vw,42px); }
+.lead{ font-size:clamp(16px,1.5vw,19px); color:var(--gray-2); max-width:56ch; }
+.scene--light .lead{ color:var(--gray); }
+
+/* Scenes */
+.scene{ position:relative; padding:clamp(96px,14vh,180px) 0; overflow:hidden; }
+.scene--dark{ background:var(--ink); color:var(--paper); }
+.scene--light{ background:var(--paper); color:var(--ink); }
+.scene-head{ max-width:720px; margin-bottom:64px; display:flex; flex-direction:column; gap:20px; }
+
+/* Mouse light overlay for dark scenes */
+.mouselight{
+  position:absolute; inset:0; pointer-events:none; z-index:0;
+  background:radial-gradient(520px circle at var(--mx,50%) var(--my,40%),
+             rgba(52,211,153,.075), transparent 60%);
+}
+
+/* Reveal system */
+.rv{ opacity:0; transform:translateY(36px); filter:blur(6px);
+     transition:opacity 1s var(--ease-out), transform 1s var(--ease-out), filter 1s var(--ease-out); }
+.rv.is-in{ opacity:1; transform:none; filter:none; }
+.rv-d1{ transition-delay:.08s } .rv-d2{ transition-delay:.16s }
+.rv-d3{ transition-delay:.24s } .rv-d4{ transition-delay:.32s }
+.rv-d5{ transition-delay:.40s } .rv-d6{ transition-delay:.48s }
+
+/* Buttons */
+.btn{
+  position:relative; display:inline-flex; align-items:center; gap:10px;
+  font-family:var(--font-display); font-weight:600; font-size:15px;
+  padding:16px 30px; border-radius:100px; border:none;
+  text-decoration:none; overflow:hidden; white-space:nowrap;
+  transition:transform .35s var(--ease-spring), box-shadow .35s var(--ease-out), background .3s;
+  will-change:transform;
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--emerald) 0%, #0B8A60 100%);
+  color:#fff; box-shadow:0 8px 32px -8px var(--glow), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.btn-primary:hover{ box-shadow:0 14px 44px -6px var(--glow), inset 0 1px 0 rgba(255,255,255,.25); }
+.btn-ghost{
+  background:transparent; color:inherit;
+  box-shadow:inset 0 0 0 1px currentColor;
+}
+.btn-ghost:hover{ background:rgba(127,127,127,.08); }
+.btn .ripple{
+  position:absolute; border-radius:50%; background:rgba(255,255,255,.35);
+  transform:scale(0); animation:ripple .7s var(--ease-out) forwards; pointer-events:none;
+}
+@keyframes ripple{ to{ transform:scale(3); opacity:0; } }
+.btn-arrow{ transition:transform .3s var(--ease-out); }
+.btn:hover .btn-arrow{ transform:translateX(4px); }
+
+/* Glass cards */
+.glass{
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  border-radius:var(--r-md);
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.scene--light .glass{
+  background:rgba(255,255,255,.62);
+  border:1px solid rgba(10,14,13,.07);
+  box-shadow:0 24px 64px -28px rgba(10,14,13,.18), inset 0 1px 0 rgba(255,255,255,.9);
+}
+
+/* Ambient float */
+@keyframes floaty{
+  0%,100%{ transform:translate3d(0,0,0) rotate(var(--rot,0deg)); }
+  50%{ transform:translate3d(0,-14px,0) rotate(var(--rot,0deg)); }
+}
+.floaty{ animation:floaty 7s ease-in-out infinite; }
+
+/* ============================================================
+   Nav
+   ============================================================ */
+.nav{
+  position:fixed; top:0; left:0; right:0; z-index:200;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:20px clamp(24px,4vw,48px);
+  opacity:0; transform:translateY(-12px);
+  transition:opacity .8s var(--ease-out) .4s, transform .8s var(--ease-out) .4s,
+             background .4s, backdrop-filter .4s;
+}
+.nav.is-ready{ opacity:1; transform:none; }
+.nav.is-scrolled{
+  background:rgba(10,14,13,.55); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.nav-logo{
+  font-family:var(--font-display); font-weight:700; font-size:18px;
+  letter-spacing:-.02em; color:var(--paper); text-decoration:none;
+  display:flex; align-items:center; gap:10px;
+}
+.nav-logo .pulse{
+  width:9px; height:9px; border-radius:50%; background:var(--emerald-2);
+  box-shadow:0 0 0 0 var(--glow); animation:navpulse 2.4s infinite;
+}
+@keyframes navpulse{
+  0%{ box-shadow:0 0 0 0 var(--glow); } 70%{ box-shadow:0 0 0 12px transparent; } 100%{ box-shadow:0 0 0 0 transparent; }
+}
+.nav-cta{ font-size:14px; padding:11px 22px; }
+
+/* ============================================================
+   HERO
+   ============================================================ */
+#hero{ height:100vh; position:relative; overflow:hidden; background:var(--ink); }
+#hero-canvas{ position:absolute; inset:0; width:100%; height:100%; }
+
+.hero-stage{ position:absolute; inset:0; display:grid; place-items:center; perspective:1200px; }
+
+.hero-lines{ text-align:center; padding:0 24px; position:relative; z-index:5; }
+.hero-line{
+  font-family:var(--font-display); font-weight:400;
+  font-size:clamp(22px,3.4vw,40px); letter-spacing:-.02em; line-height:1.35;
+  color:var(--paper); opacity:0;
+  text-shadow:0 0 40px rgba(52,211,153,.25);
+}
+.hero-line em{ font-style:normal; color:var(--emerald-2); }
+.hero-line + .hero-line{ margin-top:18px; }
+.hero-scrollhint{
+  position:absolute; bottom:36px; left:50%; transform:translateX(-50%);
+  font-family:var(--font-mono); font-size:11px; letter-spacing:.3em; text-transform:uppercase;
+  color:var(--gray-2); opacity:0; display:flex; flex-direction:column; align-items:center; gap:12px;
+  z-index:6;
+}
+.hero-scrollhint .bar{ width:1px; height:44px; background:linear-gradient(var(--emerald-2),transparent); overflow:hidden; position:relative; }
+.hero-scrollhint .bar::after{
+  content:""; position:absolute; top:-100%; left:0; width:100%; height:100%;
+  background:linear-gradient(transparent,#fff); animation:scrolldrip 1.8s var(--ease-out) infinite;
+}
+@keyframes scrolldrip{ to{ top:100%; } }
+
+/* Floating paperwork */
+.paper-field{ position:absolute; inset:0; z-index:2; pointer-events:none; transform-style:preserve-3d; }
+.paper{
+  position:absolute; padding:14px 18px; border-radius:12px;
+  background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.09);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  font-family:var(--font-mono); font-size:12px; color:rgba(247,246,242,.72);
+  box-shadow:0 20px 50px -20px rgba(0,0,0,.6);
+  will-change:transform,opacity; white-space:nowrap;
+}
+.paper small{ display:block; font-size:10px; color:var(--gray-2); letter-spacing:.14em; text-transform:uppercase; margin-bottom:4px; }
+.paper.wa{ border-color:rgba(37,211,102,.3); }
+.paper.wa small{ color:#25D366; }
+.paper.alert{ border-color:rgba(232,113,113,.35); }
+.paper.alert small{ color:#E87171; }
+
+/* The core everything converges into */
+.core{
+  position:absolute; left:50%; top:50%; z-index:3;
+  width:150px; height:150px; transform:translate(-50%,-50%) scale(0);
+  border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle at 38% 32%, rgba(167,243,208,.9), var(--emerald) 46%, #064E3B 78%);
+  box-shadow:0 0 90px 30px var(--glow), 0 0 220px 90px rgba(52,211,153,.16);
+  will-change:transform,opacity;
+}
+.core::after{
+  content:""; position:absolute; inset:-22px; border-radius:50%;
+  border:1px solid rgba(52,211,153,.35);
+  animation:corering 3s linear infinite;
+}
+@keyframes corering{ 0%{ transform:scale(.9); opacity:1 } 100%{ transform:scale(1.5); opacity:0 } }
+
+/* Reveal state: logo + headline + dashboard */
+.hero-reveal{
+  position:absolute; inset:0; z-index:4; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center;
+  padding:96px 24px 24px; opacity:0; pointer-events:none;
+  will-change:opacity,transform;
+}
+.hero-reveal.is-live{ pointer-events:auto; }
+.hero-logo{
+  font-family:var(--font-display); font-weight:700; letter-spacing:-.04em;
+  font-size:clamp(40px,5vw,64px); display:flex; margin-bottom:8px;
+}
+.hero-logo span{ display:inline-block; will-change:transform,opacity,filter; }
+.hero-logo .os{ color:var(--emerald-2); }
+.hero-reveal h1{ font-size:clamp(30px,4.2vw,54px); font-weight:600; max-width:18ch; margin:14px auto 18px; }
+.hero-sub{
+  font-family:var(--font-mono); font-size:clamp(12px,1.3vw,14px); letter-spacing:.1em;
+  color:var(--gray-2); display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+}
+.hero-sub b{ color:var(--emerald-2); font-weight:500; }
+.hero-ctas{ display:flex; gap:16px; margin-top:34px; flex-wrap:wrap; justify-content:center; }
+
+.hero-dash{
+  margin-top:52px; width:min(760px,92%);
+  padding:18px; border-radius:var(--r-lg);
+  display:grid; grid-template-columns:repeat(3,1fr); gap:14px;
+  transform:perspective(1400px) rotateX(18deg) translateY(40px);
+  will-change:transform,opacity;
+}
+.hero-dash .tile{
+  border-radius:var(--r-sm); padding:16px; text-align:left;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+}
+.hero-dash .tile small{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--gray-2); display:block; margin-bottom:6px;
+}
+.hero-dash .tile strong{ font-family:var(--font-display); font-size:20px; font-weight:600; }
+.hero-dash .tile em{ font-style:normal; font-size:12px; color:var(--emerald-2); margin-left:8px; }
+.hero-dash svg{ display:block; margin-top:8px; }
+
+/* ============================================================
+   SCENE 2 — Problem
+   ============================================================ */
+#problem .clinic-floor{
+  position:relative; margin-top:8px;
+  display:grid; grid-template-columns:repeat(12,1fr); gap:18px;
+}
+.chaos{
+  padding:20px 22px; border-radius:var(--r-sm);
+  background:#fff; border:1px solid var(--line);
+  box-shadow:0 18px 44px -22px rgba(10,14,13,.22);
+  will-change:transform,opacity;
+}
+.chaos small{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--gray); display:block; margin-bottom:8px;
+}
+.chaos strong{ font-family:var(--font-display); font-size:clamp(20px,2.2vw,28px); font-weight:600; letter-spacing:-.02em; }
+.chaos.bad strong{ color:#C2484A; }
+.chaos p{ font-size:13px; color:var(--gray); margin-top:6px; }
+.c-span4{ grid-column:span 4; } .c-span5{ grid-column:span 5; }
+.c-span3{ grid-column:span 3; } .c-span6{ grid-column:span 6; }
+.c-span7{ grid-column:span 7; }
+
+.queue-strip{ display:flex; align-items:center; gap:10px; margin-top:12px; }
+.q-dot{
+  width:34px; height:34px; border-radius:50%;
+  background:var(--mist); border:1px solid var(--line);
+  display:grid; place-items:center; font-family:var(--font-mono); font-size:11px; color:var(--gray);
+  animation:qpulse 2.2s ease-in-out infinite;
+}
+.q-dot:nth-child(2n){ animation-delay:.4s } .q-dot:nth-child(3n){ animation-delay:.9s }
+@keyframes qpulse{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-4px) } }
+.q-more{ font-family:var(--font-mono); font-size:12px; color:#C2484A; }
+
+.ring-phone{ display:inline-flex; align-items:center; gap:10px; margin-top:10px; font-family:var(--font-mono); font-size:12px; color:#C2484A; }
+.ring-phone .ph{ animation:shake 1.6s ease-in-out infinite; display:inline-block; }
+@keyframes shake{ 0%,100%{ transform:rotate(0) } 10%{ transform:rotate(-14deg) } 20%{ transform:rotate(12deg) } 30%{ transform:rotate(-9deg) } 40%{ transform:rotate(6deg) } 50%{ transform:rotate(0) } }
+
+.problem-close{
+  margin-top:88px; text-align:center;
+}
+.problem-close h2{ max-width:22ch; margin:0 auto; }
+
+/* ============================================================
+   SCENE 3 — Transformation
+   ============================================================ */
+#transform{ text-align:center; }
+#transform .modules{
+  margin:64px auto 0; display:grid; gap:16px;
+  grid-template-columns:repeat(4,minmax(0,1fr)); max-width:920px;
+}
+.module{
+  padding:26px 18px; border-radius:var(--r-md); text-align:center;
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  will-change:transform,opacity,filter;
+}
+.module .mi{
+  width:46px; height:46px; border-radius:14px; display:grid; place-items:center;
+  background:rgba(52,211,153,.1); border:1px solid rgba(52,211,153,.25);
+  color:var(--emerald-2);
+}
+.module .mi svg{ width:22px; height:22px; }
+.module b{ font-family:var(--font-display); font-weight:600; font-size:15px; letter-spacing:-.01em; }
+.module span{ font-size:12px; color:var(--gray-2); }
+.orbit-line{
+  position:absolute; left:50%; top:0; width:1px; height:100%;
+  background:linear-gradient(transparent, rgba(52,211,153,.4), transparent);
+  transform:translateX(-50%); pointer-events:none; opacity:.5;
+}
+
+/* ============================================================
+   SCENE 4 — Interactive dashboard
+   ============================================================ */
+#dash .dash-space{
+  perspective:1600px; margin-top:24px; min-height:560px; position:relative;
+}
+.dash-group{
+  position:relative; transform-style:preserve-3d;
+  display:grid; grid-template-columns:repeat(12,1fr); gap:20px;
+  will-change:transform; transition:transform .25s ease-out;
+}
+.dcard{
+  padding:22px; border-radius:var(--r-md); position:relative; overflow:hidden;
+  transition:transform .5s var(--ease-spring), box-shadow .5s var(--ease-out);
+  will-change:transform; transform:translateZ(var(--z,0px));
+}
+.dcard:hover{ transform:translateZ(calc(var(--z,0px) + 34px)); }
+.dcard::after{ /* moving sheen */
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(360px circle at var(--sx,50%) var(--sy,50%), rgba(255,255,255,.16), transparent 55%);
+  opacity:0; transition:opacity .4s;
+}
+.dcard:hover::after{ opacity:1; }
+.dcard small{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.22em; text-transform:uppercase;
+  color:var(--gray); display:flex; align-items:center; gap:8px; margin-bottom:12px;
+}
+.dcard small i{ width:7px; height:7px; border-radius:50%; background:var(--emerald); display:inline-block; }
+.dcard h3{ font-size:22px; }
+.d-span4{ grid-column:span 4 } .d-span5{ grid-column:span 5 } .d-span3{ grid-column:span 3 }
+.d-span6{ grid-column:span 6 } .d-span7{ grid-column:span 7 }
+
+.dnum{ font-family:var(--font-display); font-size:clamp(26px,2.6vw,36px); font-weight:600; letter-spacing:-.03em; }
+.dnum em{ font-style:normal; font-size:14px; color:var(--emerald); margin-left:8px; font-weight:500; }
+.dsub{ font-size:13px; color:var(--gray); margin-top:6px; }
+
+.avatar{ width:44px; height:44px; border-radius:50%; flex:none;
+  background:linear-gradient(135deg,#34D399,#0E9F6E); display:grid; place-items:center;
+  color:#fff; font-family:var(--font-display); font-weight:600; font-size:15px; }
+.drow{ display:flex; align-items:center; gap:14px; }
+.chip{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:var(--font-mono); font-size:11px; padding:5px 12px; border-radius:100px;
+  background:rgba(14,163,113,.09); color:var(--emerald); border:1px solid rgba(14,163,113,.22);
+}
+.stars{ color:var(--gold); letter-spacing:3px; font-size:16px; }
+.ai-line{ font-size:14px; line-height:1.6; color:var(--ink); }
+.ai-line b{ color:var(--emerald); font-weight:600; }
+.queue-viz{ display:flex; gap:6px; margin-top:14px; align-items:flex-end; height:44px; }
+.queue-viz i{
+  width:14px; border-radius:4px 4px 2px 2px; background:linear-gradient(180deg,var(--emerald-2),var(--emerald));
+  animation:qgrow 2.6s ease-in-out infinite; transform-origin:bottom;
+}
+@keyframes qgrow{ 0%,100%{ transform:scaleY(.55) } 50%{ transform:scaleY(1) } }
+
+/* ============================================================
+   SCENE 5 — Patient journey (horizontal)
+   ============================================================ */
+#journey{ padding:0; }
+.journey-pin{ height:100vh; display:flex; flex-direction:column; justify-content:center; overflow:hidden; }
+.journey-head{ padding:0 clamp(24px,6vw,80px); margin-bottom:48px; }
+.journey-track{
+  display:flex; gap:26px; padding:0 clamp(24px,6vw,80px);
+  will-change:transform; width:max-content; position:relative; align-items:stretch;
+}
+.jstep{
+  width:min(320px,74vw); flex:none; padding:26px; border-radius:var(--r-md);
+  display:flex; flex-direction:column; gap:14px; position:relative;
+}
+.jstep .jn{
+  font-family:var(--font-mono); font-size:11px; letter-spacing:.24em; color:var(--emerald);
+}
+.jstep h3{ font-size:20px; }
+.jstep p{ font-size:14px; color:var(--gray); }
+.jstep .jt{
+  margin-top:auto; font-family:var(--font-mono); font-size:11px; color:var(--gray-2);
+  display:flex; align-items:center; gap:8px;
+}
+.jstep .jt i{ width:6px; height:6px; border-radius:50%; background:var(--emerald-2); }
+.jstep .ji{
+  width:52px; height:52px; border-radius:16px; display:grid; place-items:center;
+  background:rgba(14,163,113,.09); border:1px solid rgba(14,163,113,.2); color:var(--emerald);
+}
+.jstep .ji svg{ width:24px; height:24px; }
+.j-connector{
+  position:absolute; top:50%; left:0; right:0; height:2px; z-index:-1;
+  background:linear-gradient(90deg,transparent, rgba(14,163,113,.25), rgba(14,163,113,.25), transparent);
+}
+.j-progress{
+  position:absolute; left:clamp(24px,6vw,80px); right:clamp(24px,6vw,80px); bottom:12vh; height:2px;
+  background:var(--line); border-radius:2px; overflow:visible;
+}
+.j-progress .fill{ position:absolute; left:0; top:0; bottom:0; width:0%; background:var(--emerald); border-radius:2px; }
+.j-progress .walker{
+  position:absolute; top:50%; left:0; width:16px; height:16px; border-radius:50%;
+  background:var(--emerald); box-shadow:0 0 0 6px rgba(14,163,113,.15), 0 0 24px var(--glow);
+  transform:translate(-50%,-50%);
+}
+
+/* ============================================================
+   SCENE 6 — AI
+   ============================================================ */
+#ai{ background:#070B0A; position:relative; }
+#ai-canvas{ position:absolute; inset:0; width:100%; height:100%; opacity:.8; }
+#ai .wrap{ z-index:2; }
+.ai-grid{ display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center; margin-top:12px; }
+.ai-feed{ display:flex; flex-direction:column; gap:16px; }
+.ai-msg{
+  padding:18px 22px; border-radius:18px; border-top-left-radius:6px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(52,211,153,.18);
+  font-size:15px; line-height:1.55;
+  opacity:0; transform:translateY(20px); filter:blur(4px);
+  transition:all .9s var(--ease-out);
+}
+.ai-msg.is-in{ opacity:1; transform:none; filter:none; }
+.ai-msg b{ color:var(--emerald-2); font-weight:600; }
+.ai-msg small{
+  display:block; font-family:var(--font-mono); font-size:10px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--gray-2); margin-bottom:8px;
+}
+.ai-visual{ display:flex; flex-direction:column; gap:18px; }
+.ai-chart{ padding:22px; border-radius:var(--r-md); }
+.ai-chart small{ font-family:var(--font-mono); font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--gray-2); display:block; margin-bottom:12px; }
+.ai-chart svg{ display:block; width:100%; height:auto; }
+.ai-orb{
+  width:120px; height:120px; margin-bottom:28px; border-radius:50%; position:relative;
+  background:radial-gradient(circle at 35% 30%, rgba(167,243,208,.95), var(--emerald) 48%, #052E22 82%);
+  box-shadow:0 0 70px var(--glow), 0 0 180px rgba(52,211,153,.18);
+}
+.ai-orb::before,.ai-orb::after{
+  content:""; position:absolute; inset:-16px; border-radius:50%;
+  border:1px solid rgba(52,211,153,.3); animation:corering 3.4s linear infinite;
+}
+.ai-orb::after{ animation-delay:1.7s; }
+
+/* ============================================================
+   SCENE 7 — Growth metrics
+   ============================================================ */
+.metric-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:20px; margin-top:16px; }
+.metric{
+  padding:28px 24px; border-radius:var(--r-md);
+}
+.metric small{ font-family:var(--font-mono); font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--gray); display:block; margin-bottom:14px; }
+.metric .val{ font-family:var(--font-display); font-size:clamp(30px,3vw,44px); font-weight:600; letter-spacing:-.03em; }
+.metric .val sup{ font-size:.45em; color:var(--emerald); margin-left:2px; }
+.metric p{ font-size:13px; color:var(--gray); margin-top:8px; }
+.bigchart{ margin-top:26px; padding:30px; border-radius:var(--r-lg); }
+.bigchart svg{ width:100%; height:auto; display:block; }
+
+/* ============================================================
+   SCENE 8 — Google reputation
+   ============================================================ */
+.rep-grid{ display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center; }
+.rep-cards{ position:relative; min-height:440px; }
+.rcard{
+  position:absolute; width:min(320px,86%); padding:22px; border-radius:var(--r-md);
+  will-change:transform;
+}
+.rcard .rhead{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.rcard .rhead b{ font-size:14px; font-family:var(--font-display); }
+.rcard .rhead small{ display:block; font-size:11px; color:var(--gray); font-family:var(--font-mono); }
+.rcard p{ font-size:13.5px; color:var(--ink); line-height:1.55; }
+.scene--dark .rcard p{ color:var(--paper); }
+.g-badge{
+  display:inline-flex; gap:2px; font-weight:700; font-family:var(--font-display); font-size:13px; margin-left:auto;
+}
+.g-badge span:nth-child(1){color:#4285F4}.g-badge span:nth-child(2){color:#EA4335}
+.g-badge span:nth-child(3){color:#FBBC05}.g-badge span:nth-child(4){color:#4285F4}
+.g-badge span:nth-child(5){color:#34A853}.g-badge span:nth-child(6){color:#EA4335}
+.map-panel{ padding:26px; border-radius:var(--r-lg); }
+.map-panel svg{ width:100%; height:auto; display:block; border-radius:14px; }
+.rank-line{ display:flex; justify-content:space-between; align-items:center; margin-top:18px; font-family:var(--font-mono); font-size:12px; color:var(--gray); }
+.rank-line b{ color:var(--emerald); font-size:14px; }
+@keyframes pinpop{ 0%{ transform:scale(0); opacity:0 } 60%{ transform:scale(1.3) } 100%{ transform:scale(1); opacity:1 } }
+@keyframes pingring{ 0%{ r:6; opacity:.7 } 100%{ r:22; opacity:0 } }
+
+/* ============================================================
+   SCENE 9 — WhatsApp
+   ============================================================ */
+#wa{ background:var(--ink-2); }
+.wa-grid{ display:grid; grid-template-columns:.9fr 1.1fr; gap:56px; align-items:center; }
+.wa-stream{ display:flex; flex-direction:column; gap:12px; max-width:480px; }
+.wa-bubble{
+  align-self:flex-start; max-width:88%;
+  background:#0F2E22; border:1px solid rgba(37,211,102,.25);
+  border-radius:16px; border-bottom-left-radius:4px;
+  padding:12px 16px; font-size:13.5px; line-height:1.5;
+  opacity:0; transform:translateY(16px) scale(.97);
+  transition:all .7s var(--ease-out);
+}
+.wa-bubble.is-in{ opacity:1; transform:none; }
+.wa-bubble small{ display:block; font-family:var(--font-mono); font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#25D366; margin-bottom:5px; }
+.wa-bubble .tick{ float:right; color:#53BDEB; font-size:11px; margin-left:10px; margin-top:4px; }
+.wa-counter{ margin-top:26px; font-family:var(--font-mono); font-size:13px; color:var(--gray-2); }
+.wa-counter b{ color:#25D366; font-size:22px; font-family:var(--font-display); letter-spacing:-.02em; }
+
+/* ============================================================
+   SCENE 10 — Business intelligence
+   ============================================================ */
+.bi-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:8px; }
+.bi{ padding:26px; border-radius:var(--r-md); display:flex; flex-direction:column; gap:8px; }
+.bi small{ font-family:var(--font-mono); font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--gray); }
+.bi .v{ font-family:var(--font-display); font-size:30px; font-weight:600; letter-spacing:-.03em; }
+.bi p{ font-size:13px; color:var(--gray); }
+.bi.suggest{ grid-column:span 3; flex-direction:row; align-items:center; gap:20px;
+  background:linear-gradient(120deg, rgba(14,163,113,.08), rgba(255,255,255,.6)); }
+.bi.suggest .v{ font-size:18px; }
+
+/* ============================================================
+   SCENE 11 — Growth score
+   ============================================================ */
+#score{ background:var(--ink); padding:0; }
+.score-pin{ min-height:100vh; display:grid; place-items:center; position:relative; overflow:hidden; }
+.score-glow{
+  position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(720px circle at 50% 52%, var(--glow), transparent 65%);
+  opacity:.15; will-change:opacity;
+}
+.score-layout{ display:grid; grid-template-columns:auto 1fr; gap:clamp(40px,7vw,110px); align-items:center; }
+.score-ring{ position:relative; width:min(380px,72vw); }
+.score-ring svg{ width:100%; height:auto; display:block; transform:rotate(-90deg); }
+.score-num{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+.score-num b{ font-family:var(--font-display); font-size:clamp(72px,9vw,120px); font-weight:700; letter-spacing:-.05em; line-height:1; }
+.score-num small{ font-family:var(--font-mono); font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:var(--gray-2); margin-top:10px; }
+.score-metrics{ display:flex; flex-direction:column; gap:22px; min-width:min(400px,80vw); }
+.sm-row small{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--gray-2); margin-bottom:9px; }
+.sm-row small b{ color:var(--emerald-2); }
+.sm-bar{ height:5px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; }
+.sm-bar i{ display:block; height:100%; width:0%; border-radius:4px;
+  background:linear-gradient(90deg,var(--emerald),var(--emerald-2)); }
+
+/* ============================================================
+   SCENE 12 — Testimonials
+   ============================================================ */
+.testi-field{ display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:8px; }
+.testi{
+  padding:30px; border-radius:var(--r-md); display:flex; flex-direction:column; gap:18px;
+}
+.testi:nth-child(2){ transform:translateY(36px); }
+.testi q{ font-family:var(--font-display); font-weight:400; font-size:17px; line-height:1.5; letter-spacing:-.01em; quotes:"“" "”"; }
+.testi .who{ display:flex; align-items:center; gap:14px; margin-top:auto; }
+.testi .who b{ display:block; font-size:14px; font-family:var(--font-display); }
+.testi .who small{ font-size:12px; color:var(--gray); }
+
+/* ============================================================
+   SCENE 13 — Security
+   ============================================================ */
+#security{ background:var(--ink-2); }
+.sec-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:20px; margin-top:8px; }
+.sec{ padding:28px; border-radius:var(--r-md); position:relative; overflow:hidden; }
+.sec h3{ font-size:18px; margin-bottom:8px; }
+.sec p{ font-size:13.5px; color:var(--gray-2); }
+.enc-record{
+  margin-top:16px; font-family:var(--font-mono); font-size:12px; line-height:2;
+  color:var(--gray-2);
+}
+.enc-record .blur{ filter:blur(5px); color:var(--emerald-2); transition:filter .6s; }
+.sec:hover .enc-record .blur{ filter:blur(0); }
+.enc-record .lock{ color:var(--emerald-2); }
+.role-chips{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+.role-chips .chip{ background:rgba(52,211,153,.08); color:var(--emerald-2); border-color:rgba(52,211,153,.25); }
+.backup-line{ display:flex; align-items:center; gap:0; margin-top:20px; }
+.backup-line i{ width:9px; height:9px; border-radius:50%; background:var(--emerald); flex:none; box-shadow:0 0 12px var(--glow); }
+.backup-line s{ flex:1; height:1px; background:linear-gradient(90deg,var(--emerald),rgba(52,211,153,.1)); text-decoration:none; }
+.backup-line span{ font-family:var(--font-mono); font-size:10.5px; color:var(--gray-2); padding:0 10px; white-space:nowrap; }
+
+/* ============================================================
+   FINALE
+   ============================================================ */
+#finale{ background:var(--paper); color:var(--ink); text-align:center; padding:clamp(140px,20vh,240px) 0 0; }
+#finale h2{ font-size:clamp(40px,6.4vw,84px); letter-spacing:-.04em; line-height:1.05; }
+#finale h2 em{ font-style:normal; color:var(--emerald); }
+#finale .fin-logo{
+  margin-top:56px; font-family:var(--font-display); font-weight:700; font-size:26px; letter-spacing:-.03em;
+}
+#finale .fin-logo span{ color:var(--emerald); }
+#finale .fin-tag{ font-family:var(--font-mono); font-size:12.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--gray); margin-top:10px; }
+#finale .hero-ctas{ margin-top:40px; }
+.footer{
+  margin-top:120px; border-top:1px solid var(--line);
+  padding:32px clamp(24px,4vw,48px);
+  display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap;
+  font-family:var(--font-mono); font-size:11.5px; letter-spacing:.12em; color:var(--gray);
+}
+.footer a{ color:var(--gray); text-decoration:none; margin-left:22px; transition:color .3s; }
+.footer a:hover{ color:var(--emerald); }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width:1020px){
+  .ai-grid,.rep-grid,.wa-grid{ grid-template-columns:1fr; gap:44px; }
+  .metric-grid{ grid-template-columns:repeat(2,1fr); }
+  #transform .modules{ grid-template-columns:repeat(2,1fr); }
+  .score-layout{ grid-template-columns:1fr; justify-items:center; gap:52px; text-align:left; }
+  .testi-field{ grid-template-columns:1fr; }
+  .testi:nth-child(2){ transform:none; }
+  .bi-grid{ grid-template-columns:1fr 1fr; }
+  .bi.suggest{ grid-column:span 2; }
+  .dash-group{ grid-template-columns:repeat(6,1fr); }
+  .d-span3,.d-span4{ grid-column:span 3; }
+  .d-span5,.d-span6,.d-span7{ grid-column:span 6; }
+}
+@media (max-width:680px){
+  .c-span3,.c-span4,.c-span5,.c-span6,.c-span7{ grid-column:span 12; }
+  .metric-grid,.sec-grid,.bi-grid{ grid-template-columns:1fr; }
+  .bi.suggest{ grid-column:span 1; flex-direction:column; align-items:flex-start; }
+  .dash-group{ grid-template-columns:1fr; }
+  .d-span3,.d-span4,.d-span5,.d-span6,.d-span7{ grid-column:span 1; }
+  .hero-dash{ grid-template-columns:1fr; }
+  .hero-line br{ display:none; }
+  .paper{ font-size:10px; padding:10px 12px; }
+  .nav-links{ display:none; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+  .rv,.ai-msg,.wa-bubble{ opacity:1 !important; transform:none !important; filter:none !important; }
+}
+</style>
+</head>
+<body>
+<div class="cursor-dot"></div>
+<div class="cursor-ring"></div>
+
+<!-- ================= NAV ================= -->
+<nav class="nav" id="nav">
+  <a class="nav-logo" href="#hero"><span class="pulse"></span>Clinic<span style="color:var(--emerald-2)">OS</span></a>
+  <a class="btn btn-primary nav-cta magnetic" href="#finale">Book a Demo</a>
+</nav>
+
+<!-- ================= SCENE 1 · HERO ================= -->
+<section id="hero" data-dark>
+  <canvas id="hero-canvas"></canvas>
+  <div class="mouselight"></div>
+
+  <div class="hero-stage">
+    <!-- Opening statement -->
+    <div class="hero-lines" id="heroLines">
+      <p class="hero-line" id="hl1">Your clinic isn't losing patients<br>because you're a bad doctor.</p>
+      <p class="hero-line" id="hl2">It's losing them because of <em>outdated systems</em>.</p>
+    </div>
+
+    <!-- Floating paperwork field -->
+    <div class="paper-field" id="paperField">
+      <div class="paper" data-depth="0.06" style="top:14%;left:9%"><small>Prescription</small>Rx — Metformin 500mg · 1-0-1</div>
+      <div class="paper" data-depth="0.10" style="top:22%;right:11%"><small>Register</small>Appointment book · Page 214</div>
+      <div class="paper alert" data-depth="0.14" style="top:64%;left:12%"><small>Reception</small>Missed calls × 7</div>
+      <div class="paper wa" data-depth="0.08" style="top:72%;right:14%"><small>WhatsApp</small>"Doctor available today?" · unread</div>
+      <div class="paper" data-depth="0.12" style="top:40%;left:4%"><small>Billing</small>Bill No. 4521 — ₹850 · cash</div>
+      <div class="paper" data-depth="0.05" style="top:47%;right:5%"><small>Sticky note</small>Call Mrs. Sharma re: follow-up</div>
+      <div class="paper" data-depth="0.16" style="top:84%;left:38%"><small>Patient file</small>#2210 · misplaced?</div>
+      <div class="paper alert" data-depth="0.09" style="top:8%;left:44%"><small>Lab</small>Report pending · 3 days</div>
+    </div>
+
+    <div class="core" id="core"></div>
+
+    <!-- Post-convergence reveal -->
+    <div class="hero-reveal" id="heroReveal">
+      <div class="hero-logo" id="heroLogo" aria-label="ClinicOS">
+        <span>C</span><span>l</span><span>i</span><span>n</span><span>i</span><span>c</span><span class="os">O</span><span class="os">S</span>
+      </div>
+      <h1 class="rvh">The AI Operating System<br>That Grows Your Clinic.</h1>
+      <div class="hero-sub rvh">
+        <span><b>Manage</b> patients.</span>
+        <span><b>Increase</b> revenue.</span>
+        <span><b>Build</b> reputation.</span>
+        <span><b>Save</b> hours every day.</span>
+      </div>
+      <div class="hero-ctas rvh">
+        <a href="#finale" class="btn btn-primary magnetic">Book a Demo <span class="btn-arrow">→</span></a>
+        <a href="#problem" class="btn btn-ghost magnetic">Watch the Experience</a>
+      </div>
+      <div class="hero-dash glass rvh" id="heroDash" data-depth="0.04">
+        <div class="tile"><small>Today's revenue</small><strong>₹42,300</strong><em>+18%</em>
+          <svg viewBox="0 0 120 28" fill="none"><path d="M2 24 C 20 22, 30 14, 46 15 S 78 8, 96 6 S 112 4, 118 2" stroke="#34D399" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="tile"><small>Live queue</small><strong>6 waiting</strong><em>avg 12 min</em>
+          <svg viewBox="0 0 120 28"><g fill="#34D399" opacity=".85"><rect x="4" y="14" width="10" height="12" rx="2"/><rect x="20" y="10" width="10" height="16" rx="2"/><rect x="36" y="16" width="10" height="10" rx="2"/><rect x="52" y="8" width="10" height="18" rx="2"/><rect x="68" y="18" width="10" height="8" rx="2"/><rect x="84" y="12" width="10" height="14" rx="2"/></g></svg>
+        </div>
+        <div class="tile"><small>AI assistant</small><strong>14 follow-ups</strong><em>due today</em>
+          <svg viewBox="0 0 120 28" fill="none"><circle cx="12" cy="14" r="5" stroke="#34D399" stroke-width="1.5"/><path d="M17 14 H40 M46 14 H70 M76 14 H100" stroke="#34D399" stroke-width="1.5" stroke-dasharray="3 4"/><circle cx="43" cy="14" r="2.5" fill="#34D399"/><circle cx="73" cy="14" r="2.5" fill="#34D399"/><circle cx="106" cy="14" r="4" stroke="#34D399" stroke-width="1.5"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-scrollhint" id="scrollHint"><span>Scroll to begin</span><span class="bar"></span></div>
+  </div>
+</section>
+
+<!-- ================= SCENE 2 · PROBLEM ================= -->
+<section id="problem" class="scene scene--light">
+  <div class="wrap">
+    <div class="scene-head">
+      <span class="eyebrow rv">Scene 02 — A Tuesday morning, any Indian clinic</span>
+      <h2 class="h-xl rv rv-d1">9:40 AM. The waiting room is full.<br>So is everyone's hands.</h2>
+      <p class="lead rv rv-d2">The receptionist is on two phones. The doctor is writing the same details for the fortieth time. Somewhere in a drawer, a follow-up is being forgotten.</p>
+    </div>
+
+    <div class="clinic-floor">
+      <div class="chaos bad c-span4 rv"><small>Lost revenue</small><strong>₹1.4L / month</strong><p>No-shows, unbilled procedures, missed recalls — silently leaking.</p></div>
+      <div class="chaos bad c-span4 rv rv-d1"><small>Waiting time</small><strong>38 min average</strong>
+        <div class="queue-strip"><span class="q-dot">P1</span><span class="q-dot">P2</span><span class="q-dot">P3</span><span class="q-dot">P4</span><span class="q-dot">P5</span><span class="q-more">+9 standing</span></div>
+      </div>
+      <div class="chaos bad c-span4 rv rv-d2"><small>Follow-ups</small><strong>27% missed</strong><p>Chronic patients drift away — nobody had time to remind them.</p></div>
+      <div class="chaos c-span4 rv rv-d1"><small>Front desk</small><strong>2 phones ringing</strong>
+        <div class="ring-phone"><span class="ph">☎</span> 7 missed calls before lunch</div>
+      </div>
+      <div class="chaos bad c-span4 rv rv-d2"><small>Google rating</small><strong>3.6 ★</strong><p>"Long wait, billing confusion" — the review new patients read first.</p></div>
+      <div class="chaos c-span4 rv rv-d3"><small>Systems</small><strong>5 registers, 1 diary</strong><p>Appointments, billing, lab, pharmacy, follow-ups — all on paper, all separate.</p></div>
+    </div>
+
+    <div class="problem-close">
+      <span class="eyebrow rv">Freeze frame</span>
+      <h2 class="h-xl rv rv-d1" style="margin-top:20px">Running a clinic shouldn't feel like<br>running five businesses at once.</h2>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 3 · TRANSFORMATION ================= -->
+<section id="transform" class="scene scene--dark">
+  <div class="mouselight"></div>
+  <div class="orbit-line"></div>
+  <div class="wrap">
+    <span class="eyebrow rv" style="justify-content:center">Scene 03 — The reorganisation</span>
+    <h2 class="h-xl rv rv-d1" style="margin-top:22px">One Operating System.<br>Every Clinic Workflow.</h2>
+    <p class="lead rv rv-d2" style="margin:22px auto 0">The chaos doesn't get managed. It gets replaced. Every register, diary and drawer — pulled into a single intelligent system.</p>
+
+    <div class="modules" id="modules">
+      <div class="module glass"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></span><b>Appointments</b><span>Slots, tokens, walk-ins</span></div>
+      <div class="module glass"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5S20 17 20 21"/></svg></span><b>Patients</b><span>One record, full history</span></div>
+      <div class="module glass"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span><b>Billing</b><span>UPI, GST, zero errors</span></div>
+      <div class="module glass"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3v7l-4.5 8a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L15 10V3"/><path d="M7 3h10"/></svg></span><b>Lab</b><span>Orders and reports, linked</span></div>
+      <div class="module glass"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="8" width="18" height="13" rx="3"/><path d="M8 8V5a4 4 0 0 1 8 0v3M12 12v5M9.5 14.5h5"/></svg></span><b>Pharmacy</b><span>Stock that talks to Rx</span></div>
+      <div class="module glass"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></span><b>AI Assistant</b><span>Watches, warns, recovers</span></div>
+      <div class="module glass"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span><b>Reports</b><span>Owner's view, daily</span></div>
+      <div class="module glass"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-4.2-7.6L21 3l-1.2 4.4A9 9 0 0 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg></span><b>WhatsApp</b><span>Reminders on autopilot</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 4 · INTERACTIVE DASHBOARD ================= -->
+<section id="dash" class="scene scene--light">
+  <div class="wrap">
+    <div class="scene-head">
+      <span class="eyebrow rv">Scene 04 — Inside the system</span>
+      <h2 class="h-xl rv rv-d1">A command centre<br>that fits on one screen.</h2>
+      <p class="lead rv rv-d2">Move your cursor across it. Everything in the clinic — patients, money, queue, reputation — alive in one place.</p>
+    </div>
+
+    <div class="dash-space">
+      <div class="dash-group" id="dashGroup">
+        <div class="dcard glass d-span4 rv" style="--z:40px"><small><i></i>Patient</small>
+          <div class="drow"><span class="avatar">AR</span><div><div class="dnum" style="font-size:19px">Anita Rao, 34</div><div class="dsub">Diabetes review · last visit 92 days ago</div></div></div>
+          <div style="margin-top:14px"><span class="chip">HbA1c due</span> <span class="chip">Recall sent</span></div>
+        </div>
+        <div class="dcard glass d-span4 rv rv-d1" style="--z:70px"><small><i></i>Revenue · today</small>
+          <div class="dnum" data-count="42300" data-prefix="₹">₹0<em>+18% vs last Tue</em></div>
+          <div class="dsub">31 consults · 9 procedures · 0 unbilled</div>
+          <svg viewBox="0 0 220 44" fill="none" style="margin-top:12px"><path class="draw-path" d="M2 40 C 30 38, 48 26, 74 27 S 128 14, 160 11 S 200 6, 218 3" stroke="#0EA371" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="dcard glass d-span4 rv rv-d2" style="--z:50px"><small><i></i>Appointments</small>
+          <div class="dnum" style="font-size:19px">Next · 4:30 PM</div>
+          <div class="dsub">Dr. Mehta · Room 2 · 11 remaining today</div>
+          <div style="margin-top:14px"><span class="chip">2 online bookings just now</span></div>
+        </div>
+        <div class="dcard glass d-span5 rv rv-d1" style="--z:80px"><small><i></i>AI assistant</small>
+          <p class="ai-line">"<b>5 patients</b> missed follow-up this week. Sending WhatsApp recalls could recover <b>₹18,400</b>. Approve?"</p>
+          <div style="margin-top:14px; display:flex; gap:10px"><span class="chip">Approve all</span><span class="chip" style="opacity:.6">Review list</span></div>
+        </div>
+        <div class="dcard glass d-span3 rv rv-d2" style="--z:36px"><small><i></i>Google reviews</small>
+          <div class="dnum" data-count="4.8" data-decimals="1">0<em>214 reviews</em></div>
+          <div class="stars">★★★★★</div>
+          <div class="dsub">3 new this week — all five stars</div>
+        </div>
+        <div class="dcard glass d-span4 rv rv-d3" style="--z:60px"><small><i></i>Live queue</small>
+          <div class="dnum" style="font-size:19px">Now serving · #12</div>
+          <div class="dsub">6 waiting · average 11 min · tokens on WhatsApp</div>
+          <div class="queue-viz"><i style="height:60%"></i><i style="height:85%"></i><i style="height:45%"></i><i style="height:95%"></i><i style="height:55%"></i><i style="height:75%"></i><i style="height:40%"></i><i style="height:65%"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 5 · PATIENT JOURNEY ================= -->
+<section id="journey" class="scene scene--light" style="background:var(--mist)">
+  <div class="journey-pin" id="journeyPin">
+    <div class="journey-head">
+      <span class="eyebrow rv">Scene 05 — One patient, start to finish</span>
+      <h2 class="h-lg rv rv-d1" style="margin-top:18px">Follow Anita through the clinic.<br>Not a single paper touched.</h2>
+    </div>
+    <div class="journey-track" id="journeyTrack">
+      <div class="j-connector"></div>
+      <div class="jstep glass"><span class="jn">01 / Walk-in</span><span class="ji"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 4a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM10 22l2-6 3 2v4M8 12l3-4 3 1 3 4M11 8l-1 6-4 3"/></svg></span><h3>She walks in</h3><p>Recognised at the door. Her token is already generated.</p><span class="jt"><i></i>0 sec of form-filling</span></div>
+      <div class="jstep glass"><span class="jn">02 / Registration</span><span class="ji"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><path d="M13 13h3v3h-3zM19 13h2M13 19h2M18 18h3v3"/></svg></span><h3>One QR scan</h3><p>Aadhaar-lite intake. Ten seconds, on her own phone.</p><span class="jt"><i></i>10 sec check-in</span></div>
+      <div class="jstep glass"><span class="jn">03 / Vitals</span><span class="ji"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12h4l2.5-6 4 12 2.5-6h7"/></svg></span><h3>Vitals flow in</h3><p>BP, sugar, weight — captured once, charted forever.</p><span class="jt"><i></i>Auto-trended vs last visit</span></div>
+      <div class="jstep glass"><span class="jn">04 / Consultation</span><span class="ji"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4.8 3h6.4M8 3v7a5 5 0 0 1-10 0" transform="translate(6 0)"/><circle cx="19" cy="16" r="3"/><path d="M14 10v3a5 5 0 0 0 5 3"/></svg></span><h3>Doctor sees history, not paper</h3><p>Full timeline on screen. AI drafts the Rx; the doctor decides.</p><span class="jt"><i></i>4 extra minutes with the patient</span></div>
+      <div class="jstep glass"><span class="jn">05 / Billing</span><span class="ji"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg></span><h3>UPI in one tap</h3><p>Consult + lab + pharmacy on one bill. GST handled.</p><span class="jt"><i></i>0 billing disputes</span></div>
+      <div class="jstep glass"><span class="jn">06 / Pharmacy</span><span class="ji"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="8" width="18" height="13" rx="3"/><path d="M8 8V5a4 4 0 0 1 8 0v3M12 12v5M9.5 14.5h5"/></svg></span><h3>Rx reaches the counter first</h3><p>Medicines packed before she arrives. Stock auto-deducts.</p><span class="jt"><i></i>No handwriting to decode</span></div>
+      <div class="jstep glass"><span class="jn">07 / WhatsApp</span><span class="ji"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-4.2-7.6L21 3l-1.2 4.4A9 9 0 0 1 21 12z"/></svg></span><h3>Everything on her phone</h3><p>Digital Rx, bill, and dosage reminders — sent automatically.</p><span class="jt"><i></i>Reminders at 9 AM & 9 PM</span></div>
+      <div class="jstep glass"><span class="jn">08 / Follow-up</span><span class="ji"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 3-6.7M3 3v5h5"/><path d="M12 7v5l3 3"/></svg></span><h3>She comes back</h3><p>Day 28: AI books her review slot. The loop never breaks.</p><span class="jt"><i></i>Retention, engineered</span></div>
+    </div>
+    <div class="j-progress"><div class="fill" id="jFill"></div><div class="walker" id="jWalker"></div></div>
+  </div>
+</section>
+
+<!-- ================= SCENE 6 · AI ================= -->
+<section id="ai" class="scene scene--dark">
+  <canvas id="ai-canvas"></canvas>
+  <div class="mouselight"></div>
+  <div class="wrap">
+    <div class="ai-grid">
+      <div>
+        <div class="ai-orb rv"></div>
+        <span class="eyebrow rv rv-d1">Scene 06 — The assistant wakes up</span>
+        <h2 class="h-xl rv rv-d2" style="margin:20px 0 18px">It watches the whole clinic.<br>So you don't have to.</h2>
+        <p class="lead rv rv-d3">While you consult, the AI reads every appointment, bill and gap in the schedule — and quietly turns them into money, time and trust.</p>
+        <div class="ai-feed" id="aiFeed" style="margin-top:36px">
+          <div class="ai-msg"><small>Follow-up radar</small>"<b>5 patients</b> missed follow-up. Shall I send recalls?"</div>
+          <div class="ai-msg"><small>Revenue recovery</small>"Recover <b>₹18,400</b> this week from pending reviews and no-shows."</div>
+          <div class="ai-msg"><small>Chronic care</small>"<b>12 patients</b> due for diabetes review this month."</div>
+          <div class="ai-msg"><small>Reputation</small>"Your Google rating can reach <b>4.9</b> — 22 happy patients haven't been asked yet."</div>
+        </div>
+      </div>
+      <div class="ai-visual">
+        <div class="ai-chart glass rv rv-d2"><small>Revenue · recovered by AI</small>
+          <svg viewBox="0 0 320 130" fill="none">
+            <path d="M0 118 H320" stroke="rgba(255,255,255,.08)"/>
+            <path class="draw-path" d="M6 112 C 44 108, 66 92, 96 90 S 150 70, 186 58 S 258 30, 314 14" stroke="#34D399" stroke-width="2.5" stroke-linecap="round"/>
+            <path class="draw-fill" d="M6 112 C 44 108, 66 92, 96 90 S 150 70, 186 58 S 258 30, 314 14 V126 H6 Z" fill="url(#aig)" opacity="0"/>
+            <defs><linearGradient id="aig" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34D399" stop-opacity=".28"/><stop offset="1" stop-color="#34D399" stop-opacity="0"/></linearGradient></defs>
+          </svg>
+        </div>
+        <div class="ai-chart glass rv rv-d3"><small>Average wait · shrinking</small>
+          <svg viewBox="0 0 320 96" fill="none">
+            <g class="shrink-bars">
+              <rect x="10"  y="14" width="30" height="70" rx="5" fill="rgba(255,255,255,.14)"/>
+              <rect x="55"  y="24" width="30" height="60" rx="5" fill="rgba(255,255,255,.14)"/>
+              <rect x="100" y="34" width="30" height="50" rx="5" fill="rgba(52,211,153,.35)"/>
+              <rect x="145" y="44" width="30" height="40" rx="5" fill="rgba(52,211,153,.5)"/>
+              <rect x="190" y="54" width="30" height="30" rx="5" fill="rgba(52,211,153,.7)"/>
+              <rect x="235" y="62" width="30" height="22" rx="5" fill="#34D399"/>
+              <rect x="280" y="68" width="30" height="16" rx="5" fill="#34D399"/>
+            </g>
+            <text x="10" y="94" fill="rgba(255,255,255,.4)" font-size="9" font-family="IBM Plex Mono">38 min</text>
+            <text x="278" y="94" fill="#34D399" font-size="9" font-family="IBM Plex Mono">→ 14 min</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 7 · REVENUE GROWTH ================= -->
+<section id="growth" class="scene scene--light">
+  <div class="wrap">
+    <div class="scene-head">
+      <span class="eyebrow rv">Scene 07 — Ninety days later</span>
+      <h2 class="h-xl rv rv-d1">The numbers stop leaking.<br>Then they start climbing.</h2>
+    </div>
+    <div class="metric-grid">
+      <div class="metric glass rv"><small>Monthly revenue</small><div class="val"><span data-count="32">0</span><sup>%↑</sup></div><p>Recovered follow-ups, zero unbilled procedures, fuller slots.</p></div>
+      <div class="metric glass rv rv-d1"><small>Returning patients</small><div class="val"><span data-count="41">0</span><sup>%↑</sup></div><p>Automatic recalls bring chronic patients back on schedule.</p></div>
+      <div class="metric glass rv rv-d2"><small>Google rating</small><div class="val">3.6 → <span data-count="4.8" data-decimals="1">0</span><sup>★</sup></div><p>Happy patients, asked at the right moment.</p></div>
+      <div class="metric glass rv rv-d3"><small>Waiting time</small><div class="val"><span data-count="54">0</span><sup>%↓</sup></div><p>Token queues and smart slotting end the crowded lobby.</p></div>
+    </div>
+    <div class="bigchart glass rv rv-d2">
+      <svg viewBox="0 0 900 260" fill="none">
+        <g stroke="rgba(10,14,13,.06)"><path d="M0 60H900M0 120H900M0 180H900M0 240H900"/></g>
+        <path class="draw-path" d="M20 236 C 110 230, 160 214, 240 208 S 380 178, 470 152 S 630 96, 730 66 S 840 34, 884 22" stroke="#0EA371" stroke-width="3" stroke-linecap="round"/>
+        <path class="draw-fill" d="M20 236 C 110 230, 160 214, 240 208 S 380 178, 470 152 S 630 96, 730 66 S 840 34, 884 22 V254 H20 Z" fill="url(#gg)" opacity="0"/>
+        <defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0EA371" stop-opacity=".2"/><stop offset="1" stop-color="#0EA371" stop-opacity="0"/></linearGradient></defs>
+        <text x="20" y="252" fill="#9AA19E" font-size="11" font-family="IBM Plex Mono">MONTH 1</text>
+        <text x="820" y="252" fill="#0EA371" font-size="11" font-family="IBM Plex Mono">MONTH 6</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 8 · GOOGLE REPUTATION ================= -->
+<section id="rep" class="scene scene--light" style="background:var(--mist)">
+  <div class="wrap">
+    <div class="scene-head">
+      <span class="eyebrow rv">Scene 08 — What patients see first</span>
+      <h2 class="h-xl rv rv-d1">Build trust before<br>patients walk in.</h2>
+      <p class="lead rv rv-d2">After every good visit, ClinicOS invites the review — at the exact moment patients are happiest. Your map pin starts to glow.</p>
+    </div>
+    <div class="rep-grid">
+      <div class="rep-cards" id="repCards">
+        <div class="rcard glass floaty" style="top:0;left:0;--rot:-2deg">
+          <div class="rhead"><span class="avatar" style="background:linear-gradient(135deg,#F59E0B,#EF4444)">SK</span><div><b>Suresh K.</b><small>2 days ago</small></div><span class="g-badge"><span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span></span></div>
+          <div class="stars">★★★★★</div>
+          <p>"In and out in 25 minutes. Got my prescription and bill on WhatsApp. This is how clinics should work."</p>
+        </div>
+        <div class="rcard glass floaty" style="top:150px;right:0;--rot:2deg;animation-delay:1.2s">
+          <div class="rhead"><span class="avatar" style="background:linear-gradient(135deg,#8B5CF6,#3B82F6)">PM</span><div><b>Priya M.</b><small>1 week ago</small></div><span class="g-badge"><span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span></span></div>
+          <div class="stars">★★★★★</div>
+          <p>"They remembered my mother's diabetes review before we did. Called us with a slot. Unheard of."</p>
+        </div>
+        <div class="rcard glass floaty" style="top:300px;left:8%;--rot:-1deg;animation-delay:2.1s">
+          <div class="rhead"><span class="avatar">RD</span><div><b>Rahul D.</b><small>3 weeks ago</small></div><span class="g-badge"><span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span></span></div>
+          <div class="stars">★★★★★</div>
+          <p>"Token on my phone, no standing in queue. Waited from the chai shop next door."</p>
+        </div>
+      </div>
+      <div class="map-panel glass rv rv-d1">
+        <svg viewBox="0 0 420 300" id="mapSvg">
+          <rect width="420" height="300" rx="14" fill="#E7EFE9"/>
+          <g stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".9">
+            <path d="M-10 80 C 90 70, 150 110, 240 96 S 380 60, 440 76" fill="none"/>
+            <path d="M60 -10 C 70 80, 40 160, 80 230 S 110 290, 100 320" fill="none"/>
+            <path d="M-10 200 C 120 190, 210 230, 300 214 S 400 180, 440 196" fill="none"/>
+            <path d="M250 -10 C 240 70, 270 150, 250 230 S 240 290, 250 320" fill="none"/>
+          </g>
+          <g id="mapPins"></g>
+          <g id="clinicPin">
+            <circle cx="210" cy="150" r="6" fill="#0EA371"/>
+            <circle cx="210" cy="150" r="6" fill="none" stroke="#0EA371" stroke-width="2">
+              <animate attributeName="r" values="6;24" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values=".8;0" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <text x="210" y="132" text-anchor="middle" font-size="11" font-family="IBM Plex Mono" fill="#0A0E0D" font-weight="600">YOUR CLINIC</text>
+          </g>
+        </svg>
+        <div class="rank-line"><span>"clinic near me" ranking</span><b id="rankNum">#12 → #1</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 9 · WHATSAPP ================= -->
+<section id="wa" class="scene scene--dark">
+  <div class="mouselight"></div>
+  <div class="wrap">
+    <div class="wa-grid">
+      <div>
+        <span class="eyebrow rv">Scene 09 — While the clinic sleeps</span>
+        <h2 class="h-xl rv rv-d1" style="margin:20px 0 18px">Thousands of messages.<br>Zero staff hours.</h2>
+        <p class="lead rv rv-d2">Medicine reminders, appointment nudges, vaccination schedules, birthday wishes — composed, personalised and sent by the AI. Your front desk never types them again.</p>
+        <div class="wa-counter rv rv-d3"><b data-count="12480">0</b>&nbsp;&nbsp;messages sent this month · <span style="color:#25D366">0 typed by staff</span></div>
+      </div>
+      <div class="wa-stream" id="waStream">
+        <div class="wa-bubble"><small>Medicine reminder · 9:00 PM</small>Namaste Anita ji 🌙 Time for Metformin 500mg. Take after dinner.<span class="tick">✓✓</span></div>
+        <div class="wa-bubble"><small>Appointment · tomorrow</small>Reminder: Dr. Mehta, 4:30 PM tomorrow. Reply 1 to confirm, 2 to reschedule.<span class="tick">✓✓</span></div>
+        <div class="wa-bubble"><small>Vaccination</small>Aarav's 2nd MMR dose is due this week. Tap to book a slot. 💉<span class="tick">✓✓</span></div>
+        <div class="wa-bubble"><small>Follow-up recall</small>It's been 90 days since your diabetes review. Dr. Mehta has kept Thursday 11 AM for you.<span class="tick">✓✓</span></div>
+        <div class="wa-bubble"><small>Birthday</small>Happy birthday, Suresh ji! 🎂 Wishing you great health — from all of us at the clinic.<span class="tick">✓✓</span></div>
+        <div class="wa-bubble"><small>Report ready</small>Your lab report is ready. View securely: clinic.os/r/8x2k 🔒<span class="tick">✓✓</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 10 · BUSINESS INTELLIGENCE ================= -->
+<section id="bi" class="scene scene--light">
+  <div class="wrap">
+    <div class="scene-head">
+      <span class="eyebrow rv">Scene 10 — The owner's seat</span>
+      <h2 class="h-xl rv rv-d1">Not charts. Answers.</h2>
+      <p class="lead rv rv-d2">Every evening, ClinicOS tells you what happened, what it cost you, and what to do tomorrow — like a CEO briefing for your practice.</p>
+    </div>
+    <div class="bi-grid">
+      <div class="bi glass rv"><small>Today's revenue</small><span class="v" data-count="42300" data-prefix="₹">₹0</span><p>31 consults · 9 procedures · UPI 78%</p></div>
+      <div class="bi glass rv rv-d1"><small>Potential revenue lost</small><span class="v" style="color:#C2484A" data-count="6800" data-prefix="₹">₹0</span><p>3 no-shows, 2 unbilled dressings — recovery messages queued.</p></div>
+      <div class="bi glass rv rv-d2"><small>Returning patients</small><span class="v"><span data-count="61">0</span>%</span><p>Up from 43% before automation.</p></div>
+      <div class="bi glass rv rv-d1"><small>Growth score</small><span class="v" style="color:var(--emerald)"><span data-count="84">0</span>/100</span><p>+12 this quarter. Reviews are your next lever.</p></div>
+      <div class="bi glass rv rv-d2"><small>Doctor productivity</small><span class="v"><span data-count="4.2" data-decimals="1">0</span>/hr</span><p>Patients per hour, without rushing consults.</p></div>
+      <div class="bi glass rv rv-d3"><small>Peak load</small><span class="v">6–8 PM</span><p>Evening OPD runs 92% full. Morning has headroom.</p></div>
+      <div class="bi suggest glass rv rv-d2"><span class="chip" style="flex:none">AI suggestion</span><div><span class="v">Open Saturday mornings, 10 AM – 1 PM.</span><p>Demand detected: 34 patients searched for weekend slots last month. Projected: +₹68,000/month.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 11 · GROWTH SCORE ================= -->
+<section id="score">
+  <div class="score-pin" id="scorePin">
+    <div class="score-glow" id="scoreGlow"></div>
+    <div class="wrap">
+      <div style="text-align:center; margin-bottom:56px">
+        <span class="eyebrow" style="justify-content:center">Scene 11 — One number for the whole clinic</span>
+        <h2 class="h-lg" style="margin-top:18px">Your Clinic Growth Score.<br>Watch it climb.</h2>
+      </div>
+      <div class="score-layout">
+        <div class="score-ring">
+          <svg viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/>
+            <circle id="scoreArc" cx="100" cy="100" r="88" fill="none" stroke="url(#scoreGrad)" stroke-width="10"
+                    stroke-linecap="round" stroke-dasharray="553" stroke-dashoffset="155" style="filter:drop-shadow(0 0 14px rgba(52,211,153,.6))"/>
+            <defs><linearGradient id="scoreGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0EA371"/><stop offset="1" stop-color="#A7F3D0"/></linearGradient></defs>
+          </svg>
+          <div class="score-num"><b id="scoreNum">72</b><small>Growth Score</small></div>
+        </div>
+        <div class="score-metrics" id="scoreMetrics">
+          <div class="sm-row"><small>Patient retention <b data-to="94">62%</b></small><div class="sm-bar"><i data-w="94"></i></div></div>
+          <div class="sm-row"><small>Revenue health <b data-to="92">68%</b></small><div class="sm-bar"><i data-w="92"></i></div></div>
+          <div class="sm-row"><small>Google reviews <b data-to="96">71%</b></small><div class="sm-bar"><i data-w="96"></i></div></div>
+          <div class="sm-row"><small>Waiting time <b data-to="97">55%</b></small><div class="sm-bar"><i data-w="97"></i></div></div>
+          <div class="sm-row"><small>Staff efficiency <b data-to="95">64%</b></small><div class="sm-bar"><i data-w="95"></i></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 12 · TESTIMONIALS ================= -->
+<section id="testi" class="scene scene--light">
+  <div class="wrap">
+    <div class="scene-head">
+      <span class="eyebrow rv">Scene 12 — Doctors who switched</span>
+      <h2 class="h-xl rv rv-d1">From clinics like yours.</h2>
+    </div>
+    <div class="testi-field">
+      <div class="testi glass floaty rv" style="--rot:0deg">
+        <q>I used to stay back till 9 PM doing bills and registers. Now I leave at 7 and my revenue is up 28%. My wife thinks I changed jobs.</q>
+        <div class="who"><span class="avatar">VS</span><div><b>Dr. Vikram Singh</b><small>Family physician · Jaipur · 2-chair clinic</small></div></div>
+      </div>
+      <div class="testi glass floaty rv rv-d1" style="--rot:0deg;animation-delay:1.4s">
+        <q>The AI recalls brought back 40 diabetic patients we'd quietly lost. That's not software. That's a second receptionist who never sleeps.</q>
+        <div class="who"><span class="avatar" style="background:linear-gradient(135deg,#8B5CF6,#3B82F6)">MI</span><div><b>Dr. Meera Iyer</b><small>Diabetologist · Chennai · 3 doctors</small></div></div>
+      </div>
+      <div class="testi glass floaty rv rv-d2" style="--rot:0deg;animation-delay:2.2s">
+        <q>We went from 3.4 to 4.8 on Google in five months. New patients now say "we read your reviews" instead of "we were passing by."</q>
+        <div class="who"><span class="avatar" style="background:linear-gradient(135deg,#F59E0B,#EF4444)">AK</span><div><b>Dr. Arjun Kulkarni</b><small>Paediatrician · Pune · 60 patients/day</small></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 13 · SECURITY ================= -->
+<section id="security" class="scene scene--dark">
+  <div class="mouselight"></div>
+  <div class="wrap">
+    <div class="scene-head">
+      <span class="eyebrow rv">Scene 13 — Quietly bulletproof</span>
+      <h2 class="h-xl rv rv-d1">Patient trust,<br>engineered in.</h2>
+      <p class="lead rv rv-d2">Every record encrypted, every access logged, every night backed up. You never think about it — that's the point.</p>
+    </div>
+    <div class="sec-grid">
+      <div class="sec glass rv"><h3>Encrypted at rest & in transit</h3><p>Hover the record. Only authorised eyes ever see the real data.</p>
+        <div class="enc-record">
+          <span class="lock">🔒 AES-256</span> · patient_record #2210<br>
+          Name: <span class="blur">Anita Rao</span> · Age: <span class="blur">34</span><br>
+          Dx: <span class="blur">Type 2 Diabetes</span> · Rx: <span class="blur">Metformin 500</span>
+        </div>
+      </div>
+      <div class="sec glass rv rv-d1"><h3>Role-based access</h3><p>Reception sees the queue, not the diagnosis. Doctors see everything. You decide who sees what.</p>
+        <div class="role-chips"><span class="chip">Owner · full</span><span class="chip">Doctor · clinical</span><span class="chip">Reception · desk</span><span class="chip">Pharmacy · Rx only</span></div>
+      </div>
+      <div class="sec glass rv rv-d1"><h3>Automatic backups</h3><p>Every night at 2 AM, your entire clinic is safely copied across Indian data centres.</p>
+        <div class="backup-line"><i></i><s></s><span>Clinic</span><s></s><i></i><s></s><span>Mumbai DC</span><s></s><i></i><s></s><span>Hyderabad DC</span><s></s><i></i></div>
+      </div>
+      <div class="sec glass rv rv-d2"><h3>Compliance, handled</h3><p>Built for India's DPDP Act and ABDM-ready health records — so audits are a formality, not a fire drill.</p>
+        <div class="role-chips"><span class="chip">DPDP-ready</span><span class="chip">ABDM-compatible</span><span class="chip">Audit logs · 100%</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FINALE ================= -->
+<section id="finale">
+  <div class="wrap">
+    <span class="eyebrow rv" style="justify-content:center">Final scene — The clinic runs itself</span>
+    <h2 class="rv rv-d1" style="margin-top:26px">You heal patients.<br><em>We grow your practice.</em></h2>
+    <div class="fin-logo rv rv-d2">Clinic<span>OS</span></div>
+    <div class="fin-tag rv rv-d3">India's AI-Powered Clinic Growth Operating System</div>
+    <div class="hero-ctas rv rv-d4">
+      <a href="#" class="btn btn-primary magnetic">Book a Live Demo <span class="btn-arrow">→</span></a>
+      <a href="#" class="btn btn-ghost magnetic" style="color:var(--ink)">Start Your Digital Transformation</a>
+    </div>
+  </div>
+  <footer class="footer">
+    <span>© 2026 ClinicOS · Made in India 🇮🇳</span>
+    <span><a href="#">Privacy</a><a href="#">Security</a><a href="#">Contact</a></span>
+  </footer>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+<script>
+(function(){
+"use strict";
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const finePointer = matchMedia("(pointer: fine)").matches;
+const hasGSAP = typeof gsap !== "undefined";
+if (hasGSAP) gsap.registerPlugin(ScrollTrigger);
+
+/* ---------------- Custom cursor ---------------- */
+if (finePointer && !reduced){
+  document.body.classList.add("cursor-on");
+  const dot = document.querySelector(".cursor-dot");
+  const ring = document.querySelector(".cursor-ring");
+  let mx=innerWidth/2, my=innerHeight/2, rx=mx, ry=my;
+  addEventListener("mousemove", e => { mx=e.clientX; my=e.clientY; }, {passive:true});
+  (function loop(){
+    rx += (mx-rx)*0.16; ry += (my-ry)*0.16;
+    dot.style.transform = `translate(${mx}px,${my}px) translate(-50%,-50%)`;
+    ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`;
+    requestAnimationFrame(loop);
+  })();
+  document.querySelectorAll("a,button,.dcard,.module").forEach(el=>{
+    el.addEventListener("mouseenter",()=>ring.classList.add("is-hover"));
+    el.addEventListener("mouseleave",()=>ring.classList.remove("is-hover"));
+  });
+}
+
+/* ---------------- Mouse light on dark scenes ---------------- */
+if (finePointer && !reduced){
+  document.querySelectorAll(".mouselight").forEach(ml=>{
+    const scene = ml.parentElement;
+    scene.addEventListener("mousemove", e=>{
+      const r = scene.getBoundingClientRect();
+      ml.style.setProperty("--mx", ((e.clientX-r.left)/r.width*100)+"%");
+      ml.style.setProperty("--my", ((e.clientY-r.top)/r.height*100)+"%");
+    }, {passive:true});
+  });
+}
+
+/* ---------------- Magnetic buttons + ripple ---------------- */
+if (finePointer && !reduced){
+  document.querySelectorAll(".magnetic").forEach(btn=>{
+    btn.addEventListener("mousemove", e=>{
+      const r = btn.getBoundingClientRect();
+      const x = e.clientX - r.left - r.width/2;
+      const y = e.clientY - r.top - r.height/2;
+      btn.style.transform = `translate(${x*0.22}px, ${y*0.28}px)`;
+    });
+    btn.addEventListener("mouseleave", ()=>{ btn.style.transform = ""; });
+  });
+}
+document.querySelectorAll(".btn").forEach(btn=>{
+  btn.addEventListener("click", e=>{
+    const r = btn.getBoundingClientRect();
+    const rip = document.createElement("span");
+    rip.className = "ripple";
+    const s = Math.max(r.width, r.height);
+    rip.style.width = rip.style.height = s+"px";
+    rip.style.left = (e.clientX - r.left - s/2)+"px";
+    rip.style.top  = (e.clientY - r.top  - s/2)+"px";
+    btn.appendChild(rip);
+    setTimeout(()=>rip.remove(), 700);
+  });
+});
+
+/* ---------------- Nav ---------------- */
+const nav = document.getElementById("nav");
+requestAnimationFrame(()=>nav.classList.add("is-ready"));
+addEventListener("scroll", ()=>{
+  nav.classList.toggle("is-scrolled", scrollY > 60);
+}, {passive:true});
+
+/* ---------------- Reveal-on-scroll ---------------- */
+const io = new IntersectionObserver(entries=>{
+  entries.forEach(en=>{
+    if(en.isIntersecting){ en.target.classList.add("is-in"); io.unobserve(en.target); }
+  });
+}, {threshold:0.18, rootMargin:"0px 0px -6% 0px"});
+document.querySelectorAll(".rv").forEach(el=>io.observe(el));
+if (reduced) document.querySelectorAll(".rv").forEach(el=>el.classList.add("is-in"));
+
+/* ---------------- Count-up numbers ---------------- */
+const fmtIN = n => n.toLocaleString("en-IN");
+function countUp(el){
+  const target = parseFloat(el.dataset.count);
+  const dec = parseInt(el.dataset.decimals||"0",10);
+  const prefix = el.dataset.prefix||"";
+  const dur = 1800, t0 = performance.now();
+  function tick(t){
+    const p = Math.min((t-t0)/dur, 1);
+    const e = 1 - Math.pow(1-p, 4); // easeOutQuart
+    const v = target * e;
+    el.childNodes[0].nodeValue = prefix + (dec ? v.toFixed(dec) : fmtIN(Math.round(v)));
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+const ioCount = new IntersectionObserver(entries=>{
+  entries.forEach(en=>{
+    if(en.isIntersecting){
+      if (reduced){
+        const el = en.target, dec = parseInt(el.dataset.decimals||"0",10);
+        const v = parseFloat(el.dataset.count);
+        el.childNodes[0].nodeValue = (el.dataset.prefix||"") + (dec ? v.toFixed(dec) : fmtIN(v));
+      } else countUp(en.target);
+      ioCount.unobserve(en.target);
+    }
+  });
+},{threshold:0.6});
+document.querySelectorAll("[data-count]").forEach(el=>ioCount.observe(el));
+
+/* ---------------- SVG line-draw on scroll ---------------- */
+const ioDraw = new IntersectionObserver(entries=>{
+  entries.forEach(en=>{
+    if(!en.isIntersecting) return;
+    const svg = en.target;
+    svg.querySelectorAll(".draw-path").forEach(p=>{
+      const L = p.getTotalLength();
+      p.style.strokeDasharray = L;
+      p.style.strokeDashoffset = reduced ? 0 : L;
+      if(!reduced){
+        p.style.transition = "stroke-dashoffset 2.2s cubic-bezier(.16,1,.3,1)";
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{ p.style.strokeDashoffset = 0; }));
+      }
+    });
+    svg.querySelectorAll(".draw-fill").forEach(f=>{
+      f.style.transition = "opacity 1.6s ease 1s";
+      requestAnimationFrame(()=>{ f.style.opacity = 1; });
+    });
+    ioDraw.unobserve(svg);
+  });
+},{threshold:0.4});
+document.querySelectorAll("svg").forEach(s=>{
+  if (s.querySelector(".draw-path,.draw-fill")) ioDraw.observe(s);
+});
+
+/* ================================================================
+   HERO — canvas particles + cinematic scroll timeline
+   ================================================================ */
+const heroCanvas = document.getElementById("hero-canvas");
+const hctx = heroCanvas.getContext("2d");
+let HW, HH, particles = [];
+let convergence = 0;   // 0 = drifting, 1 = fully pulled into the core
+let burst = 0;         // logo particle burst
+function sizeHero(){
+  const dpr = Math.min(devicePixelRatio||1, 2);
+  HW = heroCanvas.clientWidth; HH = heroCanvas.clientHeight;
+  heroCanvas.width = HW*dpr; heroCanvas.height = HH*dpr;
+  hctx.setTransform(dpr,0,0,dpr,0,0);
+}
+sizeHero(); addEventListener("resize", sizeHero);
+const P_COUNT = innerWidth < 700 ? 60 : 130;
+for(let i=0;i<P_COUNT;i++){
+  particles.push({
+    x:Math.random(), y:Math.random(),
+    vx:(Math.random()-.5)*0.0004, vy:(Math.random()-.5)*0.0004,
+    r:Math.random()*1.8+0.5, a:Math.random()*0.5+0.15,
+    tw:Math.random()*Math.PI*2
+  });
+}
+let heroVisible = true;
+new IntersectionObserver(en=>{ heroVisible = en[0].isIntersecting; },{threshold:0}).observe(heroCanvas);
+let mouseX = 0.5, mouseY = 0.5;
+if(finePointer) addEventListener("mousemove", e=>{
+  mouseX = e.clientX/innerWidth; mouseY = e.clientY/innerHeight;
+},{passive:true});
+
+function drawHero(t){
+  requestAnimationFrame(drawHero);
+  if(!heroVisible || reduced) return;
+  hctx.clearRect(0,0,HW,HH);
+  const cx = HW/2, cy = HH/2;
+  for(const p of particles){
+    p.x += p.vx; p.y += p.vy; p.tw += 0.02;
+    if(p.x<0)p.x=1; if(p.x>1)p.x=0; if(p.y<0)p.y=1; if(p.y>1)p.y=0;
+    // pull toward centre with convergence
+    const px = p.x*HW + (mouseX-0.5)*22*p.r;
+    const py = p.y*HH + (mouseY-0.5)*22*p.r;
+    const dx = cx-px, dy = cy-py;
+    const pull = convergence*convergence;
+    const fx = px + dx*pull*0.92;
+    const fy = py + dy*pull*0.92;
+    const alpha = p.a*(0.6+0.4*Math.sin(p.tw)) * (1 - pull*0.25) * (burst>0 ? 1 : 1);
+    hctx.beginPath();
+    hctx.arc(fx, fy, p.r*(1+pull*1.5), 0, Math.PI*2);
+    hctx.fillStyle = `rgba(52,211,153,${alpha})`;
+    hctx.fill();
+  }
+  // logo burst ring
+  if(burst > 0){
+    hctx.beginPath();
+    hctx.arc(cx, cy, burst*Math.max(HW,HH)*0.5, 0, Math.PI*2);
+    hctx.strokeStyle = `rgba(52,211,153,${0.5*(1-burst)})`;
+    hctx.lineWidth = 1.5;
+    hctx.stroke();
+  }
+}
+requestAnimationFrame(drawHero);
+
+/* Hero intro (autoplay) */
+const hl1 = document.getElementById("hl1"), hl2 = document.getElementById("hl2");
+const scrollHint = document.getElementById("scrollHint");
+if (hasGSAP && !reduced){
+  gsap.timeline({delay:.5})
+    .to(hl1, {opacity:1, duration:1.6, ease:"power2.out"})
+    .to(hl2, {opacity:1, duration:1.6, ease:"power2.out"}, "+=0.7")
+    .to(scrollHint, {opacity:1, duration:1}, "+=0.4")
+    .to("#paperField .paper", {opacity:1, duration:1.4, stagger:0.08, ease:"power2.out"}, "-=1.2");
+  gsap.set("#paperField .paper", {opacity:0});
+} else {
+  hl1.style.opacity = hl2.style.opacity = 1;
+  scrollHint.style.opacity = 1;
+}
+
+/* Hero scroll story */
+const heroReveal = document.getElementById("heroReveal");
+if (hasGSAP && !reduced){
+  const papers = gsap.utils.toArray("#paperField .paper");
+  // Normalize to pixel left/top so animating `left` never fights a `right` anchor
+  const fieldRect = document.getElementById("paperField").getBoundingClientRect();
+  papers.forEach(p=>{
+    const r = p.getBoundingClientRect();
+    p.style.left = (r.left - fieldRect.left) + "px";
+    p.style.top  = (r.top  - fieldRect.top)  + "px";
+    p.style.right = "auto";
+  });
+  const tl = gsap.timeline({
+    scrollTrigger:{
+      trigger:"#hero", start:"top top", end:"+=2600",
+      scrub:0.8, pin:true, anticipatePin:1,
+      onUpdate(self){
+        convergence = gsap.utils.clamp(0,1,(self.progress-0.18)/0.3);
+        burst = self.progress > 0.52 ? gsap.utils.clamp(0,1,(self.progress-0.52)/0.2) : 0;
+        heroReveal.classList.toggle("is-live", self.progress > 0.62);
+      }
+    }
+  });
+  tl.to([hl1,hl2,scrollHint], {opacity:0, y:-40, filter:"blur(8px)", duration:0.12, stagger:0.02}, 0)
+    // papers converge into the core
+    .to(papers, {
+      left:"50%", top:"50%", xPercent:-50, yPercent:-50,
+      scale:0.1, opacity:0, rotate:()=>gsap.utils.random(-120,120),
+      duration:0.26, stagger:0.012, ease:"power2.in"
+    }, 0.10)
+    .fromTo("#core", {scale:0, opacity:0}, {scale:1, opacity:1, duration:0.14, ease:"power3.out"}, 0.22)
+    .to("#core", {scale:1.35, duration:0.1}, 0.4)
+    // core dissolves into the logo
+    .to("#core", {scale:0.12, opacity:0, duration:0.1, ease:"power3.in"}, 0.52)
+    .to(heroReveal, {opacity:1, duration:0.08}, 0.56)
+    .fromTo("#heroLogo span",
+      {opacity:0, y:()=>gsap.utils.random(-90,90), x:()=>gsap.utils.random(-140,140),
+       rotate:()=>gsap.utils.random(-70,70), filter:"blur(10px)"},
+      {opacity:1, y:0, x:0, rotate:0, filter:"blur(0px)", duration:0.14, stagger:0.008, ease:"power3.out"}, 0.56)
+    .fromTo(".rvh",
+      {opacity:0, y:44, filter:"blur(6px)"},
+      {opacity:1, y:0, filter:"blur(0px)", duration:0.16, stagger:0.02, ease:"power2.out"}, 0.66)
+    .to("#heroDash", {rotateX:6, y:0, duration:0.2, ease:"power2.out"}, 0.74);
+} else {
+  // Reduced motion / no GSAP: static composed hero
+  heroReveal.style.opacity = 1;
+  heroReveal.classList.add("is-live");
+  document.getElementById("paperField").style.display = "none";
+  hl1.style.display = hl2.style.display = "none";
+  document.getElementById("heroDash").style.transform = "none";
+}
+
+/* Hero mouse parallax on papers + dash */
+if (finePointer && !reduced){
+  const dEls = document.querySelectorAll("#hero [data-depth]");
+  addEventListener("mousemove", e=>{
+    const nx = e.clientX/innerWidth - 0.5, ny = e.clientY/innerHeight - 0.5;
+    dEls.forEach(el=>{
+      const d = parseFloat(el.dataset.depth);
+      el.style.translate = `${-nx*d*220}px ${-ny*d*160}px`;
+    });
+  },{passive:true});
+}
+
+/* ================================================================
+   SCENE 4 — dashboard tilt + sheen
+   ================================================================ */
+const dashGroup = document.getElementById("dashGroup");
+if (finePointer && !reduced && dashGroup){
+  const space = dashGroup.parentElement;
+  space.addEventListener("mousemove", e=>{
+    const r = space.getBoundingClientRect();
+    const nx = (e.clientX-r.left)/r.width - 0.5;
+    const ny = (e.clientY-r.top)/r.height - 0.5;
+    dashGroup.style.transform = `rotateY(${nx*7}deg) rotateX(${-ny*6}deg)`;
+  },{passive:true});
+  space.addEventListener("mouseleave", ()=>{ dashGroup.style.transform = ""; });
+  dashGroup.querySelectorAll(".dcard").forEach(card=>{
+    card.addEventListener("mousemove", e=>{
+      const r = card.getBoundingClientRect();
+      card.style.setProperty("--sx", ((e.clientX-r.left)/r.width*100)+"%");
+      card.style.setProperty("--sy", ((e.clientY-r.top)/r.height*100)+"%");
+    },{passive:true});
+  });
+}
+
+/* ================================================================
+   SCENE 5 — horizontal patient journey
+   ================================================================ */
+if (hasGSAP && !reduced){
+  const track = document.getElementById("journeyTrack");
+  const getDist = () => Math.max(0, track.scrollWidth - innerWidth + 60);
+  gsap.to(track, {
+    x:()=>-getDist(),
+    ease:"none",
+    scrollTrigger:{
+      trigger:"#journeyPin", start:"top top",
+      end:()=>"+=" + (getDist()+400),
+      scrub:0.6, pin:true, anticipatePin:1, invalidateOnRefresh:true,
+      onUpdate(self){
+        const pct = self.progress*100;
+        document.getElementById("jFill").style.width = pct+"%";
+        document.getElementById("jWalker").style.left = pct+"%";
+      }
+    }
+  });
+}
+
+/* ================================================================
+   SCENE 6 — neural canvas + AI feed
+   ================================================================ */
+const aiCanvas = document.getElementById("ai-canvas");
+const actx = aiCanvas.getContext("2d");
+let AW, AH, nodes=[];
+function sizeAI(){
+  const dpr = Math.min(devicePixelRatio||1, 2);
+  AW = aiCanvas.clientWidth; AH = aiCanvas.clientHeight;
+  aiCanvas.width = AW*dpr; aiCanvas.height = AH*dpr;
+  actx.setTransform(dpr,0,0,dpr,0,0);
+}
+sizeAI(); addEventListener("resize", sizeAI);
+const N_COUNT = innerWidth < 700 ? 26 : 54;
+for(let i=0;i<N_COUNT;i++){
+  nodes.push({ x:Math.random(), y:Math.random(),
+    vx:(Math.random()-.5)*0.0007, vy:(Math.random()-.5)*0.0007,
+    r:Math.random()*1.6+0.8 });
+}
+let aiVisible = false;
+new IntersectionObserver(en=>{ aiVisible = en[0].isIntersecting; },{threshold:0}).observe(aiCanvas);
+function drawAI(){
+  requestAnimationFrame(drawAI);
+  if(!aiVisible || reduced) return;
+  actx.clearRect(0,0,AW,AH);
+  for(const n of nodes){
+    n.x += n.vx; n.y += n.vy;
+    if(n.x<0||n.x>1) n.vx*=-1;
+    if(n.y<0||n.y>1) n.vy*=-1;
+  }
+  for(let i=0;i<nodes.length;i++){
+    const a = nodes[i];
+    for(let j=i+1;j<nodes.length;j++){
+      const b = nodes[j];
+      const dx=(a.x-b.x)*AW, dy=(a.y-b.y)*AH;
+      const d2 = dx*dx+dy*dy;
+      if(d2 < 150*150){
+        const o = (1 - Math.sqrt(d2)/150)*0.35;
+        actx.beginPath();
+        actx.moveTo(a.x*AW, a.y*AH); actx.lineTo(b.x*AW, b.y*AH);
+        actx.strokeStyle = `rgba(52,211,153,${o})`;
+        actx.lineWidth = 0.7;
+        actx.stroke();
+      }
+    }
+  }
+  for(const n of nodes){
+    actx.beginPath();
+    actx.arc(n.x*AW, n.y*AH, n.r, 0, Math.PI*2);
+    actx.fillStyle = "rgba(52,211,153,.65)";
+    actx.fill();
+  }
+}
+requestAnimationFrame(drawAI);
+
+/* AI messages appear one by one */
+const aiMsgs = document.querySelectorAll("#aiFeed .ai-msg");
+new IntersectionObserver((en,obs)=>{
+  if(!en[0].isIntersecting) return;
+  aiMsgs.forEach((m,i)=>setTimeout(()=>m.classList.add("is-in"), reduced?0:400+i*750));
+  obs.disconnect();
+},{threshold:0.35}).observe(document.getElementById("aiFeed"));
+
+/* ================================================================
+   SCENE 8 — map pins pop in
+   ================================================================ */
+const pinsG = document.getElementById("mapPins");
+new IntersectionObserver((en,obs)=>{
+  if(!en[0].isIntersecting) return;
+  obs.disconnect();
+  const spots = [[92,72],[318,58],[140,222],[288,182],[58,150],[352,240],[236,96],[172,120],[330,132],[120,60],[262,246],[76,246]];
+  spots.forEach(([x,y],i)=>{
+    setTimeout(()=>{
+      const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+      g.innerHTML = `<circle cx="${x}" cy="${y}" r="4.5" fill="#E8B341" style="transform-origin:${x}px ${y}px; animation:pinpop .6s cubic-bezier(.34,1.56,.64,1) both"/>
+                     <text x="${x}" y="${y-9}" text-anchor="middle" font-size="8.5" fill="#B8860B" font-family="IBM Plex Mono">★5.0</text>`;
+      pinsG.appendChild(g);
+    }, reduced ? 0 : i*260);
+  });
+},{threshold:0.4}).observe(document.getElementById("mapSvg"));
+
+/* ================================================================
+   SCENE 9 — WhatsApp stream
+   ================================================================ */
+const waBubbles = document.querySelectorAll("#waStream .wa-bubble");
+new IntersectionObserver((en,obs)=>{
+  if(!en[0].isIntersecting) return;
+  waBubbles.forEach((b,i)=>setTimeout(()=>b.classList.add("is-in"), reduced?0:i*420));
+  obs.disconnect();
+},{threshold:0.25}).observe(document.getElementById("waStream"));
+
+/* ================================================================
+   SCENE 11 — growth score pin
+   ================================================================ */
+const ARC_LEN = 553; // 2πr, r=88
+const scoreNum = document.getElementById("scoreNum");
+const scoreArc = document.getElementById("scoreArc");
+const scoreGlow = document.getElementById("scoreGlow");
+const smBars = document.querySelectorAll("#scoreMetrics .sm-bar i");
+const smLabels = document.querySelectorAll("#scoreMetrics small b");
+const smStarts = Array.from(smLabels).map(b=>parseInt(b.textContent));
+function setScore(p){ // p 0..1
+  const val = Math.round(72 + (96-72)*p);
+  scoreNum.textContent = val;
+  scoreArc.style.strokeDashoffset = ARC_LEN * (1 - val/100);
+  scoreGlow.style.opacity = 0.15 + p*0.5;
+  smBars.forEach((bar,i)=>{
+    const start = smStarts[i], end = parseInt(bar.dataset.w);
+    const v = Math.round(start + (end-start)*p);
+    bar.style.width = v+"%";
+    smLabels[i].textContent = v+"%";
+  });
+}
+if (hasGSAP && !reduced){
+  const st = {p:0};
+  gsap.to(st, {
+    p:1, ease:"none",
+    scrollTrigger:{
+      trigger:"#scorePin", start:"top top", end:"+=1400",
+      scrub:0.5, pin:true, anticipatePin:1
+    },
+    onUpdate:()=>setScore(st.p)
+  });
+  setScore(0);
+} else {
+  setScore(1);
+}
+
+/* Refresh triggers after fonts/layout settle */
+if (hasGSAP) addEventListener("load", ()=>ScrollTrigger.refresh());
+})();
+</script>
+</body>
+</html>

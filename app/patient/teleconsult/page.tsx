@@ -29,22 +29,39 @@ export default async function PatientTeleconsultPage() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {active.map((session) => (
-            <Card key={session.id} hover>
-              <div className="flex items-center justify-between mb-3">
-                <p className="font-semibold">
-                  Dr. {(session.doctors as { profiles: { full_name: string } })?.profiles?.full_name ?? "—"}
+          {active.map((session) => {
+            const hasMeetLink = Boolean(session.meeting_url || session.daily_room_url);
+            const apt = session.appointments as { appointment_date: string; appointment_time: string } | null;
+
+            return (
+              <Card key={session.id} hover>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="font-semibold">
+                      Dr. {(session.doctors as { profiles: { full_name: string } })?.profiles?.full_name ?? "—"}
+                    </p>
+                    {apt && (
+                      <p className="text-sm text-[var(--text-muted)]">
+                        {apt.appointment_date} · {apt.appointment_time}
+                      </p>
+                    )}
+                  </div>
+                  <StatusBadge status={session.status} />
+                </div>
+                <p className="text-sm text-[var(--text-muted)] mb-4">
+                  {hasMeetLink
+                    ? "Google Meet link sent to your WhatsApp."
+                    : "Your doctor will send the Google Meet link on WhatsApp."}
                 </p>
-                <StatusBadge status={session.status} />
-              </div>
-              <Link href={`/patient/teleconsult/${session.id}`}>
-                <Button className="w-full gap-2" variant={session.status === "in_progress" ? "primary" : "secondary"}>
-                  <Video className="h-4 w-4" />
-                  {session.status === "waiting" ? "Waiting Room" : "Join Call"}
-                </Button>
-              </Link>
-            </Card>
-          ))}
+                <Link href={`/patient/teleconsult/${session.id}`}>
+                  <Button className="w-full gap-2" variant={hasMeetLink ? "primary" : "secondary"}>
+                    <Video className="h-4 w-4" />
+                    {hasMeetLink ? "Join Google Meet" : "View session"}
+                  </Button>
+                </Link>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
