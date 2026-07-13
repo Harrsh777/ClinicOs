@@ -126,28 +126,34 @@ function KpiCard({
 }) {
   const positive = (growth ?? 0) >= 0;
   const content = (
-    <Card hover className="relative overflow-hidden !p-5">
+    <Card hover className="relative flex h-full min-h-[10.5rem] flex-col overflow-hidden !p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-[var(--text-secondary)]">{label}</p>
           <p className="mt-1 text-2xl font-bold tracking-tight text-[var(--text-primary)]">{value}</p>
-          {growth !== undefined && (
-            <div className="mt-2 flex items-center gap-1">
-              {positive ? (
-                <TrendingUp className="h-3.5 w-3.5 text-[var(--success-500)]" />
-              ) : (
-                <TrendingDown className="h-3.5 w-3.5 text-[var(--danger-500)]" />
-              )}
-              <span
-                className={cn(
-                  "text-xs font-semibold",
-                  positive ? "text-[var(--success-500)]" : "text-[var(--danger-500)]"
+          <div className="mt-2 flex h-5 items-center gap-1">
+            {growth !== undefined ? (
+              <>
+                {positive ? (
+                  <TrendingUp className="h-3.5 w-3.5 text-[var(--success-500)]" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5 text-[var(--danger-500)]" />
                 )}
-              >
-                {formatGrowth(growth)}
+                <span
+                  className={cn(
+                    "text-xs font-semibold",
+                    positive ? "text-[var(--success-500)]" : "text-[var(--danger-500)]"
+                  )}
+                >
+                  {formatGrowth(growth)}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs text-transparent select-none" aria-hidden>
+                —
               </span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
@@ -156,15 +162,17 @@ function KpiCard({
           {icon}
         </div>
       </div>
-      {sparkline && sparkline.length > 0 && (
-        <div className="mt-3 -mb-1">
+      <div className="mt-auto h-12 pt-3">
+        {sparkline && sparkline.length > 0 ? (
           <MiniSparkline data={sparkline} color={iconBg} />
-        </div>
-      )}
+        ) : (
+          <div className="h-12" aria-hidden />
+        )}
+      </div>
     </Card>
   );
 
-  if (href) return <Link href={href}>{content}</Link>;
+  if (href) return <Link href={href} className="block h-full w-full">{content}</Link>;
   return content;
 }
 
@@ -353,7 +361,7 @@ export function ExecutiveDashboard({
   userName: string;
 }) {
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const [liveTime, setLiveTime] = useState(() => new Date());
   const [revenueDays, setRevenueDays] = useState<RevenueChartDays>(14);
   const [dailyRevenue, setDailyRevenue] = useState(data.charts.dailyRevenue);
   const [revenueLoading, setRevenueLoading] = useState(false);
@@ -379,8 +387,12 @@ export function ExecutiveDashboard({
   const refreshOperations = useCallback(async () => {
     const snapshot = await getDashboardOperationsSnapshot(clinicId);
     setLiveOps(snapshot);
-    setLastUpdated(new Date());
   }, [clinicId]);
+
+  useEffect(() => {
+    const clock = setInterval(() => setLiveTime(new Date()), 1000);
+    return () => clearInterval(clock);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -434,8 +446,8 @@ export function ExecutiveDashboard({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="shrink-0">
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl">
             Welcome Back {firstName} 👋
           </h1>
@@ -443,31 +455,31 @@ export function ExecutiveDashboard({
             Patient reports here always update in real time.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 sm:min-w-[240px]">
+        <div className="flex flex-nowrap items-center gap-2">
+          <div className="relative min-w-[12rem] flex-1 sm:min-w-[16rem] sm:flex-none sm:w-64">
             <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               type="search"
               placeholder="Search anything here..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="clinic-input w-full rounded-2xl py-2.5 pl-10 pr-4"
+              className="clinic-input h-10 w-full rounded-2xl py-2.5 pl-10 pr-4"
             />
           </div>
           <select
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="clinic-input rounded-2xl py-2.5 pl-4 pr-8 text-sm"
+            className="clinic-input !w-auto h-10 shrink-0 rounded-2xl py-2.5 pl-3 pr-7 text-sm"
           >
             <option value="week">Last Week</option>
             <option value="month">Last Month</option>
             <option value="quarter">Last Quarter</option>
           </select>
-          <Button className="gap-2 rounded-2xl">
+          <Button className="h-10 shrink-0 gap-2 rounded-2xl whitespace-nowrap">
             <Upload className="h-4 w-4" />
             Export
           </Button>
-          <Button variant="secondary" size="sm" className="gap-2 rounded-xl" onClick={handleRefresh} disabled={refreshing}>
+          <Button variant="secondary" size="sm" className="h-10 w-10 shrink-0 gap-2 rounded-xl p-0" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           </Button>
         </div>
@@ -482,8 +494,13 @@ export function ExecutiveDashboard({
           </span>
           Live data
         </span>
-        <span className="text-xs text-[var(--text-muted)]">
-          Updated {lastUpdated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+        <span className="text-xs font-medium tabular-nums text-[var(--text-muted)]" suppressHydrationWarning>
+          {liveTime.toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+          })}
         </span>
       </div>
 
@@ -506,7 +523,7 @@ export function ExecutiveDashboard({
 
       {/* KPI row — 12-col grid */}
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
-        <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+        <div className="col-span-12 flex sm:col-span-6 lg:col-span-3">
           <KpiCard
             label="Total Patients"
             value={operations.totalPatients.toLocaleString("en-IN")}
@@ -517,17 +534,17 @@ export function ExecutiveDashboard({
             href="/owner/patients"
           />
         </div>
-        <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+        <div className="col-span-12 flex sm:col-span-6 lg:col-span-3">
           <KpiCard
             label="Consultations"
             value={operations.totalConsultations.toLocaleString("en-IN")}
-            growth={10.78}
+            growth={data.business.consultationGrowth}
             icon={<Stethoscope className="h-5 w-5" />}
             iconBg="#8B5CF6"
             href="/owner/consultations"
           />
         </div>
-        <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+        <div className="col-span-12 flex sm:col-span-6 lg:col-span-3">
           <KpiCard
             label="Revenue Today"
             value={formatCurrency(data.business.revenueToday)}
@@ -538,7 +555,7 @@ export function ExecutiveDashboard({
             href="/owner/revenue"
           />
         </div>
-        <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+        <div className="col-span-12 flex sm:col-span-6 lg:col-span-3">
           <KpiCard
             label="Patients Waiting"
             value={String(operations.patientsWaiting)}

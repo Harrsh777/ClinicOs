@@ -4,10 +4,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   PLATFORM_ADMIN_COOKIE,
-  createPlatformAdminSessionToken,
   platformAdminCookieOptions,
-  verifyPlatformAdminPassword,
-} from "@/lib/auth/platform-admin";
+} from "@/lib/auth/platform-admin.constants";
+import { createPlatformAdminSessionToken } from "@/lib/auth/platform-admin-session";
+import { verifyPlatformAdminPassword } from "@/lib/auth/platform-admin-password";
 
 export async function platformAdminLoginAction(formData: FormData) {
   const password = String(formData.get("password") ?? "");
@@ -16,7 +16,11 @@ export async function platformAdminLoginAction(formData: FormData) {
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(PLATFORM_ADMIN_COOKIE, createPlatformAdminSessionToken(), platformAdminCookieOptions);
+  cookieStore.set(
+    PLATFORM_ADMIN_COOKIE,
+    await createPlatformAdminSessionToken(),
+    platformAdminCookieOptions
+  );
 
   redirect("/admin");
 }

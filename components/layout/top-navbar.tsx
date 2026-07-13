@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Activity,
   LogOut,
@@ -12,8 +13,6 @@ import {
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import type { TopNavItem } from "@/lib/navigation/build-top-nav";
-import { sectionIsActive } from "@/lib/navigation/build-top-nav";
-import type { SidebarSectionResolved } from "@/lib/navigation/types";
 import type { Profile } from "@/lib/types/database";
 import { logoutAction } from "@/lib/actions/auth";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -27,7 +26,6 @@ function isHrefActive(pathname: string, href: string) {
 interface TopNavbarProps {
   profile: Profile;
   navItems: TopNavItem[];
-  sections: SidebarSectionResolved[];
   clinicName?: string;
   basePath: string;
 }
@@ -44,14 +42,40 @@ function NavDropdown({
   onToggle: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; minWidth: number } | null>(null);
   const active =
     item.children.some((c) => isHrefActive(pathname, c.href));
 
   useEffect(() => {
+    function updatePosition() {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuStyle({
+        top: rect.bottom + 8,
+        left: rect.left,
+        minWidth: rect.width,
+      });
+    }
+
+    if (open) {
+      updatePosition();
+      window.addEventListener("resize", updatePosition);
+      window.addEventListener("scroll", updatePosition, true);
+      return () => {
+        window.removeEventListener("resize", updatePosition);
+        window.removeEventListener("scroll", updatePosition, true);
+      };
+    }
+    setMenuStyle(null);
+  }, [open]);
+
+  useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        if (open) onToggle();
-      }
+      const target = e.target as Node;
+      const clickedMenu = ref.current?.contains(target);
+      const clickedButton = buttonRef.current?.contains(target);
+      if (!clickedMenu && !clickedButton && open) onToggle();
     }
     if (open) {
       document.addEventListener("mousedown", handleClickOutside);
@@ -72,9 +96,43 @@ function NavDropdown({
     );
   }
 
+  const dropdownMenu =
+    open && menuStyle
+      ? createPortal(
+          <div
+            ref={ref}
+            className="clinic-topnav-dropdown open"
+            style={{
+              position: "fixed",
+              top: menuStyle.top,
+              left: menuStyle.left,
+              width: "max-content",
+              minWidth: menuStyle.minWidth,
+              zIndex: 80,
+            }}
+          >
+            {item.children.map((child) => (
+              <Link
+                key={child.key}
+                href={child.href}
+                className={cn(
+                  "clinic-topnav-dropdown-item",
+                  isHrefActive(pathname, child.href) && "active"
+                )}
+                onClick={onToggle}
+              >
+                {child.name}
+              </Link>
+            ))}
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={buttonRef}
         type="button"
         onClick={onToggle}
         className={cn("clinic-topnav-pill", active && "active")}
@@ -83,22 +141,8 @@ function NavDropdown({
         {item.label}
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
       </button>
-      <div className={cn("clinic-topnav-dropdown", open && "open")} style={{ left: 0, right: "auto", minWidth: "11rem" }}>
-        {item.children.map((child) => (
-          <Link
-            key={child.key}
-            href={child.href}
-            className={cn(
-              "clinic-topnav-dropdown-item",
-              isHrefActive(pathname, child.href) && "active"
-            )}
-            onClick={onToggle}
-          >
-            {child.name}
-          </Link>
-        ))}
-      </div>
-    </div>
+      {dropdownMenu}
+    </>
   );
 }
 
@@ -148,28 +192,10 @@ function UserMenu({ profile }: { profile: Profile }) {
   );
 }
 
-export function TopNavbar({ profile, navItems, sections, clinicName, basePath }: TopNavbarProps) {
+export function TopNavbar({ profile, navItems, clinicName, basePath }: TopNavbarProps) {
   const pathname = usePathname();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const activeSection = useMemo(() => {
-    for (const section of sections) {
-      if (sectionIsActive(section, pathname)) return section;
-    }
-    return null;
-  }, [pathname, sections]);
-
-  const subNavItems = useMemo(() => {
-    if (!activeSection) return [];
-    const items: { key: string; name: string; href: string }[] = [];
-    for (const group of activeSection.groups) {
-      for (const item of group.items) {
-        items.push({ key: item.key, name: item.name, href: item.href });
-      }
-    }
-    return items.length > 1 ? items : [];
-  }, [activeSection]);
 
   return (
     <>
@@ -189,19 +215,21 @@ export function TopNavbar({ profile, navItems, sections, clinicName, basePath }:
             </div>
           </Link>
 
-          <nav className="clinic-topnav-pills hidden lg:flex" aria-label="Main navigation">
-            {navItems.map((item) => (
-              <NavDropdown
-                key={item.key}
-                item={item}
-                pathname={pathname}
-                open={openDropdown === item.key}
-                onToggle={() =>
-                  setOpenDropdown((prev) => (prev === item.key ? null : item.key))
-                }
-              />
-            ))}
-          </nav>
+          <div className="clinic-topnav-pills-wrap hidden lg:block">
+            <nav className="clinic-topnav-pills" aria-label="Main navigation">
+              {navItems.map((item) => (
+                <NavDropdown
+                  key={item.key}
+                  item={item}
+                  pathname={pathname}
+                  open={openDropdown === item.key}
+                  onToggle={() =>
+                    setOpenDropdown((prev) => (prev === item.key ? null : item.key))
+                  }
+                />
+              ))}
+            </nav>
+          </div>
 
           <div className="clinic-topnav-actions">
             <NotificationBell variant="light" />
@@ -216,23 +244,6 @@ export function TopNavbar({ profile, navItems, sections, clinicName, basePath }:
             </button>
           </div>
         </div>
-
-        {subNavItems.length > 0 && (
-          <div className="clinic-topnav-subnav">
-            {subNavItems.map((item) => (
-              <Link
-                key={item.key}
-                href={item.href}
-                className={cn(
-                  "clinic-topnav-subpill",
-                  isHrefActive(pathname, item.href) && "active"
-                )}
-              >
-                {item.name}
-              </Link>
-            ))}
-          </div>
-        )}
       </header>
 
       {mobileOpen && (

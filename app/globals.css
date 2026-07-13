@@ -263,6 +263,7 @@ body {
   z-index: 50;
   padding: 1rem 1.5rem 0;
   background: transparent;
+  overflow: visible;
 }
 
 .clinic-topnav-inner {
@@ -276,6 +277,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-glass);
+  overflow: visible;
 }
 
 .clinic-topnav-brand {
@@ -298,20 +300,34 @@ body {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
+.clinic-topnav-pills-wrap {
+  flex: 1;
+  min-width: 0;
+  max-width: 38rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-1);
+}
+
 .clinic-topnav-pills {
   display: flex;
   align-items: center;
   gap: 0.25rem;
   padding: 0.25rem;
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
   overflow-x: auto;
-  scrollbar-width: none;
-  flex: 1;
-  min-width: 0;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  -webkit-overflow-scrolling: touch;
 }
-.clinic-topnav-pills::-webkit-scrollbar { display: none; }
+.clinic-topnav-pills::-webkit-scrollbar {
+  height: 4px;
+}
+.clinic-topnav-pills::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
 
 .clinic-topnav-pill {
   display: inline-flex;
@@ -328,6 +344,7 @@ body {
   border: none;
   background: transparent;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .clinic-topnav-pill:hover {
@@ -401,7 +418,9 @@ body {
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 0;
-  min-width: 12rem;
+  width: max-content;
+  min-width: 10rem;
+  max-width: min(20rem, calc(100vw - 2rem));
   overflow: hidden;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
@@ -421,10 +440,11 @@ body {
 
 .clinic-topnav-dropdown-item {
   display: flex;
-  width: 100%;
+  width: auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
+  white-space: nowrap;
   border: none;
   background: transparent;
   color: var(--text-primary);

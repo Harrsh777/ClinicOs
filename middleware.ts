@@ -9,10 +9,8 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_ROUTES, type Profile } from "@/lib/types/database";
 import { getClinicFeatures, getFeatureRouteGuard, isFeatureEnabled } from "@/lib/clinic/features";
 import { isShortClinicPortalPath, resolveAnyShortClinicPath } from "@/lib/portal/public-urls";
-import {
-  PLATFORM_ADMIN_COOKIE,
-  verifyPlatformAdminSession,
-} from "@/lib/auth/platform-admin";
+import { PLATFORM_ADMIN_COOKIE } from "@/lib/auth/platform-admin.constants";
+import { verifyPlatformAdminSession } from "@/lib/auth/platform-admin-session";
 
 const PUBLIC_ROUTES = ["/", "/login", "/signup", "/register", "/invite", "/privacy", "/terms", "/pricing", "/forgot-password"];
 const PUBLIC_PREFIXES = ["/check-in/", "/queue/", "/c/", "/api/health", "/api/webhooks/", "/api/portal/", "/activate/", "/reset-password/"];
@@ -99,7 +97,7 @@ function withPathname(
   return response;
 }
 
-function hasPlatformAdminSession(request: NextRequest) {
+async function hasPlatformAdminSession(request: NextRequest) {
   return verifyPlatformAdminSession(request.cookies.get(PLATFORM_ADMIN_COOKIE)?.value);
 }
 
@@ -117,14 +115,14 @@ export async function middleware(request: NextRequest) {
   const { supabase, user, supabaseResponse } = await updateSession(request);
 
   if (pathname === "/admin/login") {
-    if (hasPlatformAdminSession(request)) {
+    if (await hasPlatformAdminSession(request)) {
       return NextResponse.redirect(new URL("/admin", request.url));
     }
     return withPathname(request, supabaseResponse, pathname);
   }
 
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-    if (!hasPlatformAdminSession(request)) {
+    if (!(await hasPlatformAdminSession(request))) {
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }
     return withPathname(request, supabaseResponse, pathname);

@@ -44,7 +44,6 @@ export async function DashboardShell({ profile, basePath, children }: DashboardS
         <TopNavbar
           profile={profile}
           navItems={navItems}
-          sections={sections}
           clinicName={clinicName}
           basePath={basePath}
         />
@@ -61,7 +60,6 @@ export async function DashboardShell({ profile, basePath, children }: DashboardS
       <TopNavbar
         profile={profile}
         navItems={navItems}
-        sections={sections}
         clinicName={clinicName}
         basePath={basePath}
       />

@@ -42,6 +42,7 @@ export interface ExecutiveDashboardData {
     outstandingCount: number;
     revenueGrowth: number;
     patientGrowth: number;
+    consultationGrowth: number;
   };
   operations: {
     patientsWaiting: number;
@@ -225,6 +226,7 @@ async function getDashboardExtras(clinicIds: string[]) {
     { data: monthAppointments },
     { count: totalPatients },
     { count: totalConsultations },
+    { count: prevMonthConsultations },
     { data: prevMonthPayments },
   ] = await Promise.all([
     supabase
@@ -279,6 +281,12 @@ async function getDashboardExtras(clinicIds: string[]) {
       .select("id", { count: "exact", head: true })
       .in("clinic_id", clinicIds)
       .gte("started_at", `${monthStartStr}T00:00:00`),
+    supabase
+      .from("consultations")
+      .select("id", { count: "exact", head: true })
+      .in("clinic_id", clinicIds)
+      .gte("started_at", `${new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1).toISOString().split("T")[0]}T00:00:00`)
+      .lt("started_at", `${monthStartStr}T00:00:00`),
     supabase
       .from("payments")
       .select("amount, paid_at")
@@ -363,6 +371,7 @@ async function getDashboardExtras(clinicIds: string[]) {
     weeklyPatients,
     totalPatients: totalPatients ?? 0,
     totalConsultations: totalConsultations ?? 0,
+    prevMonthConsultations: prevMonthConsultations ?? 0,
     prevMonthRevenue,
   };
 }
@@ -661,6 +670,10 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
     extras.totalPatients > 0
       ? (growth.newPatients / extras.totalPatients) * 100
       : 0;
+  const consultationGrowth =
+    extras.prevMonthConsultations > 0
+      ? ((extras.totalConsultations - extras.prevMonthConsultations) / extras.prevMonthConsultations) * 100
+      : 0;
 
   const pendingFollowUps = followUps.filter(
     (f) => !["adherence_yes", "adherence_no"].includes(f.status)
@@ -673,6 +686,7 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
     outstandingCount,
     revenueGrowth: Math.round(revenueGrowth * 100) / 100,
     patientGrowth: Math.round(patientGrowth * 100) / 100,
+    consultationGrowth: Math.round(consultationGrowth * 100) / 100,
   };
 
   const operationsWithTotals = {
