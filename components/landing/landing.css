@@ -1092,11 +1092,8 @@
 
 /* AI section */
 .landing .ai-section {
-  background: var(--navy);
-  border: 1px solid rgba(252, 251, 248, 0.08);
-  border-radius: 44px;
-  margin: 0 14px;
-  color: var(--white);
+  background: var(--white);
+  color: var(--ink);
   position: relative;
   overflow: hidden;
 }
@@ -1110,25 +1107,17 @@
   width: 900px;
   height: 600px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(46, 99, 255, 0.28), transparent);
+  background: radial-gradient(closest-side, rgba(46, 99, 255, 0.06), transparent);
   filter: blur(40px);
   pointer-events: none;
 }
 
-.landing .ai-section .eyebrow {
-  color: var(--mint);
-}
-
-.landing .ai-section .eyebrow::before {
-  background: var(--mint);
-}
-
 .landing .ai-section h2 {
-  color: var(--white);
+  color: var(--navy);
 }
 
 .landing .ai-section .lead {
-  color: var(--muted-light);
+  color: var(--muted);
 }
 
 .landing .ai-grid {
@@ -1142,14 +1131,16 @@
 .landing .ai-card {
   border-radius: var(--radius);
   padding: 34px 32px;
-  background: linear-gradient(160deg, rgba(252, 251, 248, 0.07), rgba(252, 251, 248, 0.02));
-  border: 1px solid rgba(252, 251, 248, 0.1);
-  transition: border-color 0.4s, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: var(--warm);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.4s, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s;
 }
 
 .landing .ai-card:hover {
-  border-color: rgba(94, 230, 192, 0.4);
+  border-color: rgba(46, 99, 255, 0.25);
   transform: translateY(-4px);
+  box-shadow: 0 24px 60px -15px rgba(6, 11, 28, 0.12);
 }
 
 .landing .ai-emoji {
@@ -1163,10 +1154,11 @@
   font-weight: 700;
   letter-spacing: -0.01em;
   margin-bottom: 12px;
+  color: var(--navy);
 }
 
 .landing .ai-card p {
-  color: var(--muted-light);
+  color: var(--muted);
   font-size: 16px;
   line-height: 1.75;
 }
@@ -1386,10 +1378,8 @@
 
 /* Pricing */
 .landing .pricing-section {
-  background: linear-gradient(160deg, rgba(252, 251, 248, 0.04), rgba(252, 251, 248, 0.01));
-  border: 1px solid rgba(252, 251, 248, 0.07);
-  border-radius: 44px;
-  margin: 0 14px;
+  background: var(--white);
+  color: var(--ink);
   position: relative;
   overflow: hidden;
 }
@@ -1402,9 +1392,17 @@
   width: 500px;
   height: 400px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(108, 123, 255, 0.14), transparent);
+  background: radial-gradient(closest-side, rgba(108, 123, 255, 0.06), transparent);
   filter: blur(40px);
   pointer-events: none;
+}
+
+.landing .pricing-section h2 {
+  color: var(--navy);
+}
+
+.landing .pricing-section .lead {
+  color: var(--muted);
 }
 
 .landing .price-grid {
@@ -1416,22 +1414,21 @@
 }
 
 .landing .price-card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  background: var(--warm);
+  border: 1px solid var(--line);
   border-radius: 28px;
   padding: 38px 34px;
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  color: var(--white);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
   transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s, border-color 0.4s;
 }
 
 .landing .price-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.45);
-  border-color: rgba(252, 251, 248, 0.2);
+  box-shadow: 0 24px 60px -15px rgba(6, 11, 28, 0.12);
+  border-color: rgba(46, 99, 255, 0.2);
 }
 
 .landing .price-card.featured {
@@ -1494,12 +1491,20 @@
   margin: 22px 0 4px;
 }
 
+.landing .price {
+  color: var(--navy);
+}
+
 .landing .price small {
   font-size: 16px;
   font-family: "Inter";
   font-weight: 500;
-  color: var(--muted-light);
+  color: var(--muted);
   letter-spacing: 0;
+}
+
+.landing .featured .price {
+  color: var(--white);
 }
 
 .landing .featured .price small {
@@ -1508,7 +1513,7 @@
 
 .landing .plan-desc {
   font-size: 14.5px;
-  color: var(--muted-light);
+  color: var(--muted);
   line-height: 1.6;
   margin-bottom: 28px;
 }
@@ -1560,8 +1565,8 @@
   border-radius: 100px;
   font-weight: 600;
   font-size: 15px;
-  border: 1.5px solid rgba(252, 251, 248, 0.35);
-  color: var(--white);
+  border: 1.5px solid var(--navy);
+  color: var(--navy);
   background: transparent;
   cursor: pointer;
   font-family: inherit;
@@ -1569,8 +1574,8 @@
 }
 
 .landing .price-btn:hover {
-  background: rgba(252, 251, 248, 0.1);
-  border-color: rgba(252, 251, 248, 0.6);
+  background: var(--navy);
+  border-color: var(--navy);
   color: var(--white);
   transform: translateY(-2px);
 }
@@ -1591,11 +1596,11 @@
   text-align: center;
   margin-top: 36px;
   font-size: 13.5px;
-  color: var(--muted-light);
+  color: var(--muted);
 }
 
 .landing .price-note b {
-  color: var(--white);
+  color: var(--navy);
 }
 
 /* ROI */
@@ -1918,21 +1923,22 @@
   color: var(--white);
 }
 
-.landing .foot-bottom-meta {
+.landing .foot-founder-wrap {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
+  justify-content: center;
+  margin-top: 28px;
+  position: relative;
 }
 
 .landing .foot-founder {
-  color: var(--muted-light);
+  color: var(--white);
   text-decoration: none;
+  font-size: 13px;
   transition: color 0.25s;
 }
 
 .landing .foot-founder:hover {
-  color: var(--white);
+  color: #9aa0b8;
 }
 
 .landing .demo-modal::backdrop {

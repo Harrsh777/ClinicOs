@@ -800,17 +800,17 @@ export function ClinicosLanding() {
           </div>
           <div className="foot-bottom">
             <span>© 2026 ClinicOS Technologies Pvt. Ltd. · Bengaluru, India</span>
-            <span className="foot-bottom-meta">
-              <a
-                href="https://harshsrivastava.in/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="foot-founder"
-              >
-                Founded by Harsh Srivastava
-              </a>
-              <span>Made with care for Indian healthcare 🇮🇳</span>
-            </span>
+            <span>Made with care for Indian healthcare 🇮🇳</span>
+          </div>
+          <div className="foot-founder-wrap">
+            <a
+              href="https://harshsrivastava.in/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="foot-founder"
+            >
+              Founded by Harsh Srivastava
+            </a>
           </div>
         </div>
       </footer>
