@@ -58,6 +58,11 @@ const CHART_BLUE_LIGHT = "#93C5FD";
 const CHART_BLUE_MID = "#60A5FA";
 const REVENUE_PERIODS: RevenueChartDays[] = [7, 14, 30];
 
+const CHART_TOOLTIP_PROPS = {
+  allowEscapeViewBox: { x: true, y: true } as const,
+  wrapperStyle: { zIndex: 60, pointerEvents: "none" as const },
+};
+
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
@@ -190,7 +195,7 @@ function DashboardCard({
   className?: string;
 }) {
   return (
-    <Card className={cn("!p-0 overflow-hidden", className)} hover>
+    <Card className={cn("!p-0", className)} hover>
       <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-6 py-5">
         <div>
           <h3 className="text-base font-semibold text-[var(--text-primary)]">{title}</h3>
@@ -327,21 +332,26 @@ function ChartTooltip({
   formatter,
 }: {
   active?: boolean;
-  payload?: { value: number; name: string; color?: string }[];
-  label?: string;
+  payload?: { value?: number | string; name?: string; color?: string; hide?: boolean }[];
+  label?: string | number;
   formatter?: (value: number, name: string) => [string, string];
 }) {
-  if (!active || !payload?.length) return null;
+  const items = payload?.filter((entry) => entry.value != null && !entry.hide) ?? [];
+  if (!active || items.length === 0) return null;
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm">
-      {label && <p className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">{label}</p>}
-      {payload.map((entry) => {
+    <div className="min-w-[9rem] rounded-xl border border-[var(--border)] bg-white px-3 py-2.5 shadow-lg">
+      {label != null && label !== "" && (
+        <p className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">{label}</p>
+      )}
+      {items.map((entry, index) => {
+        const name = String(entry.name ?? "");
+        const value = Number(entry.value ?? 0);
         const [displayValue, displayName] = formatter
-          ? formatter(entry.value, entry.name)
-          : [String(entry.value), entry.name];
+          ? formatter(value, name)
+          : [String(entry.value), name];
         return (
-          <div key={entry.name} className="flex items-center gap-2 text-sm">
-            <span className="h-2 w-2 rounded-full" style={{ background: entry.color ?? CHART_BLUE }} />
+          <div key={`${name}-${index}`} className="flex items-center gap-2 text-sm">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: entry.color ?? CHART_BLUE }} />
             <span className="text-[var(--text-secondary)]">{displayName}</span>
             <span className="ml-auto font-semibold text-[var(--text-primary)]">{displayValue}</span>
           </div>
@@ -369,6 +379,7 @@ export function ExecutiveDashboard({
   const [dateFilter, setDateFilter] = useState("week");
   const [aptSort, setAptSort] = useState<"date" | "patient">("date");
   const [aptStatusFilter, setAptStatusFilter] = useState("all");
+  const [chartTooltipPortal, setChartTooltipPortal] = useState<HTMLElement | null>(null);
   const [liveOps, setLiveOps] = useState<DashboardOperationsSnapshot>({
     operations: {
       patientsWaiting: data.operations.patientsWaiting,
@@ -388,6 +399,10 @@ export function ExecutiveDashboard({
     const snapshot = await getDashboardOperationsSnapshot(clinicId);
     setLiveOps(snapshot);
   }, [clinicId]);
+
+  useEffect(() => {
+    setChartTooltipPortal(document.body);
+  }, []);
 
   useEffect(() => {
     const clock = setInterval(() => setLiveTime(new Date()), 1000);
@@ -577,13 +592,19 @@ export function ExecutiveDashboard({
               </span>
             }
           >
-            <div className="h-[220px]">
+            <div className="h-[220px] overflow-visible">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={data.charts.weeklyPatients} barSize={28}>
                   <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} width={32} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(37,99,235,0.06)" }} />
+                  <Tooltip
+                    {...CHART_TOOLTIP_PROPS}
+                    shared
+                    portal={chartTooltipPortal}
+                    content={(props) => <ChartTooltip {...props} />}
+                    cursor={{ fill: "rgba(37,99,235,0.06)" }}
+                  />
                   <Bar dataKey="new" stackId="a" fill={CHART_BLUE_LIGHT} radius={[0, 0, 0, 0]} name="New" />
                   <Bar dataKey="returning" stackId="a" fill={CHART_BLUE_MID} radius={[0, 0, 0, 0]} name="Returning" />
                   <Bar dataKey="total" fill={CHART_BLUE} radius={[8, 8, 0, 0]} name="Total" hide />
@@ -631,7 +652,7 @@ export function ExecutiveDashboard({
               </div>
             }
           >
-            <div className="relative h-[220px]">
+            <div className="relative h-[220px] overflow-visible">
               {revenueLoading && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
                   <RefreshCw className="h-5 w-5 animate-spin text-[var(--text-muted)]" />
@@ -656,13 +677,16 @@ export function ExecutiveDashboard({
                       width={48}
                     />
                     <Tooltip
-                      content={
+                      {...CHART_TOOLTIP_PROPS}
+                      portal={chartTooltipPortal}
+                      content={(props) => (
                         <ChartTooltip
+                          {...props}
                           formatter={(v, name) =>
                             name === "revenue" ? [formatCurrency(v), "Revenue"] : [String(v), "Invoices"]
                           }
                         />
-                      }
+                      )}
                     />
                     <Area
                       type="monotone"

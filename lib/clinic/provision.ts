@@ -3,6 +3,7 @@ import { slugify } from "@/lib/utils";
 import { createActivationToken } from "@/lib/auth/activation";
 import { enrichDoctorFromOnboarding } from "@/lib/clinic/doctor-setup";
 import { savePlatformClinicCredentials } from "@/lib/clinic/credentials";
+import { initializeClinicModules } from "@/lib/clinic/modules";
 import type { UserRole } from "@/lib/types/database";
 
 const ASSIGNABLE_STAFF_ROLES: UserRole[] = [
@@ -91,6 +92,8 @@ export async function createClinicWithOwner(params: {
     plan_id: params.planId,
     status: "trialing",
   });
+
+  await initializeClinicModules(clinic.id);
 
   const defaultDepartments = [
     "General Medicine",

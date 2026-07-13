@@ -8,8 +8,6 @@ import {
   Activity,
   LogOut,
   ChevronDown,
-  Menu,
-  X,
   Cog,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
@@ -218,104 +216,45 @@ function UserMenu({
 export function TopNavbar({ profile, navItems, settingsHref, clinicName, basePath }: TopNavbarProps) {
   const pathname = usePathname();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <>
-      <header className="clinic-topnav">
-        <div className="clinic-topnav-inner">
-          <Link href={basePath} className="clinic-topnav-brand">
-            <div className="clinic-topnav-logo">
-              <Activity className="h-4 w-4" />
-            </div>
-            <div className="hidden min-w-0 sm:block">
-              <p className="truncate text-sm font-semibold tracking-tight text-[var(--text-primary)]">
-                ClinicOS
-              </p>
-              {clinicName && (
-                <p className="truncate text-xs text-[var(--text-muted)]">{clinicName}</p>
-              )}
-            </div>
-          </Link>
-
-          <div className="clinic-topnav-pills-wrap hidden lg:block">
-            <nav className="clinic-topnav-pills" aria-label="Main navigation">
-              {navItems.map((item) => (
-                <NavDropdown
-                  key={item.key}
-                  item={item}
-                  pathname={pathname}
-                  open={openDropdown === item.key}
-                  onToggle={() =>
-                    setOpenDropdown((prev) => (prev === item.key ? null : item.key))
-                  }
-                />
-              ))}
-            </nav>
+    <header className="clinic-topnav">
+      <div className="clinic-topnav-inner">
+        <Link href={basePath} className="clinic-topnav-brand">
+          <div className="clinic-topnav-logo">
+            <Activity className="h-4 w-4" />
           </div>
-
-          <div className="clinic-topnav-actions">
-            <NotificationBell variant="light" />
-            <UserMenu profile={profile} settingsHref={settingsHref} />
-            <button
-              type="button"
-              className="clinic-topnav-icon-btn lg:hidden"
-              onClick={() => setMobileOpen((v) => !v)}
-              aria-label="Toggle menu"
-            >
-              {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            </button>
+          <div className="hidden min-w-0 sm:block">
+            <p className="truncate text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+              ClinicOS
+            </p>
+            {clinicName && (
+              <p className="truncate text-xs text-[var(--text-muted)]">{clinicName}</p>
+            )}
           </div>
-        </div>
-      </header>
+        </Link>
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/20 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="absolute right-0 top-0 h-full w-72 overflow-y-auto bg-white p-4 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="font-semibold text-[var(--text-primary)]">Menu</p>
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="clinic-topnav-icon-btn"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mb-4 border-b border-[var(--border)] pb-4">
-              <UserMenu
-                profile={profile}
-                settingsHref={settingsHref}
-                onNavigate={() => setMobileOpen(false)}
-              />
-            </div>
+        <div className="clinic-topnav-pills-wrap">
+          <nav className="clinic-topnav-pills" aria-label="Main navigation">
             {navItems.map((item) => (
-              <div key={item.key} className="mb-3">
-                <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  {item.label}
-                </p>
-                {item.children.map((child) => (
-                  <Link
-                    key={child.key}
-                    href={child.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={cn(
-                      "block rounded-lg px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-1)]",
-                      isHrefActive(pathname, child.href) && "bg-[var(--brand-50)] text-[var(--brand-600)]"
-                    )}
-                  >
-                    {child.name}
-                  </Link>
-                ))}
-              </div>
+              <NavDropdown
+                key={item.key}
+                item={item}
+                pathname={pathname}
+                open={openDropdown === item.key}
+                onToggle={() =>
+                  setOpenDropdown((prev) => (prev === item.key ? null : item.key))
+                }
+              />
             ))}
-          </div>
+          </nav>
         </div>
-      )}
-    </>
+
+        <div className="clinic-topnav-actions">
+          <NotificationBell variant="light" />
+          <UserMenu profile={profile} settingsHref={settingsHref} />
+        </div>
+      </div>
+    </header>
   );
 }

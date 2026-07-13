@@ -1870,6 +1870,22 @@
   color: var(--white);
 }
 
+.landing .foot-link-btn {
+  background: none;
+  border: none;
+  color: rgba(252, 251, 248, 0.75);
+  font: inherit;
+  font-size: 14.5px;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  transition: color 0.25s;
+}
+
+.landing .foot-link-btn:hover {
+  color: var(--white);
+}
+
 .landing .foot-brand p {
   color: var(--muted-light);
   font-size: 14.5px;
@@ -1900,6 +1916,32 @@
 
 .landing .foot-bottom a:hover {
   color: var(--white);
+}
+
+.landing .foot-bottom-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.landing .foot-founder {
+  color: var(--muted-light);
+  text-decoration: none;
+  transition: color 0.25s;
+}
+
+.landing .foot-founder:hover {
+  color: var(--white);
+}
+
+.landing .demo-modal::backdrop {
+  background: rgba(6, 11, 28, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.landing section[id] {
+  scroll-margin-top: 24px;
 }
 
 /* Responsive */
@@ -2002,6 +2044,257 @@
 
   .landing .compare-table table {
     min-width: 480px;
+  }
+}
+
+/* Login page */
+.landing.login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.landing.login-page .login-shell {
+  display: grid;
+  width: 100%;
+  max-width: 1080px;
+  min-height: min(720px, calc(100dvh - 48px));
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(252, 251, 248, 0.1);
+  box-shadow: 0 40px 100px -30px rgba(0, 0, 0, 0.55);
+}
+
+.landing.login-page .login-aside {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  padding: 48px 40px;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 0%, rgba(46, 99, 255, 0.2), transparent 65%),
+    radial-gradient(ellipse 50% 45% at 90% 80%, rgba(94, 230, 192, 0.12), transparent 60%),
+    var(--navy);
+}
+
+.landing.login-page .login-aside-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.landing.login-page .login-aside .eyebrow {
+  margin-bottom: 16px;
+}
+
+.landing.login-page .login-aside h1 {
+  font-family: "Fraunces", serif;
+  font-size: clamp(30px, 3vw, 42px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--white);
+  max-width: 420px;
+}
+
+.landing.login-page .login-aside .lead {
+  margin-top: 16px;
+  max-width: 400px;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.landing.login-page .login-perks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 40px;
+}
+
+.landing.login-page .login-perk {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(252, 251, 248, 0.1);
+  background: rgba(252, 251, 248, 0.05);
+}
+
+.landing.login-page .login-perk strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--white);
+  margin-bottom: 4px;
+}
+
+.landing.login-page .login-perk span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-light);
+}
+
+.landing.login-page .login-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--white);
+  color: var(--ink);
+  padding: 40px 32px;
+}
+
+.landing.login-page .login-main-header {
+  margin-bottom: 28px;
+}
+
+.landing.login-page .login-main-header h2 {
+  font-family: "Fraunces", serif;
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--navy);
+  max-width: none;
+  margin-top: 20px;
+}
+
+.landing.login-page .login-main-header p {
+  margin-top: 8px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.landing.login-page .login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.landing.login-page .clinic-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.landing.login-page .clinic-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--warm);
+  color: var(--navy);
+  padding: 13px 16px;
+  font-size: 15px;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.landing.login-page .clinic-input::placeholder {
+  color: #9aa0b8;
+}
+
+.landing.login-page .clinic-input:focus {
+  outline: none;
+  border-color: rgba(46, 99, 255, 0.45);
+  box-shadow: 0 0 0 4px rgba(46, 99, 255, 0.12);
+}
+
+.landing.login-page .login-submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+  padding: 15px 24px;
+  background: var(--navy);
+  color: var(--white);
+  box-shadow: 0 16px 40px -12px rgba(6, 11, 28, 0.45);
+}
+
+.landing.login-page .login-submit:hover:not(:disabled) {
+  box-shadow: 0 20px 50px -10px rgba(46, 99, 255, 0.35);
+}
+
+.landing.login-page .login-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.landing.login-page .login-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.landing.login-page .login-footer a {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing.login-page .login-footer a:hover {
+  text-decoration: underline;
+}
+
+.landing.login-page .clinic-alert {
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.landing.login-page .login-main .logo {
+  width: fit-content;
+  color: var(--navy);
+}
+
+.landing.login-page .login-main .logo-mark {
+  box-shadow: 0 6px 18px rgba(46, 99, 255, 0.35);
+}
+
+.landing.login-page button[type="button"] {
+  color: var(--muted);
+}
+
+.landing.login-page button[type="button"]:hover {
+  color: var(--navy);
+}
+
+@media (min-width: 900px) {
+  .landing.login-page .login-shell {
+    grid-template-columns: 0.92fr 1.08fr;
+  }
+
+  .landing.login-page .login-aside {
+    display: block;
+  }
+
+  .landing.login-page .login-main {
+    padding: 48px 56px;
+  }
+}
+
+@media (max-width: 768px) {
+  .landing.login-page {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .landing.login-page .login-shell {
+    min-height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+
+  .landing.login-page .login-main {
+    padding: 32px 24px;
   }
 }
 

@@ -8,6 +8,7 @@ import {
 import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_ROUTES, type Profile } from "@/lib/types/database";
 import { getClinicFeatures, getFeatureRouteGuard, isFeatureEnabled } from "@/lib/clinic/features";
+import { getClinicModules, getModuleKeyFromPath, isClinicModuleEnabled } from "@/lib/clinic/modules";
 import { isShortClinicPortalPath, resolveAnyShortClinicPath } from "@/lib/portal/public-urls";
 import { PLATFORM_ADMIN_COOKIE } from "@/lib/auth/platform-admin.constants";
 import { verifyPlatformAdminSession } from "@/lib/auth/platform-admin-session";
@@ -243,11 +244,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(expectedPrefix, request.url));
   }
 
-  const guard = getFeatureRouteGuard(pathname);
-  if (guard && profile.clinic_id && profile.role !== "super_admin") {
-    const { features } = await getClinicFeatures(profile.clinic_id);
-    if (!isFeatureEnabled(features, guard.feature)) {
-      return NextResponse.redirect(new URL(guard.upgradePath, request.url));
+  if (profile.clinic_id && profile.role !== "super_admin") {
+    const moduleKey = getModuleKeyFromPath(pathname);
+    if (moduleKey) {
+      const modules = await getClinicModules(profile.clinic_id);
+      if (!isClinicModuleEnabled(modules, moduleKey)) {
+        const roleBase = ROLE_ROUTES[profile.role as keyof typeof ROLE_ROUTES] ?? "/";
+        return NextResponse.redirect(new URL(roleBase, request.url));
+      }
+    }
+
+    const guard = getFeatureRouteGuard(pathname);
+    if (guard) {
+      const { features } = await getClinicFeatures(profile.clinic_id);
+      if (!isFeatureEnabled(features, guard.feature)) {
+        return NextResponse.redirect(new URL(guard.upgradePath, request.url));
+      }
     }
   }
 

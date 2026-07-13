@@ -46,34 +46,6 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
         items: [
           { key: "overview", name: "Overview", path: "", moduleKey: "dashboard" },
           {
-            key: "today-appointments",
-            name: "Today's Appointments",
-            path: "/appointments",
-            moduleKey: "appointments",
-            roles: ["clinic_owner", "doctor", "receptionist"],
-          },
-          {
-            key: "live-queue",
-            name: "Live Queue",
-            path: "/queue",
-            moduleKey: "queue",
-            roles: ["clinic_owner", "doctor", "receptionist"],
-          },
-          {
-            key: "revenue-today",
-            name: "Revenue",
-            path: "/revenue",
-            moduleKey: "revenue",
-            roles: ["clinic_owner", "finance_manager"],
-          },
-          {
-            key: "unpaid-bills",
-            name: "Billing",
-            path: "/billing",
-            moduleKey: "billing",
-            roles: ["clinic_owner", "receptionist", "finance_manager"],
-          },
-          {
             key: "ai-insights",
             name: "AI Insights",
             path: "/ai-insights",

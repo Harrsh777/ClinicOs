@@ -5,6 +5,11 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { requireRole } from "@/lib/auth/session";
 import { getAllPlatformCredentials, getClinicCredentials } from "@/lib/clinic/credentials";
+import {
+  getClinicModuleCatalog,
+  getClinicModules,
+  updateClinicModules,
+} from "@/lib/clinic/modules";
 import { z } from "zod";
 
 export async function getPlatformOverview() {
@@ -64,6 +69,8 @@ export async function getClinicPlatformDetail(clinicId: string) {
     { data: patients },
     { data: subscription },
     credentialsResult,
+    moduleCatalog,
+    enabledModules,
   ] = await Promise.all([
     service.from("clinics").select("*").eq("id", clinicId).single(),
     service.from("patients").select("*", { count: "exact", head: true }).eq("clinic_id", clinicId),
@@ -93,6 +100,8 @@ export async function getClinicPlatformDetail(clinicId: string) {
       .eq("clinic_id", clinicId)
       .maybeSingle(),
     getClinicCredentials(service, clinicId),
+    getClinicModuleCatalog(),
+    getClinicModules(clinicId),
   ]);
 
   return {
@@ -104,7 +113,21 @@ export async function getClinicPlatformDetail(clinicId: string) {
     patients: patients ?? [],
     subscription,
     credentials: credentialsResult,
+    moduleCatalog,
+    enabledModules,
   };
+}
+
+export async function updateClinicModulesAction(
+  clinicId: string,
+  modules: { moduleKey: string; enabled: boolean }[]
+) {
+  await requirePlatformAdmin();
+  const result = await updateClinicModules(clinicId, modules);
+  if (result.error) return { error: result.error };
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin/clinics");
+  return { success: true };
 }
 
 export async function getPlatformCredentials() {

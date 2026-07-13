@@ -5,6 +5,7 @@ import { PageHeader, StatCard } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { Users, UserCog, Calendar, Building2 } from "lucide-react";
+import { ClinicModulesEditor } from "@/components/admin/clinic-modules-editor";
 import { Button } from "@/components/ui/button";
 
 export default async function AdminClinicDetailPage({
@@ -42,7 +43,15 @@ export default async function AdminClinicDetailPage({
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="mt-6">
+        <ClinicModulesEditor
+          clinicId={clinic.id}
+          modules={data.moduleCatalog}
+          enabledModules={data.enabledModules}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2 mt-6">
         <div className="clinic-card p-5">
           <h3 className="font-semibold mb-3">Clinic details</h3>
           <dl className="grid gap-2 text-sm">

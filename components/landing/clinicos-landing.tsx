@@ -62,7 +62,7 @@ export function ClinicosLanding() {
           </a>
           <ul className="nav-links">
             <li>
-              <a href="#platform">Platform</a>
+              <a href="#platform">Product</a>
             </li>
             <li>
               <a href="#problems">Problems</a>
@@ -79,7 +79,7 @@ export function ClinicosLanding() {
           </ul>
           <div className="nav-actions">
             <Link href="/login" className="nav-login">
-              Log in
+              Sign In
             </Link>
             <button type="button" className="nav-cta" onClick={openDemo(setDemoOpen)}>
               Book a demo <span className="arr">↗</span>
@@ -785,19 +785,7 @@ export function ClinicosLanding() {
               <h4>Get started</h4>
               <ul>
                 <li>
-                  <button
-                    type="button"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "rgba(252,251,248,.75)",
-                      font: "inherit",
-                      fontSize: "14.5px",
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                    onClick={openDemo(setDemoOpen)}
-                  >
+                  <button type="button" className="foot-link-btn" onClick={openDemo(setDemoOpen)}>
                     Book a demo
                   </button>
                 </li>
@@ -812,7 +800,17 @@ export function ClinicosLanding() {
           </div>
           <div className="foot-bottom">
             <span>© 2026 ClinicOS Technologies Pvt. Ltd. · Bengaluru, India</span>
-            <span>Made with care for Indian healthcare 🇮🇳</span>
+            <span className="foot-bottom-meta">
+              <a
+                href="https://harshsrivastava.in/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="foot-founder"
+              >
+                Founded by Harsh Srivastava
+              </a>
+              <span>Made with care for Indian healthcare 🇮🇳</span>
+            </span>
           </div>
         </div>
       </footer>

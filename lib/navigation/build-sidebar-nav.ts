@@ -1,5 +1,6 @@
 import { hasPermission } from "@/lib/auth/permissions";
 import { isFeatureEnabled, type ClinicFeatures } from "@/lib/clinic/features";
+import { isClinicModuleEnabled, type ClinicModuleMap } from "@/lib/clinic/modules";
 import { SIDEBAR_SECTIONS } from "@/lib/navigation/sidebar-config";
 import type {
   PermissionMap,
@@ -19,7 +20,12 @@ const MODULE_FEATURE_MAP: Partial<Record<string, keyof ClinicFeatures>> = {
   branding: "white_label",
 };
 
-function isModuleAvailable(moduleKey: string, features?: ClinicFeatures): boolean {
+function isModuleAvailable(
+  moduleKey: string,
+  features?: ClinicFeatures,
+  modules?: ClinicModuleMap
+): boolean {
+  if (modules && !isClinicModuleEnabled(modules, moduleKey)) return false;
   if (!features) return true;
   const featureKey = MODULE_FEATURE_MAP[moduleKey];
   if (!featureKey) return true;
@@ -41,12 +47,13 @@ function filterLeaf(
   permissions: PermissionMap,
   basePath: string,
   features?: ClinicFeatures,
+  modules?: ClinicModuleMap,
   hasLinkedDoctor?: boolean
 ) {
   if (!isRoleAllowed(leaf.roles, role)) return null;
   if (leaf.requiresLinkedDoctor && !hasLinkedDoctor) return null;
   if (!hasPermission(permissions, leaf.moduleKey, "read")) return null;
-  if (!isModuleAvailable(leaf.moduleKey, features)) return null;
+  if (!isModuleAvailable(leaf.moduleKey, features, modules)) return null;
   return {
     key: leaf.key,
     name: leaf.name,
@@ -61,15 +68,16 @@ function filterGroup(
   permissions: PermissionMap,
   basePath: string,
   features?: ClinicFeatures,
+  modules?: ClinicModuleMap,
   hasLinkedDoctor?: boolean
 ): SidebarNavGroupResolved | null {
   if (!isRoleAllowed(group.roles, role)) return null;
   if (group.requiresLinkedDoctor && !hasLinkedDoctor) return null;
   if (!hasPermission(permissions, group.moduleKey, "read")) return null;
-  if (!isModuleAvailable(group.moduleKey, features)) return null;
+  if (!isModuleAvailable(group.moduleKey, features, modules)) return null;
 
   const items = group.items
-    .map((leaf) => filterLeaf(leaf, role, permissions, basePath, features, hasLinkedDoctor))
+    .map((leaf) => filterLeaf(leaf, role, permissions, basePath, features, modules, hasLinkedDoctor))
     .filter((item): item is NonNullable<typeof item> => item !== null);
 
   if (items.length === 0) return null;
@@ -87,11 +95,17 @@ export function buildSidebarNav(
   profile: Profile,
   permissions: PermissionMap,
   basePath: string,
-  options?: { showFranchise?: boolean; features?: ClinicFeatures; hasLinkedDoctor?: boolean }
+  options?: {
+    showFranchise?: boolean;
+    features?: ClinicFeatures;
+    modules?: ClinicModuleMap;
+    hasLinkedDoctor?: boolean;
+  }
 ): SidebarSectionResolved[] {
   const { role } = profile;
   const showFranchise = options?.showFranchise ?? false;
   const features = options?.features;
+  const modules = options?.modules;
   const hasLinkedDoctor = options?.hasLinkedDoctor ?? false;
 
   return SIDEBAR_SECTIONS.map((section) => {
@@ -102,7 +116,7 @@ export function buildSidebarNav(
     }
 
     const groups = section.groups
-      .map((group) => filterGroup(group, role, permissions, basePath, features, hasLinkedDoctor))
+      .map((group) => filterGroup(group, role, permissions, basePath, features, modules, hasLinkedDoctor))
       .filter((group): group is SidebarNavGroupResolved => group !== null);
 
     if (groups.length === 0) return null;
