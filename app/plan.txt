@@ -1,0 +1,2914 @@
+ClinicOS Conversations — Technical Architecture Document
+Version: 1.0
+Status: Design (pre-implementation)
+Audience: Engineering, Product, Security
+Scale target: 10,000+ clinics · 50M+ messages/month · 99.9% availability
+
+Executive Summary
+ClinicOS Conversations is a multi-tenant omnichannel patient communication platform embedded in ClinicOS. Each clinic operates in an isolated workspace with its own WhatsApp Business Account (WABA), conversation history, templates, campaigns, and automations.
+
+This document defines the complete technical architecture. It extends the existing ClinicOS stack (Next.js 16, Supabase PostgreSQL, Vercel) with dedicated messaging infrastructure (Redis, BullMQ, background workers) required for enterprise scale.
+
+Key architectural decisions:
+
+Decision	Choice	Rationale
+Tenant boundary
+clinic_id on all tables + RLS
+Consistent with existing ClinicOS model
+WhatsApp onboarding
+Meta Embedded Signup (Tech Provider)
+Self-serve per-clinic WABA connection
+Message transport
+Meta Cloud API (not WhatsApp Web scraping)
+Only compliant, scalable path
+Credential storage
+Encrypted vault table, service-role only
+Tokens must never reach client or RLS-exposed tables
+Async processing
+BullMQ on Redis
+Webhooks must ACK in <5s; sends/campaigns are async
+Realtime to staff
+Supabase Realtime + optional WebSocket fanout
+Leverages existing infra; scales with channel filters
+AI execution
+Tool-calling agent with clinic-scoped data access
+Safe, auditable, escalatable
+Legacy migration
+whatsapp_messages → new messages table with backfill
+Preserves existing retention/booking flows
+1. High-Level Architecture
+1.1 System Context
+Clients
+Edge Layer — Vercel
+Messaging Platform Layer
+Async Infrastructure
+Data Layer
+External
+Staff Web AppOwner / Receptionist / Doctor
+Patient WhatsApp
+Patient Web Chat Widget
+Platform Admin
+Next.js App Router
+API Route Handlers
+Server Actions
+Webhook Ingress
+Conversation Service
+Messaging Service
+Campaign Service
+Automation Engine
+AI Service
+Notification Service
+Redis
+BullMQ Queues
+Background Workers
+Cron Scheduler
+PostgreSQL / Supabase
+Object Storage
+Supabase Realtime
+Meta WhatsApp Cloud API
+Gemini / LLM Providers
+Resend Email
+1.2 Logical Services
+Service	Responsibility	Sync/Async
+Conversation Service
+Thread lifecycle, inbox queries, assignment, read state, participant management
+Sync (reads), Async (bulk updates)
+Messaging Service
+Outbound send, template rendering, media upload, delivery status, rate limiting
+Async (send), Sync (read history)
+Webhook Service
+Meta webhook verify, signature check, idempotency, enqueue processing
+Sync ingress (<200ms), Async processing
+Campaign Service
+Audience segmentation, batch scheduling, per-recipient dispatch
+Fully async
+Automation Engine
+Rule evaluation, trigger matching, scheduled message creation
+Async (cron + event-driven)
+AI Service
+Virtual receptionist, reply suggestions, summaries, escalation decisions
+Async for inbound; Sync for staff assist
+Notification Service
+Staff alerts, unread badges, email digests, push (future)
+Async
+Queue Workers
+Process jobs from BullMQ with retries and dead-letter
+Async
+Scheduler
+Cron triggers for automations, campaigns, token refresh
+Async
+1.3 Module Boundaries (Application Layer)
+lib/
+├── conversations/           # Domain types, validators, business rules
+│   ├── types.ts
+│   ├── thread-state.ts
+│   └── permissions.ts
+├── messaging/               # Send pipeline, template engine, media
+│   ├── send-pipeline.ts
+│   ├── template-renderer.ts
+│   ├── media-handler.ts
+│   └── rate-limiter.ts
+├── whatsapp/                # Meta API client (existing, refactored)
+│   ├── meta-client.ts
+│   ├── embedded-signup.ts
+│   ├── webhooks/
+│   └── templates/
+├── campaigns/
+│   ├── segmentation.ts
+│   ├── dispatcher.ts
+│   └── analytics.ts
+├── automations/
+│   ├── engine.ts
+│   ├── triggers.ts
+│   └── actions.ts
+├── ai/
+│   ├── conversation-agent.ts
+│   ├── tools/               # Appointment booking, FAQ, billing lookup
+│   ├── escalation.ts
+│   └── summarizer.ts
+├── workers/                 # BullMQ job processors
+│   ├── inbound-message.worker.ts
+│   ├── outbound-message.worker.ts
+│   ├── campaign.worker.ts
+│   ├── automation.worker.ts
+│   └── ai-reply.worker.ts
+└── actions/                 # Next.js server actions (thin orchestration)
+    └── conversations.ts
+app/
+├── api/
+│   ├── webhooks/whatsapp/route.ts      # Meta webhook (existing, extended)
+│   ├── conversations/                  # REST API (mobile/future integrations)
+│   ├── meta/oauth/callback/route.ts    # Embedded Signup callback
+│   └── cron/                           # Vercel cron → enqueue jobs
+├── owner/conversations/
+├── receptionist/conversations/
+└── doctor/conversations/
+components/conversations/
+├── inbox-layout.tsx
+├── conversation-list.tsx
+├── chat-panel.tsx
+├── compose-bar.tsx
+├── patient-context-sidebar.tsx
+├── campaign-builder.tsx
+├── automation-editor.tsx
+└── whatsapp-connect-wizard.tsx
+1.4 Request Flow — Staff Sends a Message
+1. Receptionist types message in ChatPanel
+2. Server Action: sendMessageAction({ conversationId, content })
+3. Conversation Service validates:
+   - User has conversations:write permission
+   - conversation.clinic_id === user.clinic_id
+   - WhatsApp connection is active
+   - 24-hour session window OR approved template required
+4. Insert message row (status: queued)
+5. Enqueue job: outbound-message { messageId }
+6. Return optimistic UI update to client
+7. Worker picks up job:
+   a. Load clinic WhatsApp credentials from vault (decrypt)
+   b. If session message: POST /messages (type: text)
+   c. If outside 24h window: resolve template + POST template message
+   d. Store external_message_id
+   e. Update message status: sent
+   f. Publish Realtime event on conversation channel
+8. Meta webhook delivers status: delivered → read
+9. Webhook Service enqueues status-update job
+10. Worker updates message + message_status_history
+11. Staff UI receives Realtime update (delivery ticks)
+1.5 Event Flow — Patient Sends Inbound WhatsApp
+1. Patient sends WhatsApp to clinic number
+2. Meta POST → /api/webhooks/whatsapp
+3. Webhook Service:
+   a. Verify X-Hub-Signature-256
+   b. Log raw payload → webhook_logs
+   c. Extract metadata.phone_number_id
+   d. Resolve clinic_id via whatsapp_connections
+   e. Check idempotency key (wamid)
+   f. Enqueue: inbound-message { payload }
+   g. Return HTTP 200 immediately (<200ms)
+4. Inbound Worker:
+   a. Normalize phone, resolve/create patient
+   b. Upsert conversation (channel: whatsapp)
+   c. Insert message (direction: inbound)
+   d. Increment unread_count
+   e. Update conversation.last_message_at
+   f. Publish Realtime: new message + inbox update
+   g. Enqueue: ai-reply OR notify-staff (based on clinic settings)
+5. AI Worker (if auto-reply enabled):
+   a. Load conversation context + patient EMR summary
+   b. Run agent with tool access (appointments, FAQ)
+   c. If confidence high + no escalation trigger → send reply
+   d. Else → set conversation.status = needs_human, notify staff
+6. Notification Worker:
+   a. Insert staff notification
+   b. Supabase Realtime broadcast
+   c. Optional email digest if unassigned >5min
+2. Multi-Tenant Architecture
+2.1 Clinic Isolation Model
+Tenant = Clinic (clinics.id)
+
+Every Conversations table includes clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE. No cross-clinic queries except Super Admin analytics (separate read path with audit).
+
+Isolation layers (defense in depth):
+
+Database: PostgreSQL RLS — clinic_id = my_profile_clinic_id()
+Application: All service methods require clinicId parameter; assert on every read/write
+Queue jobs: Every job payload includes clinicId; workers reject mismatches
+Realtime: Supabase channels scoped to clinic:{clinicId}:conversations
+Storage: Attachments at /{clinic_id}/conversations/{conversation_id}/
+Meta API: Each clinic uses its own WABA token; no shared send identity
+2.2 Meta Embedded Signup — Per-Clinic WhatsApp Connection
+ClinicOS registers as a Meta Tech Provider (or Solution Partner). Each clinic connects its own WABA through Embedded Signup — a hosted Meta OAuth flow embedded in ClinicOS settings.
+
+Prerequisites (platform level, one-time):
+
+Meta Business Portfolio for ClinicOS
+WhatsApp Business Platform app in Meta Developer Console
+Tech Provider / Solution Partner approval
+Embedded Signup configuration (redirect URI, permissions)
+System User with whatsapp_business_management, whatsapp_business_messaging
+Webhook subscription at app level
+Clinic onboarding flow:
+
+┌─────────────────────────────────────────────────────────────┐
+│  ClinicOS Settings → Conversations → Connect WhatsApp        │
+├─────────────────────────────────────────────────────────────┤
+│  Step 1: Click "Connect with Meta"                           │
+│  Step 2: Embedded Signup popup opens (Meta hosted UI)        │
+│          - Clinic logs into Facebook Business                │
+│          - Selects or creates Business Portfolio             │
+│          - Selects or creates WABA                           │
+│          - Adds/verifies phone number                        │
+│          - Grants permissions to ClinicOS app                │
+│  Step 3: Meta redirects to /api/meta/oauth/callback          │
+│          with authorization code + session info              │
+│  Step 4: Backend exchanges code for access token             │
+│  Step 5: Fetch WABA ID, Phone Number ID, display number      │
+│  Step 6: Encrypt and store in whatsapp_connections           │
+│  Step 7: Subscribe clinic's WABA to app webhooks             │
+│  Step 8: Register phone number for Cloud API                 │
+│  Step 9: UI shows "Connected ✓" with phone number            │
+└─────────────────────────────────────────────────────────────┘
+OAuth details:
+
+Parameter	Purpose
+client_id
+ClinicOS Meta App ID (platform)
+redirect_uri
+https://app.clinicos.app/api/meta/oauth/callback
+state
+{clinicId}:{nonce} — CSRF protection, stored in Redis 10min TTL
+config_id
+Embedded Signup configuration ID from Meta
+Token exchange response yields:
+
+Long-lived System User access token (60 days, refreshable)
+whatsapp_business_account_id (WABA ID)
+phone_number_id (Cloud API send identity)
+display_phone_number (human-readable)
+Post-connection:
+
+Subscribe WABA to webhook fields: messages, message_template_status_update, phone_number_quality_update
+Store connection status: connected, pending_verification, disconnected, token_expired
+2.3 Credential Storage
+Never store tokens in clinic_branding or any RLS-accessible table.
+
+New table: whatsapp_connections (see Section 3). Sensitive fields encrypted at application layer before insert.
+
+Field	Storage	Access
+access_token_encrypted
+AES-256-GCM ciphertext + IV
+Service role only, decrypt in workers
+access_token_expires_at
+Plain timestamp
+Service role
+refresh_token_encrypted
+If using OAuth refresh flow
+Service role only
+webhook_verify_token
+Per-clinic optional override
+Service role
+phone_number_id
+Plain (not secret, used for routing)
+Staff read for display
+waba_id
+Plain
+Staff read
+display_phone_number
+Plain
+Staff read
+Encryption key management:
+
+Production: AWS KMS / GCP Cloud KMS / HashiCorp Vault
+MVP: CREDENTIALS_ENCRYPTION_KEY env var (32-byte, rotated quarterly)
+Key rotation: re-encrypt all tokens with new key (background job)
+RLS policy on whatsapp_connections:
+
+SELECT for authenticated staff: only non-sensitive columns via a view (whatsapp_connections_safe)
+INSERT/UPDATE/DELETE: denied for authenticated; only service role via server
+2.4 Tenant Resolution
+Ingress point	Resolution method
+Meta webhook
+metadata.phone_number_id → whatsapp_connections.phone_number_id → clinic_id
+Staff UI
+profiles.clinic_id from Supabase session
+OAuth callback
+state parameter contains clinicId
+Cron/automation
+Job payload includes explicit clinicId
+AI tools
+Inherited from conversation context, never from user input
+Fallback prohibited: The current codebase has a dangerous fallback to "first clinic with WhatsApp" — this must be removed. Unresolvable phone_number_id → log error, ACK webhook, do not process.
+
+2.5 Security Boundaries
+┌─────────────────────────────────────────┐
+│  Public Internet                         │
+│  ├── Meta Webhooks (signature verified)  │
+│  ├── OAuth Callback (state verified)     │
+│  └── Patient Web Chat (rate limited)     │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│  Edge (Vercel) — No DB credentials       │
+│  ├── JWT validation (staff)            │
+│  └── Service role for workers only     │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│  Trusted Compute (Workers / Server)      │
+│  ├── Decrypt WhatsApp tokens             │
+│  ├── AI with clinic-scoped tools         │
+│  └── Queue job processing                │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│  Data (PostgreSQL + Storage)             │
+│  ├── RLS enforced for all staff reads    │
+│  └── Encrypted columns for secrets       │
+└─────────────────────────────────────────┘
+3. Database Design
+3.1 Design Principles
+Normalize conversations and messages — separate thread state from message content
+Append-only status history — never overwrite delivery state; audit trail
+Idempotency — external_message_id (wamid) unique constraint
+Soft archive — conversations archived, not deleted (compliance)
+Partition-ready — messages partitioned by created_at monthly at scale
+Denormalize for inbox — conversations carries last_message_preview for fast list queries
+3.2 Entity Relationship Overview
+clinics
+(no attributes)
+whatsapp_connections
+(no attributes)
+conversations
+(no attributes)
+message_templates
+(no attributes)
+campaigns
+(no attributes)
+automations
+(no attributes)
+conversation_participants
+(no attributes)
+messages
+(no attributes)
+ai_conversations
+(no attributes)
+message_status_history
+(no attributes)
+attachments
+(no attributes)
+campaign_recipients
+(no attributes)
+scheduled_messages
+(no attributes)
+patients
+(no attributes)
+profiles
+(no attributes)
+has
+has
+has
+has
+has
+has
+contains
+has
+tracks
+has
+has
+creates
+linked
+staff
+3.3 Table Definitions
+whatsapp_connections
+Stores per-clinic WhatsApp Business Account linkage. One active connection per clinic (historical rows kept).
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL, FK → clinics
+Tenant boundary
+waba_id
+TEXT
+NOT NULL
+Meta WABA identifier
+phone_number_id
+TEXT
+NOT NULL
+Cloud API send/receive identity
+display_phone_number
+TEXT
+NOT NULL
+E.164 formatted display
+business_name
+TEXT
+From Meta business profile
+access_token_encrypted
+BYTEA
+NOT NULL
+Encrypted OAuth token
+access_token_expires_at
+TIMESTAMPTZ
+Token refresh scheduling
+refresh_token_encrypted
+BYTEA
+If applicable
+connection_status
+ENUM
+NOT NULL
+pending, connected, disconnected, token_expired, suspended
+quality_rating
+TEXT
+From Meta: GREEN/YELLOW/RED
+messaging_limit_tier
+TEXT
+TIER_250, TIER_1K, etc.
+connected_at
+TIMESTAMPTZ
+disconnected_at
+TIMESTAMPTZ
+connected_by
+UUID
+FK → profiles
+Audit: who connected
+meta_business_id
+TEXT
+Facebook Business ID
+webhook_subscribed
+BOOLEAN
+DEFAULT false
+is_active
+BOOLEAN
+DEFAULT true
+Only one active per clinic
+metadata
+JSONB
+DEFAULT '{}'
+Meta profile data, capabilities
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+updated_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Indexes:
+
+UNIQUE (phone_number_id) WHERE is_active = true — webhook routing
+UNIQUE (clinic_id) WHERE is_active = true — one active connection
+INDEX (clinic_id, connection_status)
+Reasoning: Separates secrets from branding. Enables token rotation, connection history, and quality monitoring.
+
+conversations
+The inbox thread — one per patient per channel per clinic.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL, FK → clinics
+Tenant
+patient_id
+UUID
+FK → patients, NULLABLE
+Linked when known
+channel
+ENUM
+NOT NULL
+whatsapp, web_chat, sms, instagram (future)
+channel_identifier
+TEXT
+NOT NULL
+Phone (WhatsApp) or session ID (web)
+patient_name
+TEXT
+NOT NULL
+Denormalized for inbox display
+patient_phone
+TEXT
+E.164 normalized
+status
+ENUM
+NOT NULL DEFAULT 'open'
+open, pending, resolved, snoozed, needs_human, archived
+priority
+ENUM
+DEFAULT 'normal'
+low, normal, high, urgent
+assigned_to
+UUID
+FK → profiles
+Staff owner
+subject
+TEXT
+Auto-generated or manual
+last_message_at
+TIMESTAMPTZ
+Inbox sort key
+last_message_preview
+TEXT
+Truncated 120 chars
+last_message_direction
+ENUM
+inbound, outbound, system
+unread_count
+INT
+DEFAULT 0
+Staff unread badge
+last_inbound_at
+TIMESTAMPTZ
+24-hour session window tracking
+last_outbound_at
+TIMESTAMPTZ
+session_expires_at
+TIMESTAMPTZ
+Computed: last_inbound_at + 24h
+snoozed_until
+TIMESTAMPTZ
+resolved_at
+TIMESTAMPTZ
+resolved_by
+UUID
+FK → profiles
+tags
+TEXT[]
+DEFAULT '{}'
+due_payment, follow_up, vip
+metadata
+JSONB
+DEFAULT '{}'
+Visit reason, due info, custom fields
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+updated_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Constraints:
+
+UNIQUE (clinic_id, channel, channel_identifier) — one thread per patient per channel
+Indexes:
+
+(clinic_id, last_message_at DESC) — primary inbox query
+(clinic_id, status, last_message_at DESC) — filtered inbox
+(clinic_id, assigned_to, status) WHERE status IN ('open','needs_human') — my conversations
+(clinic_id, unread_count) WHERE unread_count > 0 — unread filter
+(patient_id) — patient profile timeline
+(clinic_id, session_expires_at) WHERE session_expires_at < now() — expired sessions (template-only)
+Reasoning: Denormalized inbox fields avoid JOIN on every list load. Session window tracked for WhatsApp template vs session message decision.
+
+conversation_participants
+Staff and system participants in a conversation.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+conversation_id
+UUID
+NOT NULL, FK → conversations
+clinic_id
+UUID
+NOT NULL, FK → clinics
+Tenant (denormalized for RLS)
+participant_type
+ENUM
+NOT NULL
+patient, staff, ai_agent, system
+profile_id
+UUID
+FK → profiles
+For staff participants
+display_name
+TEXT
+NOT NULL
+role
+ENUM
+owner, collaborator, observer
+last_read_at
+TIMESTAMPTZ
+Per-participant read cursor
+last_read_message_id
+UUID
+FK → messages
+notifications_enabled
+BOOLEAN
+DEFAULT true
+joined_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+left_at
+TIMESTAMPTZ
+Constraints:
+
+UNIQUE (conversation_id, profile_id) WHERE participant_type = 'staff' AND left_at IS NULL
+Indexes:
+
+(conversation_id)
+(profile_id, clinic_id) WHERE left_at IS NULL
+Reasoning: Supports multi-staff collaboration, per-user read state, and AI as a named participant for audit.
+
+messages
+Individual messages within a conversation. Core high-volume table.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL, FK → clinics
+Tenant
+conversation_id
+UUID
+NOT NULL, FK → conversations
+Thread
+patient_id
+UUID
+FK → patients
+Denormalized
+direction
+ENUM
+NOT NULL
+inbound, outbound, system
+sender_type
+ENUM
+NOT NULL
+patient, staff, ai, system, campaign
+sender_profile_id
+UUID
+FK → profiles
+Staff sender
+message_type
+ENUM
+NOT NULL DEFAULT 'text'
+text, template, image, document, audio, video, location, interactive, reaction
+content
+TEXT
+Message body (encrypted at rest optional for HIPAA)
+content_structured
+JSONB
+Interactive buttons, template components
+template_id
+UUID
+FK → message_templates
+If template message
+template_variables
+JSONB
+Rendered variable values
+status
+ENUM
+NOT NULL DEFAULT 'queued'
+queued, sending, sent, delivered, read, failed, deleted
+external_message_id
+TEXT
+UNIQUE
+Meta wamid — idempotency
+external_conversation_id
+TEXT
+Meta conversation ID
+reply_to_message_id
+UUID
+FK → messages
+Threading
+intent
+TEXT
+appointment_booking, follow_up, campaign, manual
+campaign_id
+UUID
+FK → campaigns
+Attribution
+automation_id
+UUID
+FK → automations
+Attribution
+ai_conversation_id
+UUID
+FK → ai_conversations
+AI session link
+failed_reason
+TEXT
+failed_code
+TEXT
+Meta error code
+retry_count
+INT
+DEFAULT 0
+sent_at
+TIMESTAMPTZ
+delivered_at
+TIMESTAMPTZ
+read_at
+TIMESTAMPTZ
+metadata
+JSONB
+DEFAULT '{}'
+Raw Meta payload fragments
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Partition key
+Indexes:
+
+(conversation_id, created_at ASC) — chat history
+(clinic_id, created_at DESC) — clinic-wide search
+UNIQUE (external_message_id) WHERE external_message_id IS NOT NULL
+(clinic_id, status) WHERE status IN ('queued', 'sending') — worker pickup
+(campaign_id) WHERE campaign_id IS NOT NULL
+(patient_id, created_at DESC)
+Partitioning (at scale):
+
+Range partition on created_at by month
+Retain 24 months hot; archive older to cold storage
+Reasoning: Replaces legacy whatsapp_messages. Unified across channels. Status on message row is current state; history in separate table.
+
+message_status_history
+Append-only delivery lifecycle audit.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+message_id
+UUID
+NOT NULL, FK → messages
+clinic_id
+UUID
+NOT NULL
+Tenant
+status
+ENUM
+NOT NULL
+queued, sent, delivered, read, failed
+source
+ENUM
+NOT NULL
+system, meta_webhook, worker, manual
+external_status
+TEXT
+Raw Meta status
+error_code
+TEXT
+error_message
+TEXT
+metadata
+JSONB
+Full webhook payload
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Indexes:
+
+(message_id, created_at ASC)
+(clinic_id, created_at DESC)
+Reasoning: Compliance audit, debugging delivery issues, analytics on time-to-read.
+
+message_templates
+WhatsApp-approved and internal templates.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL, FK → clinics
+Tenant
+name
+TEXT
+NOT NULL
+Internal name
+category
+ENUM
+NOT NULL
+marketing, utility, authentication
+language
+TEXT
+NOT NULL DEFAULT 'en'
+ISO 639
+header_type
+ENUM
+text, image, video, document, none
+header_content
+TEXT
+body
+TEXT
+NOT NULL
+With {{1}} placeholders
+footer
+TEXT
+buttons
+JSONB
+DEFAULT '[]'
+CTA, quick reply, URL
+variables
+JSONB
+DEFAULT '[]'
+[{index, name, example}]
+meta_template_id
+TEXT
+Meta's template ID
+meta_template_name
+TEXT
+Namespace name in Meta
+approval_status
+ENUM
+DEFAULT 'draft'
+draft, pending, approved, rejected, paused, disabled
+rejection_reason
+TEXT
+is_active
+BOOLEAN
+DEFAULT true
+usage_count
+INT
+DEFAULT 0
+Analytics
+created_by
+UUID
+FK → profiles
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+updated_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Constraints:
+
+UNIQUE (clinic_id, meta_template_name, language)
+Indexes:
+
+(clinic_id, approval_status) WHERE is_active = true
+(clinic_id, category)
+Reasoning: Templates required for messages outside 24-hour window and all marketing messages. Sync status from Meta webhooks.
+
+campaigns
+Broadcast and targeted messaging campaigns.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL, FK → clinics
+name
+TEXT
+NOT NULL
+description
+TEXT
+template_id
+UUID
+NOT NULL, FK → message_templates
+audience_type
+ENUM
+NOT NULL
+all_patients, segment, manual_list, csv_import
+audience_filter
+JSONB
+Segment rules (see Section 10)
+audience_count
+INT
+Computed at launch
+status
+ENUM
+NOT NULL DEFAULT 'draft'
+draft, scheduled, running, paused, completed, cancelled, failed
+scheduled_at
+TIMESTAMPTZ
+started_at
+TIMESTAMPTZ
+completed_at
+TIMESTAMPTZ
+send_rate_per_minute
+INT
+DEFAULT 60
+Throttle
+variable_mapping
+JSONB
+How template vars map to patient fields
+stats
+JSONB
+DEFAULT '{}'
+{sent, delivered, read, failed, replied}
+created_by
+UUID
+FK → profiles
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+updated_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Indexes:
+
+(clinic_id, status, scheduled_at)
+(clinic_id, created_at DESC)
+campaign_recipients
+Per-patient campaign dispatch tracking.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+campaign_id
+UUID
+NOT NULL, FK → campaigns
+clinic_id
+UUID
+NOT NULL
+Tenant
+patient_id
+UUID
+FK → patients
+conversation_id
+UUID
+FK → conversations
+phone
+TEXT
+NOT NULL
+patient_name
+TEXT
+template_variables
+JSONB
+Resolved values
+status
+ENUM
+NOT NULL DEFAULT 'pending'
+pending, queued, sent, delivered, read, failed, skipped, replied
+message_id
+UUID
+FK → messages
+Link to sent message
+skip_reason
+TEXT
+no_whatsapp, opted_out, invalid_phone
+failed_reason
+TEXT
+retry_count
+INT
+DEFAULT 0
+sent_at
+TIMESTAMPTZ
+delivered_at
+TIMESTAMPTZ
+read_at
+TIMESTAMPTZ
+replied_at
+TIMESTAMPTZ
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Constraints:
+
+UNIQUE (campaign_id, patient_id)
+UNIQUE (campaign_id, phone)
+Indexes:
+
+(campaign_id, status) — worker batch pickup
+(clinic_id, campaign_id)
+automations
+Rule-based automated messaging workflows.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL, FK → clinics
+name
+TEXT
+NOT NULL
+description
+TEXT
+trigger_type
+ENUM
+NOT NULL
+See trigger list below
+trigger_config
+JSONB
+NOT NULL
+Trigger-specific parameters
+conditions
+JSONB
+DEFAULT '[]'
+Additional filters (AND logic)
+action_type
+ENUM
+NOT NULL
+send_template, send_ai_message, assign_staff, add_tag, create_task
+action_config
+JSONB
+NOT NULL
+Template ID, message, assignee, etc.
+is_active
+BOOLEAN
+DEFAULT true
+priority
+INT
+DEFAULT 0
+Execution order
+cooldown_hours
+INT
+DEFAULT 24
+Prevent duplicate sends
+last_triggered_at
+TIMESTAMPTZ
+trigger_count
+INT
+DEFAULT 0
+created_by
+UUID
+FK → profiles
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+updated_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Trigger types:
+
+appointment_created, appointment_confirmed, appointment_reminder (offset: -24h, -2h)
+appointment_completed, appointment_no_show
+follow_up_due, prescription_ready, lab_report_ready
+payment_due, payment_received
+vaccination_due, birthday, inactive_patient (90d)
+inbound_message (AI auto-reply trigger)
+custom_date_field
+Indexes:
+
+(clinic_id, is_active, trigger_type)
+(clinic_id, trigger_type) WHERE is_active = true
+scheduled_messages
+Future-dated message dispatch queue (distinct from BullMQ — persistent schedule).
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL, FK → clinics
+conversation_id
+UUID
+FK → conversations
+patient_id
+UUID
+FK → patients
+phone
+TEXT
+NOT NULL
+automation_id
+UUID
+FK → automations
+template_id
+UUID
+FK → message_templates
+content
+TEXT
+For non-template scheduled
+template_variables
+JSONB
+scheduled_for
+TIMESTAMPTZ
+NOT NULL
+status
+ENUM
+DEFAULT 'scheduled'
+scheduled, processing, sent, cancelled, failed
+message_id
+UUID
+FK → messages
+After send
+cancelled_reason
+TEXT
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Indexes:
+
+(scheduled_for, status) WHERE status = 'scheduled' — scheduler scan
+(clinic_id, conversation_id)
+(automation_id)
+attachments
+Media files associated with messages.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL
+Tenant
+message_id
+UUID
+NOT NULL, FK → messages
+conversation_id
+UUID
+NOT NULL, FK → conversations
+file_name
+TEXT
+NOT NULL
+mime_type
+TEXT
+NOT NULL
+file_size_bytes
+INT
+storage_path
+TEXT
+NOT NULL
+Supabase Storage path
+external_media_id
+TEXT
+Meta media ID
+thumbnail_path
+TEXT
+For images/video
+duration_seconds
+INT
+Audio/video
+metadata
+JSONB
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Indexes:
+
+(message_id)
+(conversation_id)
+webhook_logs
+Raw webhook ingress for debugging and replay.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+source
+ENUM
+NOT NULL
+meta_whatsapp, meta_template_status
+clinic_id
+UUID
+FK → clinics
+Resolved (nullable if unresolved)
+phone_number_id
+TEXT
+event_type
+TEXT
+NOT NULL
+messages, statuses, template_status
+idempotency_key
+TEXT
+wamid or webhook entry ID
+payload
+JSONB
+NOT NULL
+Full raw body
+signature_valid
+BOOLEAN
+processing_status
+ENUM
+DEFAULT 'received'
+received, processed, failed, duplicate
+processing_error
+TEXT
+processed_at
+TIMESTAMPTZ
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Indexes:
+
+UNIQUE (idempotency_key) WHERE idempotency_key IS NOT NULL
+(clinic_id, created_at DESC)
+(created_at) — TTL cleanup after 30 days
+Reasoning: At millions of messages, webhook logs are high volume. Partition by week; auto-delete after 30 days. Critical for debugging Meta issues.
+
+ai_conversations
+AI agent session state per conversation turn.
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL
+Tenant
+conversation_id
+UUID
+NOT NULL, FK → conversations
+patient_id
+UUID
+FK → patients
+status
+ENUM
+DEFAULT 'active'
+active, completed, escalated, failed
+agent_type
+ENUM
+NOT NULL
+virtual_receptionist, reply_suggester, summarizer
+model
+TEXT
+gemini-2.0-flash
+system_prompt_version
+TEXT
+Reproducibility
+context_snapshot
+JSONB
+Patient summary, clinic config at time of call
+tool_calls
+JSONB
+DEFAULT '[]'
+[{tool, input, output, timestamp}]
+messages_processed
+INT
+DEFAULT 0
+tokens_input
+INT
+DEFAULT 0
+tokens_output
+INT
+DEFAULT 0
+escalation_reason
+TEXT
+escalated_to
+UUID
+FK → profiles
+escalated_at
+TIMESTAMPTZ
+confidence_score
+NUMERIC(3,2)
+0.00–1.00
+started_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+ended_at
+TIMESTAMPTZ
+Indexes:
+
+(conversation_id, started_at DESC)
+(clinic_id, status) WHERE status = 'active'
+conversation_audit_logs
+Staff actions on conversations (compliance).
+
+Column	Type	Constraints	Reasoning
+id
+UUID
+PK
+clinic_id
+UUID
+NOT NULL
+conversation_id
+UUID
+NOT NULL
+actor_id
+UUID
+FK → profiles
+action
+TEXT
+NOT NULL
+assigned, resolved, message_sent, tag_added, ai_escalated
+details
+JSONB
+created_at
+TIMESTAMPTZ
+NOT NULL DEFAULT now()
+Indexes:
+
+(conversation_id, created_at DESC)
+(clinic_id, created_at DESC)
+3.4 Migration from Legacy whatsapp_messages
+Phase	Action
+1
+Create all new tables
+2
+Backfill conversations from distinct (clinic_id, patient_phone) in whatsapp_messages
+3
+Backfill messages from whatsapp_messages with conversation_id FK
+4
+Update follow_up_reminders.whatsapp_message_id → messages.id
+5
+Dual-write period: new code writes to both tables for 2 weeks
+6
+Deprecate whatsapp_messages; create compatibility view
+4. Meta WhatsApp Integration
+4.1 Embedded Signup — Complete Flow
+ClinicOS App (Meta Developer)
+├── App ID + App Secret
+├── Embedded Signup Config ID
+├── Redirect URI: /api/meta/oauth/callback
+├── Webhook URL: /api/webhooks/whatsapp
+├── Webhook Verify Token: platform-level secret
+└── Permissions: whatsapp_business_management, whatsapp_business_messaging
+Clinic Owner clicks "Connect"
+├── Frontend loads Meta JS SDK
+├── FB.login() with config_id + state={clinicId}:{nonce}
+├── Meta hosted UI: business selection → WABA → phone verification
+├── On success: redirect with code + waba_id + phone_number_id
+└── Backend:
+    ├── Verify state nonce (Redis)
+    ├── POST /oauth/access_token → short-lived token
+    ├── GET /debug_token → validate
+    ├── Exchange for long-lived token (60 days)
+    ├── GET /{waba_id}/phone_numbers → confirm phone_number_id
+    ├── POST /{waba_id}/subscribed_apps → subscribe webhooks
+    ├── Encrypt token → whatsapp_connections
+    └── Schedule token refresh job (50 days)
+4.2 Access Token Lifecycle
+Token type	Lifetime	Storage	Refresh
+Authorization code
+10 min
+Never stored
+Exchanged immediately
+Short-lived token
+1 hour
+Never stored
+Exchanged immediately
+Long-lived System User token
+60 days
+Encrypted in vault
+Refresh at day 50 via cron
+Client credentials (platform)
+N/A
+Env var
+For app-level operations only
+Token refresh worker (daily cron):
+
+Query connections where access_token_expires_at < now() + 10 days
+Call Meta token refresh endpoint
+Re-encrypt and update
+On failure: set connection_status = token_expired, notify clinic owner
+4.3 Identifiers
+ID	What it is	Used for
+WABA ID
+WhatsApp Business Account
+Template management, analytics, subscription
+Phone Number ID
+Cloud API endpoint identity
+Send messages, webhook routing
+Display Phone Number
+Human-readable +91...
+UI display, patient recognition
+wamid
+Message ID from Meta
+Idempotency, status tracking
+4.4 Webhooks
+Single platform webhook URL serves all clinics. Routing by metadata.phone_number_id.
+
+Subscribed fields:
+
+messages — inbound messages + message echoes
+message_template_status_update — template approval/rejection
+phone_number_quality_update — quality rating changes
+Webhook processing rules:
+
+Verify X-Hub-Signature-256 using App Secret
+Respond 200 within 5 seconds (Meta retries on timeout)
+Log to webhook_logs
+Deduplicate by wamid / entry ID
+Enqueue async processing
+Never do DB writes synchronously beyond logging
+4.5 Template Messages vs Session Messages
+Type	When	Approval	Cost
+Session message
+Within 24h of last patient inbound
+None
+Lower
+Template message
+Outside 24h window, or marketing
+Meta pre-approval required
+Per category
+Session window logic:
+
+conversation.session_expires_at = last_inbound_at + 24 hours
+Outbound worker checks: if now() < session_expires_at → send freeform text
+Else → require message_templates.approval_status = approved
+4.6 Message Status Updates
+Meta sends status webhooks: sent → delivered → read (or failed).
+
+Processing:
+
+Lookup message by external_message_id
+Insert message_status_history row
+Update messages.status + timestamp column
+If campaign message: update campaign_recipients.status
+Publish Realtime event
+4.7 Media
+Inbound:
+
+Webhook contains media ID + mime type
+Worker: GET /{media_id} → download URL
+Download file → upload to Supabase Storage
+Create attachments row
+Store media reference in message
+Outbound:
+
+Upload to Meta: POST /{phone_number_id}/media
+Receive media_id
+Send message with type: image/document referencing media_id
+Limits: Images 5MB, documents 100MB, audio 16MB.
+
+4.8 Error Handling
+Meta Error Code	Meaning	Action
+130429
+Rate limit hit
+Exponential backoff, requeue
+131031
+Account locked
+Set connection suspended, alert owner
+131047
+Re-engagement required
+Force template message
+131026
+Message undeliverable
+Mark failed, skip retries
+132000
+Template param mismatch
+Log, alert staff, don't retry
+190
+Token expired
+Trigger token refresh
+100
+Invalid parameter
+Dead letter, alert engineering
+Retry policy:
+
+Transient errors: 3 retries, exponential backoff (30s, 2m, 10m)
+Permanent errors: dead letter queue, no retry
+All failures update messages.failed_reason + message_status_history
+4.9 Rate Limits
+Limit	Value	Mitigation
+Messages per phone per second
+~80
+Per-clinic send queue with throttle
+Messages per WABA per day
+Tier-based (250→unlimited)
+Track in whatsapp_connections.messaging_limit_tier
+Template messages
+Category-dependent
+Separate marketing queue, lower priority
+API calls per app
+200/sec
+Shared across clinics; monitor
+Webhook processing
+No Meta limit
+Our worker concurrency caps
+Per-clinic send rate limiter (Redis):
+
+Key: rate:{clinic_id}:{phone_number_id}
+Algorithm: Token bucket, 60 tokens/minute default (configurable per tier)
+5. Backend Architecture
+5.1 Service Interaction Diagram
+Synchronous Path
+Asynchronous Path
+Server Actions
+Conversation Service
+PostgreSQL
+Webhook Ingress
+inbound-messages queue
+outbound-messages queue
+Scheduler
+campaigns queue
+automations queue
+scheduled-messages queue
+Inbound Worker
+Outbound Worker
+Campaign Worker
+Automation Worker
+Scheduler Worker
+AI Service
+Meta API
+Notification Service
+Realtime
+5.2 Conversation Service
+Responsibilities:
+
+Create/update/archive conversations
+Inbox queries with filters (status, assigned, unread, tags, search)
+Participant management (assign, transfer, add collaborator)
+Read state management (mark read, unread counts)
+Session window computation
+Patient context enrichment (last visit, due items from EMR)
+Does NOT: Send messages (delegates to Messaging Service), process webhooks, run AI.
+
+5.3 Messaging Service
+Responsibilities:
+
+Message creation (queued state)
+Template rendering with variable substitution
+Session vs template decision
+Media upload/download pipeline
+Meta API interaction (send, mark read)
+Delivery status processing
+Rate limiting enforcement
+Idempotency checks
+Send pipeline stages:
+
+validate → create message (queued) → enqueue → 
+worker: resolve credentials → check rate limit → 
+check session window → render template if needed → 
+POST Meta API → update status → publish realtime
+5.4 Webhook Service
+Responsibilities:
+
+Signature verification
+Payload parsing and normalization
+Idempotency (Redis SET NX with 24h TTL)
+Clinic resolution
+Raw logging
+Job enqueueing
+Fast 200 response
+Deployment: Runs on Vercel serverless (existing route). Processing offloaded to workers.
+
+5.5 Campaign Service
+See Section 10.
+
+5.6 Automation Engine
+See Section 9.
+
+5.7 AI Service
+See Section 8.
+
+5.8 Notification Service
+Channels:
+
+Supabase Realtime (primary — inbox updates, new message badges)
+In-app notifications table (existing notifications)
+Email via Resend (digest, escalation alerts)
+Push notifications (future — FCM)
+Events that trigger notifications:
+
+New inbound message (to assigned staff or all receptionists)
+Conversation escalated from AI
+WhatsApp connection disconnected
+Campaign completed
+Template rejected by Meta
+5.9 Queue Workers
+BullMQ queues:
+
+Queue	Concurrency	Priority	Retry
+inbound-messages
+50
+High
+3x
+outbound-messages
+30
+High
+3x
+status-updates
+100
+Medium
+2x
+campaigns-dispatch
+10
+Low
+3x
+automations
+20
+Medium
+3x
+scheduled-messages
+20
+Medium
+3x
+ai-reply
+10
+High
+1x
+media-download
+15
+Medium
+3x
+token-refresh
+5
+Low
+3x
+dead-letter
+1
+—
+Manual review
+Worker deployment: Separate Node.js process (not Vercel serverless — long-running). Options:
+
+Railway / Fly.io worker dyno
+AWS ECS Fargate task
+Self-hosted on VPS
+5.10 Scheduler
+Vercel Cron endpoints (trigger only — enqueue jobs, don't process inline):
+
+Cron	Schedule	Action
+/api/cron/conversations/automations
+Every 5 min
+Scan due automations
+/api/cron/conversations/scheduled
+Every 1 min
+Scan scheduled_messages
+/api/cron/conversations/token-refresh
+Daily 3 AM
+Refresh expiring tokens
+/api/cron/conversations/campaigns
+Every 1 min
+Start scheduled campaigns
+/api/cron/conversations/cleanup
+Daily 4 AM
+Purge old webhook_logs
+6. API Design
+Base URL: https://app.clinicos.app/api/conversations
+Auth: Supabase JWT Bearer token (staff) or service role (internal).
+
+6.1 Conversations
+GET /conversations
+List inbox conversations.
+
+Query params: status, assigned_to, unread, channel, search, tag, page, limit, sort
+
+Response:
+
+{
+  "data": [
+    {
+      "id": "uuid",
+      "patient_name": "Rajesh Kumar",
+      "patient_phone": "+919876543210",
+      "patient_id": "uuid",
+      "channel": "whatsapp",
+      "status": "open",
+      "priority": "normal",
+      "assigned_to": { "id": "uuid", "name": "Priya Reception" },
+      "last_message_at": "2026-07-13T09:30:00Z",
+      "last_message_preview": "Can I reschedule my appointment?",
+      "last_message_direction": "inbound",
+      "unread_count": 2,
+      "session_expires_at": "2026-07-14T09:30:00Z",
+      "tags": ["follow_up"],
+      "metadata": {
+        "visit_reason": "Fever, cough",
+        "last_visit_at": "2026-06-12",
+        "due_date": "2026-07-11",
+        "due_type": "follow_up"
+      }
+    }
+  ],
+  "pagination": { "page": 1, "limit": 50, "total": 234, "has_more": true }
+}
+GET /conversations/:id
+Full conversation with patient context.
+
+Response:
+
+{
+  "id": "uuid",
+  "clinic_id": "uuid",
+  "patient": {
+    "id": "uuid",
+    "full_name": "Rajesh Kumar",
+    "phone": "+919876543210",
+    "last_visit_at": "2026-06-12",
+    "next_appointment_at": null
+  },
+  "status": "open",
+  "assigned_to": { "id": "uuid", "name": "Priya Reception" },
+  "participants": [...],
+  "ai_summary": "Patient inquired about rescheduling knee follow-up...",
+  "session_expires_at": "2026-07-14T09:30:00Z",
+  "tags": ["follow_up"],
+  "unread_count": 2
+}
+POST /conversations
+Create conversation / add contact.
+
+Request:
+
+{
+  "patient_name": "Anita Sharma",
+  "patient_phone": "9876543210",
+  "channel": "whatsapp",
+  "metadata": {
+    "visit_reason": "BP review",
+    "last_visit_at": "2026-05-01",
+    "due_date": "2026-07-15",
+    "due_type": "follow_up"
+  }
+}
+Response: 201 with conversation object.
+
+PATCH /conversations/:id
+Update status, assignment, tags, priority.
+
+Request:
+
+{
+  "status": "resolved",
+  "assigned_to": "profile-uuid",
+  "tags": ["follow_up", "vip"],
+  "priority": "high"
+}
+POST /conversations/:id/read
+Mark conversation as read for current user.
+
+6.2 Messages
+GET /conversations/:id/messages
+Query: before (cursor), limit (default 50)
+
+Response:
+
+{
+  "data": [
+    {
+      "id": "uuid",
+      "direction": "inbound",
+      "sender_type": "patient",
+      "message_type": "text",
+      "content": "Can I reschedule to Friday?",
+      "status": "delivered",
+      "sent_at": "2026-07-13T09:30:00Z",
+      "delivered_at": "2026-07-13T09:30:02Z",
+      "attachments": []
+    },
+    {
+      "id": "uuid",
+      "direction": "outbound",
+      "sender_type": "staff",
+      "sender_profile_id": "uuid",
+      "message_type": "text",
+      "content": "Sure! Dr. Sharma has slots at 10am and 2pm on Friday.",
+      "status": "read",
+      "sent_at": "2026-07-13T09:32:00Z",
+      "read_at": "2026-07-13T09:35:00Z"
+    }
+  ],
+  "cursor": { "before": "uuid", "has_more": true }
+}
+POST /conversations/:id/messages
+Send a message.
+
+Request:
+
+{
+  "content": "Your appointment is confirmed for Friday 10am.",
+  "message_type": "text"
+}
+Response: 202 Accepted
+
+{
+  "message_id": "uuid",
+  "status": "queued"
+}
+POST /conversations/:id/messages/template
+Send template message (outside session window).
+
+Request:
+
+{
+  "template_id": "uuid",
+  "variables": {
+    "1": "Rajesh",
+    "2": "Friday 10am",
+    "3": "Dr. Sharma"
+  }
+}
+POST /conversations/:id/messages/ai-suggest
+Get AI reply suggestion (sync, does not send).
+
+Request:
+
+{
+  "context_messages": 10
+}
+Response:
+
+{
+  "suggestion": "Hi Rajesh! I can offer you Friday at 10am or 2pm with Dr. Sharma. Which works better?",
+  "confidence": 0.92,
+  "intent_detected": "reschedule_appointment"
+}
+6.3 WhatsApp Connection
+GET /whatsapp/connection
+Response:
+
+{
+  "status": "connected",
+  "display_phone_number": "+91 98765 43210",
+  "waba_id": "123456789",
+  "quality_rating": "GREEN",
+  "messaging_limit_tier": "TIER_1K",
+  "connected_at": "2026-06-01T10:00:00Z"
+}
+POST /whatsapp/connect
+Initiate Embedded Signup (returns Meta OAuth URL).
+
+Response:
+
+{
+  "auth_url": "https://www.facebook.com/v21.0/dialog/oauth?...",
+  "state": "clinic-uuid:nonce"
+}
+DELETE /whatsapp/connection
+Disconnect WhatsApp (revoke token, unsubscribe webhooks).
+
+6.4 Templates
+GET /templates
+POST /templates
+Create and submit to Meta for approval.
+
+Request:
+
+{
+  "name": "appointment_reminder",
+  "category": "utility",
+  "language": "en",
+  "body": "Hi {{1}}, reminder: your appointment with {{2}} is on {{3}} at {{4}}.",
+  "footer": "Reply STOP to opt out",
+  "buttons": [{ "type": "QUICK_REPLY", "text": "Confirm" }]
+}
+POST /templates/:id/sync
+Pull approval status from Meta.
+
+6.5 Campaigns
+GET /campaigns
+POST /campaigns
+Request:
+
+{
+  "name": "Diabetes Camp Promotion",
+  "template_id": "uuid",
+  "audience_type": "segment",
+  "audience_filter": {
+    "conditions": [
+      { "field": "last_diagnosis", "operator": "contains", "value": "diabetes" },
+      { "field": "last_visit_at", "operator": "within_days", "value": 180 }
+    ],
+    "logic": "AND"
+  },
+  "scheduled_at": "2026-07-15T09:00:00Z",
+  "variable_mapping": {
+    "1": "patient.full_name",
+    "2": "clinic.name"
+  }
+}
+POST /campaigns/:id/launch
+POST /campaigns/:id/pause
+GET /campaigns/:id/analytics
+Response:
+
+{
+  "audience_count": 450,
+  "stats": {
+    "sent": 445,
+    "delivered": 430,
+    "read": 380,
+    "failed": 5,
+    "replied": 42,
+    "opted_out": 2
+  },
+  "delivery_rate": 0.966,
+  "read_rate": 0.884,
+  "reply_rate": 0.098
+}
+6.6 Automations
+GET /automations
+POST /automations
+Request:
+
+{
+  "name": "Appointment Reminder 24h",
+  "trigger_type": "appointment_reminder",
+  "trigger_config": { "offset_hours": -24 },
+  "conditions": [
+    { "field": "appointment.status", "operator": "eq", "value": "confirmed" }
+  ],
+  "action_type": "send_template",
+  "action_config": {
+    "template_id": "uuid",
+    "variable_mapping": {
+      "1": "patient.full_name",
+      "2": "doctor.full_name",
+      "3": "appointment.date",
+      "4": "appointment.time"
+    }
+  }
+}
+PATCH /automations/:id
+Toggle active, update config.
+
+6.7 Webhooks (Meta → ClinicOS)
+GET /api/webhooks/whatsapp
+Meta verification challenge.
+
+POST /api/webhooks/whatsapp
+Inbound messages and status updates. Not called by staff — Meta only.
+
+6.8 Analytics
+GET /analytics/overview
+Response:
+
+{
+  "period": "2026-07-01 to 2026-07-13",
+  "total_conversations": 1250,
+  "total_messages_sent": 3400,
+  "total_messages_received": 2100,
+  "avg_first_response_time_minutes": 4.2,
+  "ai_resolution_rate": 0.62,
+  "ai_escalation_rate": 0.08,
+  "appointment_bookings_via_whatsapp": 89,
+  "campaign_messages_sent": 1200,
+  "delivery_rate": 0.97
+}
+7. Realtime Architecture
+7.1 Requirements
+New inbound message visible to receptionist within <2 seconds
+Delivery status updates (sent → delivered → read) in real time
+Unread badge counts update without page refresh
+Multiple staff viewing same conversation see each other's replies
+7.2 Architecture
+Inbound Worker
+PostgreSQL
+Supabase Realtime API
+Channel: clinic:{id}:inbox
+Channel: conversation:{id}
+Receptionist Browser
+Doctor Browser
+7.3 Channel Design
+Channel	Events	Subscribers
+clinic:{clinicId}:inbox
+conversation_updated, new_conversation
+All staff on inbox page
+conversation:{conversationId}
+new_message, message_status_updated, typing
+Staff viewing that chat
+clinic:{clinicId}:notifications
+notification
+All staff (badge counts)
+7.4 Event Payloads
+new_message:
+
+{
+  "type": "new_message",
+  "conversation_id": "uuid",
+  "message": {
+    "id": "uuid",
+    "direction": "inbound",
+    "content": "Can I reschedule?",
+    "sender_type": "patient",
+    "created_at": "2026-07-13T09:30:00Z"
+  }
+}
+conversation_updated:
+
+{
+  "type": "conversation_updated",
+  "conversation_id": "uuid",
+  "last_message_preview": "Can I reschedule?",
+  "last_message_at": "2026-07-13T09:30:00Z",
+  "unread_count": 3
+}
+7.5 Implementation Strategy
+Phase 1 (MVP): Supabase Realtime postgres_changes on messages and conversations tables. Filter by clinic_id. Simple, no extra infra.
+
+Phase 2 (Scale): Workers publish to Supabase Realtime Broadcast API directly (bypasses WAL replication latency). Reduces DB load at high message volume.
+
+Phase 3 (10k+ clinics): Dedicated WebSocket server (Socket.io or Supabase Realtime dedicated cluster) with Redis pub/sub fanout. Supabase Realtime may hit limits at extreme scale.
+
+7.6 Presence (Future)
+Track which staff are viewing which conversation. Use Supabase Presence on conversation:{id} channel. Show "Priya is viewing" indicator. Prevent duplicate replies.
+
+8. AI Architecture
+8.1 AI Modes
+Mode	Trigger	Latency	Sync/Async
+Virtual Receptionist
+Inbound message (if enabled)
+<5s
+Async
+Reply Suggester
+Staff clicks "AI Suggest"
+<3s
+Sync
+Conversation Summarizer
+Staff opens conversation / on close
+<5s
+Sync
+Campaign Personalizer
+Campaign launch
+<2s per patient
+Async batch
+8.2 Virtual Receptionist Agent
+Yes
+No
+Inbound Message
+Intent Classification
+Tool Router
+FAQ Lookup
+Appointment Tools
+Billing Lookup
+Clinic Info
+Escalate to Human
+Generate Response
+Confidence > 0.8?
+Send Reply
+Notify Staff
+8.3 Tool Definitions (Clinic-Scoped)
+Every tool receives clinicId from server context — never from LLM output.
+
+Tool	Data Access	Action
+get_clinic_info
+clinics, clinic_branding, doctors
+Hours, fees, address
+search_faq
+clinic.settings.faq or knowledge base
+Answer common questions
+get_doctor_availability
+doctor_schedules, appointments
+Available slots
+book_appointment
+appointments, patients
+Create booking (reuse book_whatsapp_appointment)
+cancel_appointment
+appointments
+Cancel upcoming
+get_patient_appointments
+appointments WHERE patient
+Upcoming visits
+get_outstanding_balance
+invoices, payments
+Amount due
+get_prescription_status
+prescriptions
+Ready/pending
+get_lab_report_status
+lab_reports
+Ready/pending
+escalate_to_human
+conversations
+Set needs_human, notify staff
+8.4 Safe Data Access Rules
+Clinic scope enforced at tool level — every query includes WHERE clinic_id = $clinicId
+Patient scope — tools accessing patient data require matching patient_phone or patient_id from conversation context
+No cross-patient data — agent cannot query other patients
+No raw SQL from LLM — all data access through typed tool functions
+PII in prompts — minimize; use patient first name, not full medical history
+Audit trail — every tool call logged in ai_conversations.tool_calls
+Token budgets — max 4K input tokens per agent call; truncate history
+Rate limits — max 10 AI replies per conversation per hour (prevent loops)
+8.5 Escalation Triggers
+Trigger	Action
+Confidence score < 0.7
+Escalate
+Patient mentions "emergency", "chest pain", "bleeding"
+Immediate escalate + emergency template
+Patient requests "talk to doctor" / "human"
+Escalate
+3 consecutive AI replies without resolution
+Escalate
+Negative sentiment detected
+Escalate
+Message contains media (image of rash, report)
+Escalate (AI cannot interpret images in v1)
+Outside AI operating hours (clinic configurable)
+Queue for morning + auto-reply acknowledgment
+8.6 Reply Suggester (Staff Assist)
+Input: last N messages + patient context panel data
+Output: suggested reply text (not auto-sent)
+Staff edits and sends manually
+Lower confidence threshold acceptable (suggestion only)
+Log usage for analytics
+8.7 Conversation Summarizer
+Triggered on: conversation resolved, or staff clicks "Summarize"
+Input: full message history + patient EMR summary
+Output: 2-3 sentence summary stored in conversations.metadata.ai_summary
+Used for: handoff between staff, doctor review, analytics
+9. Automation Engine
+9.1 Architecture
+Trigger Sources
+Automation Engine
+Outputs
+Scheduler Cron
+Domain Events
+Inbound Webhook
+Rule Evaluator
+Condition Checker
+Deduplication
+Action Executor
+scheduled_messages
+outbound-messages queue
+Conversation Assignment
+Tag Addition
+9.2 Trigger Mechanisms
+Trigger	Source	Evaluation
+Appointment reminder (-24h, -2h)
+Cron every 5 min
+Query appointments WHERE appointment_date + time - offset = now()
+Follow-up due
+Cron daily 8 AM
+Query EMR follow_up_date = today
+Birthday
+Cron daily 9 AM
+Query patients WHERE date_of_birth MM-DD = today
+Payment due
+Event: invoice created
+On invoice overdue event
+Payment received
+Event: payment recorded
+Thank you message
+Prescription ready
+Event: prescription finalized
+Immediate
+Lab report ready
+Event: lab report uploaded
+Immediate
+Vaccination due
+Cron weekly
+Query patients with vaccination schedule
+Inactive patient (90d)
+Cron weekly
+Query last_visit_at < now() - 90 days
+No-show follow-up
+Event: appointment status → no_show
+2h delay
+Post-visit feedback
+Event: visit completed
+24h delay
+9.3 Deduplication
+Prevent sending the same automation twice to the same patient:
+
+Key: auto:{automation_id}:{patient_id}:{trigger_date}
+Store in Redis with TTL = cooldown_hours
+Skip if key exists
+Also check scheduled_messages for pending duplicates.
+
+9.4 Condition Engine
+Conditions evaluated as AND logic:
+
+{
+  "conditions": [
+    { "field": "patient.phone", "operator": "is_not_null" },
+    { "field": "patient.whatsapp_opted_out", "operator": "eq", "value": false },
+    { "field": "appointment.status", "operator": "in", "value": ["confirmed", "pending"] },
+    { "field": "conversation.session_expires_at", "operator": "gt", "value": "now()" }
+  ]
+}
+If session expired: auto-select template version of the message.
+
+9.5 Domain Events
+Emit events from existing server actions to decouple automations:
+
+Event	Emitted from
+appointment.created
+appointments.ts
+appointment.confirmed
+appointments.ts
+appointment.completed
+visits.ts
+appointment.no_show
+appointments.ts
+prescription.finalized
+prescriptions.ts
+lab_report.uploaded
+lab actions
+invoice.created
+billing actions
+payment.received
+billing actions
+visit.completed
+visits.ts
+Events enqueued to automations queue with payload. Engine matches active automations by trigger_type.
+
+10. Campaign Engine
+10.1 Lifecycle
+draft → scheduled → running → completed
+                  ↘ paused → running
+                  ↘ cancelled
+                  ↘ failed
+10.2 Segmentation
+Audience types:
+
+Type	Description
+all_patients
+All active patients with phone
+segment
+Rule-based filter
+manual_list
+Hand-picked patient IDs
+csv_import
+Uploaded CSV with phone numbers
+Segment filter operators:
+
+Operator	Example
+eq, neq
+gender = female
+gt, lt, gte, lte
+age > 40
+contains
+last_diagnosis contains diabetes
+within_days
+last_visit_at within 90 days
+before_days
+last_visit_at before 90 days ago
+is_null, is_not_null
+phone is not null
+in, not_in
+status in [active, returning]
+between
+age between 18 and 65
+Segment query builder: Server-side SQL generation from filter JSON. Never eval filter in client. Parameterized queries only.
+
+10.3 Scheduling and Queueing
+Launch flow:
+
+Staff clicks "Launch" or cron triggers at scheduled_at
+Campaign Service resolves audience → inserts campaign_recipients (status: pending)
+Updates campaign status: running
+Enqueues batch jobs: campaign-dispatch with {campaignId, recipientIds[]} (batches of 50)
+Campaign Worker per recipient: a. Check opt-out list b. Resolve template variables from patient data c. Create/find conversation d. Create message (queued) e. Enqueue outbound-messages f. Update recipient status
+Rate limited by send_rate_per_minute (token bucket per clinic)
+When all recipients processed: campaign status → completed
+10.4 Retries
+Failure type	Retry
+Rate limit (130429)
+Requeue with backoff
+Temporary API error
+3 retries
+Invalid phone
+Mark skipped, no retry
+Template rejected
+Pause campaign, alert staff
+Opted out
+Mark skipped
+10.5 Analytics and Delivery Tracking
+Per-campaign stats (updated in real time via status webhooks):
+
+Sent, delivered, read, failed, replied, opted out
+Delivery rate, read rate, reply rate
+Cost estimate (per Meta pricing category)
+Per-recipient tracking: Full lifecycle in campaign_recipients linked to messages and message_status_history.
+
+Dashboard widgets:
+
+Campaign performance comparison
+Best performing templates
+Optimal send times (heatmap by read rate)
+10.6 Opt-Out Management
+Patient replies "STOP" → mark patients.whatsapp_opted_out = true
+Inbound worker detects opt-out keywords
+All future campaigns and automations skip opted-out patients
+Required for Meta compliance
+11. Security
+11.1 Encryption
+Data	At Rest	In Transit
+WhatsApp access tokens
+AES-256-GCM (application-level)
+TLS 1.3
+Message content
+PostgreSQL encryption (Supabase)
+TLS
+Attachments
+Supabase Storage encryption
+TLS
+Webhook payloads
+JSONB in PostgreSQL
+TLS
+Patient PHI in messages
+Consider column-level encryption for HIPAA
+TLS
+11.2 RBAC
+Module: conversations added to system_modules.
+
+Role	Permissions
+clinic_owner
+Full admin: connect WhatsApp, manage templates, campaigns, automations, view all
+receptionist
+Read/write conversations, send messages, view campaigns
+doctor
+Read conversations for own patients, send messages, AI suggest
+finance_manager
+Read only (payment-related conversations)
+super_admin
+Cross-tenant analytics only (no message content)
+Permission levels: read, write, admin — enforced via existing staff_module_permissions + has_module_permission().
+
+Conversation-level access:
+
+Assigned staff: full read/write
+Unassigned: read + claim (receptionist)
+Doctor: only conversations linked to their patients or appointments
+11.3 Webhook Verification
+1. Compute HMAC-SHA256 of raw body using App Secret
+2. Compare with X-Hub-Signature-256 header
+3. Reject if mismatch (return 401, do not process)
+4. Additional: verify webhook_verify_token on GET challenge
+11.4 Audit Logs
+Event	Stored in
+WhatsApp connected/disconnected
+conversation_audit_logs + platform_audit_logs
+Message sent by staff
+conversation_audit_logs
+AI auto-reply
+ai_conversations + conversation_audit_logs
+Campaign launched
+conversation_audit_logs
+Template created/submitted
+conversation_audit_logs
+Automation created/modified
+conversation_audit_logs
+Staff viewed conversation
+conversation_audit_logs (optional, configurable)
+Retention: 7 years for healthcare compliance.
+
+11.5 Tenant Isolation Checklist
+ Every table has clinic_id with NOT NULL FK
+ RLS enabled on all tables
+ RLS policies use my_profile_clinic_id()
+ Service role used only in workers/webhooks (never exposed to client)
+ Queue jobs include clinicId validated in worker
+ Meta credentials decrypted only in worker process
+ Storage paths prefixed with clinic_id
+ Realtime channels scoped by clinic_id
+ AI tools enforce clinic_id + patient_id scope
+ No cross-clinic fallback in webhook resolution
+ API endpoints validate profile.clinic_id on every request
+11.6 Compliance
+Regulation	Requirement	Implementation
+Meta WhatsApp Policy
+Opt-out, approved templates, 24h window
+Opt-out handler, template enforcement
+India DPDP Act
+Consent for messaging, data minimization
+Opt-in on patient registration, data retention policies
+Healthcare data
+PHI protection, audit trail
+RLS, audit logs, access controls
+Meta Commerce Policy
+No prohibited content in templates
+Template review before Meta submission
+12. Scalability
+12.1 Volume Projections
+Metric	1,000 clinics	10,000 clinics
+Messages/month
+5M
+50M
+Messages/second (peak)
+~50
+~500
+Conversations active
+200K
+2M
+Webhook events/month
+15M
+150M
+Campaign recipients/month
+2M
+20M
+12.2 Database Scaling
+Strategy	When
+Indexes (defined above)
+Day 1
+Connection pooling (PgBouncer via Supabase)
+Day 1
+Read replica for inbox queries + analytics
+>2,000 clinics
+Partition messages by month
+>5M messages/month
+Partition webhook_logs by week, 30-day TTL
+>1M webhooks/month
+Archive resolved conversations >1 year to cold storage
+>10M conversations
+Materialized view for inbox (refresh on message insert)
+If list query >100ms
+12.3 Queue Scaling
+Strategy	When
+Single Redis + BullMQ
+Day 1 — handles ~1,000 msg/sec
+Redis Cluster
+>5,000 msg/sec
+Multiple worker instances (horizontal)
+Scale with queue depth
+Priority queues (inbound > outbound > campaigns)
+Day 1
+Per-clinic fair scheduling (prevent one clinic monopolizing)
+>1,000 clinics
+12.4 Webhook Scaling
+Vercel serverless auto-scales webhook ingress
+Processing offloaded to workers (webhook handler only logs + enqueues)
+Idempotency in Redis prevents duplicate processing during Meta retries
+Target: webhook handler p99 < 200ms
+12.5 Meta API Scaling
+Per-clinic rate limiting (token bucket in Redis)
+Campaign messages deprioritized vs session messages
+Batch template sends with configurable throttle
+Monitor Meta app-level rate limits; request tier upgrades
+12.6 Caching
+Cache	Store	TTL
+Clinic WhatsApp credentials (decrypted)
+Redis
+5 min
+Inbox list (first page)
+Redis
+30 sec
+Template list
+Redis
+10 min
+Patient context for AI
+Redis
+2 min
+Webhook idempotency
+Redis
+24 hours
+Automation dedup
+Redis
+cooldown_hours
+13. Deployment Architecture
+13.1 Infrastructure Map
+┌─────────────────────────────────────────────────────────────┐
+│                        Vercel                                │
+│  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │
+│  │ Next.js App  │  │ API Routes   │  │ Vercel Cron       │  │
+│  │ (SSR + RSC)  │  │ (Webhooks)   │  │ (Schedulers)      │  │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬──────────┘  │
+└─────────┼─────────────────┼───────────────────┼─────────────┘
+          │                 │                   │
+          ▼                 ▼                   ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Supabase                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
+│  │PostgreSQL│  │  Auth    │  │ Storage  │  │  Realtime  │  │
+│  │  + RLS   │  │          │  │ (media)  │  │ (WebSocket)│  │
+│  └──────────┘  └──────────┘  └──────────┘  └────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+          │                 │
+          ▼                 ▼
+┌─────────────────┐  ┌─────────────────────────────────────────┐
+│  Redis           │  │  Worker Service (Railway / Fly.io)      │
+│  (Upstash)       │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│  ├── BullMQ      │  │  │Inbound  │ │Outbound │ │Campaign │ │
+│  ├── Rate limits │  │  │Worker   │ │Worker   │ │Worker   │ │
+│  ├── Idempotency │  │  └─────────┘ └─────────┘ └─────────┘ │
+│  └── Cache       │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│                  │  │  │AI Reply │ │Automation│ │Scheduler│ │
+│                  │  │  │Worker   │ │Worker   │ │Worker   │ │
+│                  │  │  └─────────┘ └─────────┘ └─────────┘ │
+└─────────────────┘  └─────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  External Services                                           │
+│  ├── Meta WhatsApp Cloud API                                │
+│  ├── Google Gemini (AI)                                     │
+│  ├── Resend (email notifications)                           │
+│  └── KMS (credential encryption)                            │
+└─────────────────────────────────────────────────────────────┘
+13.2 Component Responsibilities
+Component	Role	Scaling
+Vercel (Next.js)
+UI, server actions, webhook ingress, cron triggers
+Auto-scale serverless
+PostgreSQL (Supabase)
+All persistent data, RLS
+Vertical + read replicas
+Redis (Upstash)
+BullMQ backend, rate limiting, caching, idempotency
+Serverless Redis, auto-scale
+BullMQ
+Job queue with retries, priorities, dead letter
+Horizontal worker scaling
+Worker Service
+Long-running job processors
+1→N instances based on queue depth
+Supabase Realtime
+WebSocket push to staff browsers
+Supabase managed
+Supabase Storage
+Message attachments, media
+Supabase managed
+Vercel Cron
+Schedule triggers (not processing)
+Managed
+13.3 Environment Variables (New)
+# Redis / BullMQ
+REDIS_URL=redis://...
+BULLMQ_PREFIX=clinicos
+# Meta Embedded Signup
+META_APP_ID=
+META_APP_SECRET=
+META_CONFIG_ID=
+META_WEBHOOK_VERIFY_TOKEN=
+# Credential encryption
+CREDENTIALS_ENCRYPTION_KEY=
+# Worker service
+WORKER_CONCURRENCY_INBOUND=50
+WORKER_CONCURRENCY_OUTBOUND=30
+13.4 Monitoring and Observability
+Metric	Tool
+Queue depth / lag
+BullMQ Dashboard / Grafana
+Webhook processing time
+Vercel Analytics
+Message delivery rate
+Custom dashboard
+AI token usage
+Existing ai_usage_logs
+Error rate by Meta error code
+Structured logging (Axiom / Datadog)
+Worker health
+Health check endpoint
+Database query performance
+Supabase Dashboard / pg_stat
+Alerts:
+
+Queue depth > 10,000 → scale workers
+Webhook error rate > 5% → page on-call
+Token refresh failure → email clinic owner
+Delivery rate < 90% → alert clinic owner
+Worker process crash → auto-restart (Railway/Fly)
+14. Build Roadmap
+Phase 0: Foundation (Week 1–2)
+Goal: Database schema, credential vault, worker infrastructure.
+
+Task	Depends on
+Migration: all new tables
+—
+Credential encryption service
+Migration
+Redis + BullMQ setup
+—
+Worker service scaffold (Railway)
+Redis
+Meta Tech Provider application
+—
+Refactor lib/whatsapp/send.ts for per-clinic credentials
+Credential service
+Legacy whatsapp_messages backfill script
+Migration
+Exit criteria: Workers running, credentials stored encrypted, existing retention messages still send.
+
+Phase 1: Core Inbox (Week 3–5)
+Goal: Staff can view conversations, send/receive messages, WhatsApp Embedded Signup.
+
+Task	Depends on
+Meta Embedded Signup OAuth flow
+Phase 0, Meta approval
+WhatsApp connect wizard UI
+OAuth flow
+Conversation Service (CRUD, inbox queries)
+Migration
+Messaging Service (outbound pipeline)
+Conversation Service, Workers
+Webhook Service refactor (async enqueue)
+Workers
+Inbound message worker
+Webhook Service
+Outbound message worker
+Messaging Service
+/owner/conversations page — inbox list
+Conversation Service
+Chat panel component
+Messages API
+Add contact dialog
+Conversation Service
+Supabase Realtime subscription
+Chat panel
+Message status tracking
+Webhook status worker
+Navigation + permissions
+—
+Migrate retention "Message" button → open conversation
+Phase 1 inbox
+Exit criteria: Clinic connects WhatsApp, staff sees inbound messages in real time, can reply, delivery ticks work.
+
+Phase 2: Templates and Session Management (Week 6–7)
+Goal: Template messages, 24-hour window enforcement.
+
+Task	Depends on
+Template CRUD UI
+Phase 1
+Meta template submission API
+Meta approval
+Template status webhook handler
+Webhook Service
+Session window logic in outbound worker
+Phase 1
+Continuing from Phase 2 of the build roadmap.
+
+Phase 2: Templates and Session Management (Week 6–7)
+Goal: Template messages, 24-hour window enforcement.
+
+Task	Depends on
+Template CRUD UI
+Phase 1
+Meta template submission API
+Meta approval
+Template status webhook handler
+Webhook Service
+Session window logic in outbound worker
+Phase 1
+Auto template fallback when session expired
+Templates
+Template variable renderer
+Template CRUD
+Template library (pre-built clinic templates)
+Template CRUD
+Exit criteria: Staff can send messages outside the 24-hour window using approved templates. Session expiry is enforced automatically.
+
+Phase 3: AI Assistant (Week 8–10)
+Goal: Virtual receptionist, reply suggestions, escalation.
+
+Task	Depends on
+AI conversation agent with tool framework
+Phase 1
+Tool: clinic info, FAQ, doctor availability
+Agent
+Tool: book/cancel appointment (reuse book_whatsapp_appointment)
+Agent
+Tool: patient appointments, billing lookup
+Agent
+Escalation engine + staff notification
+Agent
+AI auto-reply worker (inbound pipeline)
+Agent, Workers
+Reply suggester (sync, staff assist)
+Agent
+Conversation summarizer
+Agent
+AI settings per clinic (enable/disable, hours, confidence threshold)
+Agent
+ai_conversations audit logging
+Agent
+Exit criteria: AI answers FAQs and books appointments via WhatsApp. Low-confidence cases escalate to receptionist with notification.
+
+Phase 4: Automations (Week 11–13)
+Goal: Automated reminders, recalls, birthdays, payment nudges.
+
+Task	Depends on
+Automation engine core (rule evaluator)
+Phase 2 (templates)
+Domain event emission from existing actions
+—
+Appointment reminder automations (-24h, -2h)
+Engine, Scheduler
+Follow-up due, birthday, inactive patient automations
+Engine
+Prescription/lab report ready automations
+Engine, domain events
+Payment due/received automations
+Engine, billing events
+scheduled_messages scheduler worker
+Engine
+Automation editor UI
+Engine
+Deduplication (Redis cooldown)
+Engine
+Opt-out handler (STOP keyword)
+Inbound worker
+Exit criteria: Clinic enables automations; patients receive appointment reminders and follow-ups without staff action.
+
+Phase 5: Campaigns (Week 14–16)
+Goal: Broadcast messaging with segmentation and analytics.
+
+Task	Depends on
+Campaign CRUD + builder UI
+Phase 2, Phase 4
+Segmentation query builder
+Campaign service
+Audience preview (count before launch)
+Segmentation
+Campaign dispatch worker with rate limiting
+Workers
+Campaign scheduling (cron trigger)
+Scheduler
+Per-recipient delivery tracking
+Status webhook worker
+Campaign analytics dashboard
+Delivery tracking
+CSV import audience
+Campaign service
+Campaign pause/resume/cancel
+Campaign service
+Exit criteria: Clinic launches a segmented campaign; delivery/read/reply rates visible in dashboard.
+
+Phase 6: Analytics and Admin (Week 17–18)
+Goal: Operational insights and platform oversight.
+
+Task	Depends on
+Conversations analytics dashboard (owner)
+Phases 1–5 data
+Response time, AI resolution rate, booking conversions
+Analytics
+Campaign performance comparison
+Phase 5
+Super Admin cross-tenant metrics (no PHI)
+Analytics
+Conversation audit log viewer
+Audit logs
+Export conversation history (compliance)
+Messages
+Quality rating monitoring (Meta webhook)
+Webhook Service
+Exit criteria: Clinic owner sees communication KPIs. Super Admin sees platform-wide volume and health.
+
+Phase 7: Scale and Hardening (Week 19–22)
+Goal: Production readiness for 10,000+ clinics.
+
+Task	Depends on
+messages table partitioning (monthly)
+Volume threshold
+webhook_logs TTL + partitioning
+Volume threshold
+Read replica for inbox/analytics queries
+Supabase config
+Per-clinic fair queue scheduling
+Workers
+Credential key rotation job
+Credential service
+Token refresh automation
+Phase 0
+Dead letter queue monitoring + replay UI
+Workers
+Load testing (simulate 500 msg/sec)
+All phases
+Disaster recovery runbook
+—
+HIPAA column encryption evaluation
+Security review
+Exit criteria: System handles 500 messages/second in load test. Monitoring and alerting operational.
+
+Phase 8: Future Channels (Week 23+)
+Goal: Expand beyond WhatsApp.
+
+Task	Depends on
+Website chat widget (web channel)
+Phase 1 architecture
+Instagram DM (Meta same platform)
+Meta integration
+Facebook Messenger
+Meta integration
+SMS fallback (Twilio)
+Optional
+Mobile push for staff
+FCM
+Patient conversation portal (logged-in patient view)
+Patient auth
+Roadmap Dependency Graph
+Phase 0: Foundation
+Phase 1: Core Inbox
+Phase 2: Templates
+Phase 3: AI Assistant
+Phase 4: Automations
+Phase 5: Campaigns
+Phase 6: Analytics
+Phase 7: Scale
+Phase 8: Future Channels
+Critical Path
+The minimum viable product that matches your product vision:
+
+Phase 0 → Phase 1 → Phase 2 → Phase 3
+(4–10 weeks to a working AI-powered inbox with WhatsApp)
+Automations and campaigns can ship in parallel after Phase 2:
+
+Phase 2 ──┬── Phase 4 (Automations)
+          └── Phase 5 (Campaigns)
+Team Allocation Recommendation
+Role	Phases	Focus
+Backend engineer
+0, 1, 2, 4, 5
+Services, workers, Meta integration
+Frontend engineer
+1, 2, 5, 6
+Inbox UI, chat panel, campaign builder
+AI/ML engineer
+3
+Agent, tools, escalation
+DevOps
+0, 7
+Redis, workers, monitoring, scaling
+Product/QA
+All
+Meta app review, template compliance, UAT
+Risk Register
+Risk	Impact	Mitigation
+Meta Tech Provider approval delayed
+Blocks per-clinic onboarding
+Start with single shared WABA for beta; migrate to Embedded Signup
+WhatsApp template rejection
+Blocks campaigns/automations
+Pre-built compliant template library; review before submission
+Supabase Realtime limits at scale
+Slow inbox updates
+Phase 7: dedicated WebSocket fanout
+Vercel serverless timeout on webhooks
+Meta retries, duplicate processing
+Enqueue-only pattern (already designed)
+AI hallucination in medical context
+Patient harm, liability
+Tool-only data access, escalation triggers, no medical advice in prompts
+Token expiry across 10k clinics
+Mass send failure
+Proactive refresh cron at day 50; alert at day 55
+Single clinic campaign flooding queue
+Other clinics delayed
+Per-clinic fair scheduling in BullMQ
+Mapping to Your Existing Codebase
+Existing asset	Conversations module
+whatsapp_messages table
+Migrated → messages + conversations
+lib/whatsapp/send.ts
+Refactored → Messaging Service
+lib/whatsapp/inbound.ts
+Refactored → Webhook Service + Inbound Worker
+lib/whatsapp/booking.ts
+Reused as AI tool
+lib/actions/patient-retention.ts
+Retention stays; links to Conversations inbox
+components/retention/patient-retention-dashboard.tsx
+"Message" opens conversation thread
+clinic_branding.whatsapp_*
+Migrated → whatsapp_connections (encrypted)
+follow_up_reminders
+Fed by Automation Engine (Phase 4)
+app/api/cron/engagement/route.ts
+Replaced by Automation Engine
+lib/ai/retention-message.ts
+Extended → AI Service
+lib/navigation/sidebar-config.ts
+Add "Conversations" nav item
+Decision Log
+#	Decision	Alternatives considered	Rationale
+D1
+BullMQ + Redis for async
+Vercel background functions, Supabase Edge Functions
+Long-running workers, retries, priorities needed at scale
+D2
+Single webhook URL, route by phone_number_id
+Per-clinic webhook URLs
+Simpler Meta app config; one SSL endpoint
+D3
+Encrypted vault table for tokens
+AWS Secrets Manager per clinic
+Cost at 10k clinics; app-level encryption sufficient with KMS key
+D4
+Supabase Realtime for MVP
+Custom WebSocket server
+Leverage existing infra; upgrade path defined
+D5
+Gemini for AI agent
+OpenAI, Groq
+Already integrated; tool-calling supported
+D6
+Separate conversations from patients
+Messages directly on patients
+Supports multi-channel, non-registered contacts, web chat
+D7
+Append-only message_status_history
+Status column only on messages
+Audit compliance, debugging delivery issues
+D8
+Domain events for automations
+Polling only
+Decouples automations from core actions; extensible
+D9
+Worker service off Vercel
+All on Vercel
+Vercel serverless has 10–60s timeout; workers need long-running
+D10
+Keep Retention as separate module
+Merge into Conversations
+Different UX intent: proactive outreach vs reactive inbox
+Summary
+ClinicOS Conversations is architected as a layered messaging platform on top of your existing multi-tenant ClinicOS stack:
+
+Data layer — 12 new tables with strict clinic_id isolation, RLS, and partition-ready message storage
+Integration layer — Meta Embedded Signup for per-clinic WABA, encrypted credential vault, unified webhook ingress
+Processing layer — BullMQ workers for all async operations (send, receive, campaigns, automations, AI)
+Application layer — Conversation/Messaging/Campaign/Automation/AI services with thin Next.js server actions
+Presentation layer — WhatsApp-Web-style inbox with Supabase Realtime
+Intelligence layer — Tool-calling AI agent with clinic-scoped data access and human escalation
+The critical path to MVP is Phases 0–3 (approximately 10 weeks): foundation → inbox → templates → AI. Your existing retention module, WhatsApp send/receive, and Gemini integration provide a strong head start — roughly 40% of Phase 1 already exists in the codebase.
+
+When you're ready to implement, Phase 0 (database migration + worker scaffold) is the right starting point. I can produce the migration SQL and service scaffolding as a follow-up, or we can go deeper on any single section (Meta Embedded Signup, AI tools, campaign segmentation, etc.).
+
+
+
+Agent

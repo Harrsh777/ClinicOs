@@ -14,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { TooltipContentProps } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type {
@@ -325,17 +326,11 @@ function AppointmentsTable({
   );
 }
 
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  formatter,
-}: {
-  active?: boolean;
-  payload?: { value?: number | string; name?: string; color?: string; hide?: boolean }[];
-  label?: string | number;
+type ChartTooltipProps = Pick<TooltipContentProps, "active" | "payload" | "label"> & {
   formatter?: (value: number, name: string) => [string, string];
-}) {
+};
+
+function ChartTooltip({ active, payload, label, formatter }: ChartTooltipProps) {
   const items = payload?.filter((entry) => entry.value != null && !entry.hide) ?? [];
   if (!active || items.length === 0) return null;
   return (
@@ -602,7 +597,9 @@ export function ExecutiveDashboard({
                     {...CHART_TOOLTIP_PROPS}
                     shared
                     portal={chartTooltipPortal}
-                    content={(props) => <ChartTooltip {...props} />}
+                    content={({ active, payload, label }) => (
+                      <ChartTooltip active={active} payload={payload} label={label} />
+                    )}
                     cursor={{ fill: "rgba(37,99,235,0.06)" }}
                   />
                   <Bar dataKey="new" stackId="a" fill={CHART_BLUE_LIGHT} radius={[0, 0, 0, 0]} name="New" />
@@ -679,9 +676,11 @@ export function ExecutiveDashboard({
                     <Tooltip
                       {...CHART_TOOLTIP_PROPS}
                       portal={chartTooltipPortal}
-                      content={(props) => (
+                      content={({ active, payload, label }) => (
                         <ChartTooltip
-                          {...props}
+                          active={active}
+                          payload={payload}
+                          label={label}
                           formatter={(v, name) =>
                             name === "revenue" ? [formatCurrency(v), "Revenue"] : [String(v), "Invoices"]
                           }

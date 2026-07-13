@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { updateClinicModulesAction } from "@/lib/actions/platform-admin";
-import { CORE_CLINIC_MODULES } from "@/lib/clinic/modules";
+import { CORE_CLINIC_MODULES } from "@/lib/clinic/module-constants";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 
