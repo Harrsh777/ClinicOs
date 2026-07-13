@@ -14,6 +14,7 @@ export async function sendEmail(params: {
   to: string;
   subject: string;
   html: string;
+  from?: string;
 }): Promise<SendEmailResult> {
   const resend = getResend();
   if (!resend) {
@@ -23,7 +24,7 @@ export async function sendEmail(params: {
 
   try {
     const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: params.from ?? FROM_EMAIL,
       to: params.to,
       subject: params.subject,
       html: params.html,

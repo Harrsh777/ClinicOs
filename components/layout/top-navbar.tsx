@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  Cog,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import type { TopNavItem } from "@/lib/navigation/build-top-nav";
@@ -26,6 +27,7 @@ function isHrefActive(pathname: string, href: string) {
 interface TopNavbarProps {
   profile: Profile;
   navItems: TopNavItem[];
+  settingsHref?: string | null;
   clinicName?: string;
   basePath: string;
 }
@@ -146,7 +148,15 @@ function NavDropdown({
   );
 }
 
-function UserMenu({ profile }: { profile: Profile }) {
+function UserMenu({
+  profile,
+  settingsHref,
+  onNavigate,
+}: {
+  profile: Profile;
+  settingsHref?: string | null;
+  onNavigate?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -180,7 +190,20 @@ function UserMenu({ profile }: { profile: Profile }) {
         <ChevronDown className={cn("hidden h-3.5 w-3.5 text-[var(--text-muted)] sm:block transition-transform", open && "rotate-180")} />
       </button>
 
-      <div className={cn("clinic-topnav-dropdown", open && "open")}>
+      <div className={cn("clinic-topnav-dropdown clinic-topnav-user-dropdown", open && "open")}>
+        {settingsHref && (
+          <Link
+            href={settingsHref}
+            className="clinic-topnav-dropdown-item"
+            onClick={() => {
+              setOpen(false);
+              onNavigate?.();
+            }}
+          >
+            <Cog className="h-4 w-4" />
+            Settings
+          </Link>
+        )}
         <form action={logoutAction}>
           <button type="submit" className="clinic-topnav-dropdown-item danger">
             <LogOut className="h-4 w-4" />
@@ -192,7 +215,7 @@ function UserMenu({ profile }: { profile: Profile }) {
   );
 }
 
-export function TopNavbar({ profile, navItems, clinicName, basePath }: TopNavbarProps) {
+export function TopNavbar({ profile, navItems, settingsHref, clinicName, basePath }: TopNavbarProps) {
   const pathname = usePathname();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -233,7 +256,7 @@ export function TopNavbar({ profile, navItems, clinicName, basePath }: TopNavbar
 
           <div className="clinic-topnav-actions">
             <NotificationBell variant="light" />
-            <UserMenu profile={profile} />
+            <UserMenu profile={profile} settingsHref={settingsHref} />
             <button
               type="button"
               className="clinic-topnav-icon-btn lg:hidden"
@@ -262,6 +285,13 @@ export function TopNavbar({ profile, navItems, clinicName, basePath }: TopNavbar
               >
                 <X className="h-4 w-4" />
               </button>
+            </div>
+            <div className="mb-4 border-b border-[var(--border)] pb-4">
+              <UserMenu
+                profile={profile}
+                settingsHref={settingsHref}
+                onNavigate={() => setMobileOpen(false)}
+              />
             </div>
             {navItems.map((item) => (
               <div key={item.key} className="mb-3">

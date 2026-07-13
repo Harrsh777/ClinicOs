@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import femaleHero from "@/app/assets/female_hero.png";
 
-const HERO_SOURCES = [
-  "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=90&w=3840&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1582750433449-648ed127bb54?q=90&w=3840&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=90&w=3840&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=90&w=3840&auto=format&fit=crop",
-];
+const HERO_SOURCES = [femaleHero.src];
 
 export function useLandingEffects() {
   useEffect(() => {
@@ -28,8 +24,8 @@ export function useLandingEffects() {
     if (reduced) document.querySelectorAll(".landing .reveal").forEach((el) => el.classList.add("in"));
 
     const heroImg = document.querySelector<HTMLElement>(".landing .hero-img");
-    const heroInner = document.querySelector<HTMLElement>(".landing .hero-inner");
-    const metricCard = document.querySelector<HTMLElement>(".landing .metric-card");
+    const heroBottom = document.querySelector<HTMLElement>(".landing .hero-bottom");
+    const heroStatTabs = document.querySelector<HTMLElement>(".landing .hero-stat-tabs");
 
     if (!reduced) {
       let ticking = false;
@@ -41,13 +37,13 @@ export function useLandingEffects() {
           const h = window.innerHeight;
           if (y < h * 1.2) {
             if (heroImg) heroImg.style.transform = `translateY(${y * 0.22}px) scale(${1 + Math.min(y / h, 0.5) * 0.04})`;
-            if (heroInner) {
-              heroInner.style.transform = `translateY(${y * -0.06}px)`;
-              heroInner.style.opacity = String(1 - Math.min(y / (h * 0.9), 1) * 0.9);
+            if (heroBottom) {
+              heroBottom.style.transform = `translateY(${y * -0.06}px)`;
+              heroBottom.style.opacity = String(1 - Math.min(y / (h * 0.9), 1) * 0.9);
             }
-            if (metricCard) {
-              metricCard.style.transform = `translateY(${y * -0.12}px)`;
-              metricCard.style.opacity = String(1 - Math.min(y / (h * 0.85), 1) * 0.9);
+            if (heroStatTabs) {
+              heroStatTabs.style.transform = `translateY(${y * -0.12}px)`;
+              heroStatTabs.style.opacity = String(1 - Math.min(y / (h * 0.85), 1) * 0.9);
             }
           }
           ticking = false;

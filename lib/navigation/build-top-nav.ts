@@ -14,6 +14,13 @@ export interface TopNavItem {
   children: TopNavChild[];
 }
 
+const TOP_NAV_EXCLUDED_SECTIONS = new Set(["administration"]);
+
+export interface TopNavResult {
+  items: TopNavItem[];
+  settingsHref: string | null;
+}
+
 function isHrefActive(pathname: string, href: string) {
   if (href === pathname) return true;
   if (href !== "/" && pathname.startsWith(href + "/")) return true;
@@ -26,8 +33,13 @@ export function sectionIsActive(section: SidebarSectionResolved, pathname: strin
   );
 }
 
-export function buildTopNav(sections: SidebarSectionResolved[]): TopNavItem[] {
-  return sections.map((section) => {
+export function buildTopNav(sections: SidebarSectionResolved[]): TopNavResult {
+  const settingsSection = sections.find((section) => section.key === "administration");
+  const settingsHref = settingsSection?.groups.flatMap((group) => group.items)[0]?.href ?? null;
+
+  const items = sections
+    .filter((section) => !TOP_NAV_EXCLUDED_SECTIONS.has(section.key))
+    .map((section) => {
     const children: TopNavChild[] = [];
     for (const group of section.groups) {
       for (const item of group.items) {
@@ -45,4 +57,6 @@ export function buildTopNav(sections: SidebarSectionResolved[]): TopNavItem[] {
       children,
     };
   });
+
+  return { items, settingsHref };
 }

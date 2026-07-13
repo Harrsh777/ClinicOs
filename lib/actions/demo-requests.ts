@@ -13,6 +13,13 @@ import {
   getMinDemoDate,
 } from "@/lib/validations/demo-request";
 import type { DemoRequest, DemoRequestStatus } from "@/lib/types/database";
+import { sendEmail } from "@/lib/email/send";
+import { demoRequestNotificationEmail } from "@/lib/email/templates";
+
+const DEMO_REQUEST_NOTIFY_EMAIL =
+  process.env.DEMO_REQUEST_NOTIFY_EMAIL ?? "harrshh077@gmail.com";
+const DEMO_REQUEST_FROM_EMAIL =
+  process.env.DEMO_REQUEST_FROM_EMAIL ?? "Clinicos <hello@growclinicos.com>";
 
 async function captureRequestMetadata() {
   const headerStore = await headers();
@@ -110,6 +117,33 @@ export async function submitDemoRequestAction(formData: FormData) {
       return { error: "Demo booking is not configured yet. Please contact support." };
     }
     return { error: error.message };
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const emailResult = await sendEmail({
+    from: DEMO_REQUEST_FROM_EMAIL,
+    to: DEMO_REQUEST_NOTIFY_EMAIL,
+    subject: `New demo request — ${parsed.data.clinicName}`,
+    html: demoRequestNotificationEmail({
+      clinicName: parsed.data.clinicName,
+      doctorName: parsed.data.doctorName,
+      contactName: parsed.data.contactName,
+      email,
+      phone: parsed.data.phone,
+      address: parsed.data.address || null,
+      city: parsed.data.city,
+      state: parsed.data.state,
+      pincode: parsed.data.pincode || null,
+      clinicType: parsed.data.clinicType || null,
+      preferredDate: parsed.data.preferredDate,
+      preferredTime: parsed.data.preferredTime,
+      notes: parsed.data.notes || null,
+      adminUrl: `${appUrl}/admin/demo-requests`,
+    }),
+  });
+
+  if (!emailResult.ok) {
+    console.warn("[demo-request] notification email failed:", emailResult.error);
   }
 
   return { success: true };

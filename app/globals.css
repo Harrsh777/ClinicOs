@@ -267,7 +267,8 @@ body {
 }
 
 .clinic-topnav-inner {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
   padding: 0.625rem 1rem 0.625rem 1.25rem;
@@ -284,7 +285,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  flex-shrink: 0;
+  justify-self: start;
   text-decoration: none;
 }
 
@@ -301,9 +302,9 @@ body {
 }
 
 .clinic-topnav-pills-wrap {
-  flex: 1;
+  justify-self: center;
   min-width: 0;
-  max-width: 38rem;
+  max-width: min(38rem, 100%);
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
@@ -361,8 +362,8 @@ body {
 .clinic-topnav-actions {
   display: flex;
   align-items: center;
+  justify-self: end;
   gap: 0.5rem;
-  flex-shrink: 0;
 }
 
 .clinic-topnav-icon-btn {
@@ -464,8 +465,9 @@ body {
 .clinic-topnav-dropdown-item.danger {
   color: var(--danger-500);
 }
-.clinic-topnav-dropdown-item.danger:hover {
-  background: var(--danger-50);
+.clinic-topnav-user-dropdown {
+  right: 0;
+  left: auto;
 }
 
 .clinic-topnav-subnav {

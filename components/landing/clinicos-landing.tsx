@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import femaleHero from "@/app/assets/female_hero.png";
 import { BookDemoModal } from "@/components/landing/book-demo-modal";
 import { useLandingEffects } from "@/components/landing/use-landing-effects";
 import "./landing.css";
 
-const HERO_IMAGE =
-  "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=90&w=3840&auto=format&fit=crop";
+const HERO_IMAGE = femaleHero.src;
 
 function fmtINR(n: number) {
   return `₹${Math.round(n).toLocaleString("en-IN")}`;
@@ -54,149 +54,240 @@ export function ClinicosLanding() {
 
   return (
     <div className="landing">
-      <nav>
-        <a className="logo" href="#hero">
-          <LogoMark />
-          ClinicOS
-        </a>
-        <ul className="nav-links">
-          <li>
-            <a href="#problems">Problems</a>
-          </li>
-          <li>
-            <a href="#how-it-works">How It Works</a>
-          </li>
-          <li>
-            <a href="#ai-employees">AI Team</a>
-          </li>
-          <li>
-            <a href="#platform">Platform</a>
-          </li>
-          <li>
-            <a href="#pricing">Pricing</a>
-          </li>
-        </ul>
-        <button type="button" className="nav-cta" onClick={openDemo(setDemoOpen)}>
-          Book a demo <span className="arr">↗</span>
-        </button>
-      </nav>
-
-      {/* HERO */}
       <header className="hero" id="hero">
-        <div className="hero-img">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            id="heroPhoto"
-            alt="Confident Indian doctor in a modern clinic"
-            src={HERO_IMAGE}
-          />
-        </div>
-        <div className="hero-shade" />
-        <div className="hero-grain" />
-
-        <div className="hero-pill pill-1">
-          <span className="ic">⚡</span>
-          <div>
-            <b>AI receptionist</b> <span>answers every call &amp; WhatsApp, 24×7.</span>
-          </div>
-        </div>
-        <div className="hero-pill pill-2">
-          <span className="ic">📈</span>
-          <div>
-            <b>35% more bookings</b> <span>on average within 90 days.</span>
-          </div>
-        </div>
-        <div className="hero-pill pill-3">
-          <span className="ic">🩺</span>
-          <div>
-            <b>Clinic on autopilot</b> <span>follow-ups, recalls &amp; reviews handled by AI.</span>
-          </div>
-        </div>
-
-        <div className="hero-inner">
-          <div className="hero-eyebrow">
-            <span className="dot" />
-            India&apos;s First AI Clinic Growth Platform
-          </div>
-          <h1>
-            Grow Your Clinic.
-            <br />
-            <em>Let AI Handle Everything Else.</em>
-          </h1>
-          <p className="hero-sub">
-            India&apos;s first AI-powered clinic growth platform that helps doctors attract more patients,
-            automate operations, recover missed revenue, and spend more time treating patients instead of
-            managing a clinic.
-          </p>
-          <div className="hero-metrics">
-            <span className="hero-metric-pill">
-              <b>35%</b> More Bookings
-            </span>
-            <span className="hero-metric-pill">
-              <b>42%</b> Higher Retention
-            </span>
-            <span className="hero-metric-pill">
-              <b>6 hrs</b> Saved Weekly
-            </span>
-            <span className="hero-metric-pill">
-              <b>4.9★</b> Google Rating
-            </span>
-          </div>
-          <div className="hero-ctas">
-            <button type="button" className="btn-primary" onClick={openDemo(setDemoOpen)}>
-              Book Free Demo <span className="arr">↗</span>
+        <nav>
+          <a className="logo" href="#hero">
+            <LogoMark />
+            ClinicOS
+          </a>
+          <ul className="nav-links">
+            <li>
+              <a href="#platform">Platform</a>
+            </li>
+            <li>
+              <a href="#problems">Problems</a>
+            </li>
+            <li>
+              <a href="#how-it-works">How It Works</a>
+            </li>
+            <li>
+              <a href="#ai-employees">AI Team</a>
+            </li>
+            <li>
+              <a href="#pricing">Pricing</a>
+            </li>
+          </ul>
+          <div className="nav-actions">
+            <Link href="/login" className="nav-login">
+              Log in
+            </Link>
+            <button type="button" className="nav-cta" onClick={openDemo(setDemoOpen)}>
+              Book a demo <span className="arr">↗</span>
             </button>
           </div>
-        </div>
+        </nav>
 
-        <div className="metric-card">
-          <div className="label">
-            Monthly Bookings <span className="dots">···</span>
+        <div className="hero-img">
+          <div className="hero-img-zoom">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              id="heroPhoto"
+              alt="Confident female doctor in a modern clinic"
+              src={HERO_IMAGE}
+            />
           </div>
-          <div className="num">+35%</div>
-          <div className="sub">Appointment bookings have increased</div>
-          <div className="metric-bars">
-            <div className="bar purple">
-              <i />
+        </div>
+        <div className="hero-shade" />
+        <div className="hero-vignette" />
+
+        <div className="hero-bottom">
+          <div className="hero-inner">
+            <h1>
+              Grow Your Clinic.
+              <br />
+              <em>Let AI Handle Everything Else.</em>
+            </h1>
+            <div className="hero-ctas">
+              <button type="button" className="btn-primary" onClick={openDemo(setDemoOpen)}>
+                Book Free Demo <span className="arr">↗</span>
+              </button>
             </div>
-            <div className="bar grey">
-              <i />
+          </div>
+
+          <div className="hero-stat-tabs">
+            <div className="hero-stat-tab">
+              <span className="hero-stat-val">+35%</span>
+              <span className="hero-stat-label">Monthly Bookings</span>
+            </div>
+            <div className="hero-stat-tab">
+              <span className="hero-stat-val">+25%</span>
+              <span className="hero-stat-label">Revenue</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* PROBLEMS */}
-      <section id="problems">
+      {/* PRODUCT SHOWCASE */}
+      <section className="bento-section" id="platform">
         <div className="wrap">
-          <div className="reveal">
+          <div className="reveal section-intro">
+            <div className="eyebrow">All-in-one platform</div>
+            <h2>Six tools your front desk juggles today. One OS that runs itself.</h2>
+            <p className="lead">
+              Scheduling, billing, records, follow-ups, reviews, and analytics — connected in one
+              workflow so nothing falls through the cracks.
+            </p>
+          </div>
+          <div className="bento">
+            <div className="b-card b-7 reveal">
+              <span className="b-tag">Smart scheduling</span>
+              <h3>A live queue patients actually trust</h3>
+              <p>
+                Real-time token tracking, automatic wait-time updates on WhatsApp, and zero crowding
+                in your waiting room. Patients arrive exactly when needed.
+              </p>
+              <div className="b-visual">
+                <div className="queue-row">
+                  <span className="av">AR</span>
+                  <span className="queue-name">Ananya Rao · Consultation</span>
+                  <span className="st now">In room</span>
+                </div>
+                <div className="queue-row">
+                  <span className="av m">VK</span>
+                  <span className="queue-name">Vikram Khanna · Follow-up</span>
+                  <span className="st next">Up next · 4 min</span>
+                </div>
+                <div className="queue-row">
+                  <span className="av">SM</span>
+                  <span className="queue-name">Sana Merchant · New patient</span>
+                  <span className="st wait">Notified · ETA 20 min</span>
+                </div>
+              </div>
+            </div>
+            <div className="b-card b-5 reveal">
+              <span className="b-tag">AI follow-ups</span>
+              <h3>Conversations that book themselves</h3>
+              <p>
+                Post-visit care, medicine reminders, and re-booking — all handled in the patient&apos;s own language.
+              </p>
+              <div className="b-visual">
+                <div className="wa-bubble">
+                  Hi Meera! Dr. Iyer recommended a review in 2 weeks. Shall I book Tuesday 11 AM or Thursday 5 PM?
+                </div>
+                <div className="wa-bubble reply">Thursday works!</div>
+                <div className="wa-time">Booked automatically · no staff involved</div>
+              </div>
+            </div>
+            <div className="b-card b-6 reveal">
+              <span className="b-tag">Billing &amp; payments</span>
+              <h3>UPI-first billing</h3>
+              <p>GST-ready invoices, payment links on WhatsApp, and same-day settlement reports your accountant will love.</p>
+            </div>
+            <div className="b-card b-6 reveal">
+              <span className="b-tag">Patient records</span>
+              <h3>EMR without the clutter</h3>
+              <p>Voice-dictated notes, e-prescriptions in seconds, ABDM-compliant and secure by default.</p>
+            </div>
+            <div className="b-card b-6 reveal">
+              <span className="b-tag">Growth analytics</span>
+              <h3>Know exactly where revenue comes from</h3>
+              <p>See which channels, doctors, and treatments drive growth — updated live, explained in plain language.</p>
+              <div className="b-visual">
+                <div className="rev-line">
+                  <b>Google &amp; Maps</b><span className="g">₹3.4L · +22%</span>
+                </div>
+                <div className="rev-line">
+                  <b>Patient referrals</b><span className="g">₹2.1L · +31%</span>
+                </div>
+                <div className="rev-line">
+                  <b>AI re-bookings</b><span className="g">₹1.8L · +43%</span>
+                </div>
+              </div>
+            </div>
+            <div className="b-card b-6 reveal">
+              <span className="b-tag">Multi-branch</span>
+              <h3>One dashboard, every location</h3>
+              <p>
+                Compare branches, share patient records across locations, and roll out changes everywhere in one
+                click. Built for clinic chains from day one.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* PROBLEMS */}
+      <section className="problems-section" id="problems">
+        <div className="wrap">
+          <div className="reveal section-intro">
             <div className="eyebrow">The biggest problems</div>
             <h2>
               Every Clinic Leaks Revenue.
               <br />
               Most Doctors Never Know Where.
             </h2>
+            <p className="lead">
+              Most Indian clinics lose 30–40% of potential revenue to missed calls, forgotten follow-ups,
+              and silent patient drop-offs. These six leaks drain growth every single day — ClinicOS closes
+              each one automatically.
+            </p>
           </div>
           <div className="why-grid">
             {[
-              { icon: "☎", title: "Missed Calls", lines: ["Patients call after clinic hours.", "Lose them forever."] },
-              { icon: "📉", title: "No Follow-ups", lines: ["Patients never come back."] },
-              { icon: "⭐", title: "Poor Google Reviews", lines: ["Happy patients never leave reviews."] },
-              { icon: "📄", title: "Paperwork", lines: ["Doctors spend hours writing."] },
-              { icon: "💬", title: "WhatsApp Chaos", lines: ["Staff manually messages every patient."] },
-              { icon: "💰", title: "Empty Appointment Slots", lines: ["Revenue disappears."] },
+              {
+                icon: "☎",
+                accent: "blue",
+                title: "Missed Calls",
+                desc: "Patients call after clinic hours or during consultations. Without an AI receptionist, those enquiries go to voicemail — and straight to your competitor.",
+                stat: "4 in 10 calls go unanswered",
+              },
+              {
+                icon: "📉",
+                accent: "mint",
+                title: "No Follow-ups",
+                desc: "Patients finish treatment and disappear. No one reminds them about reviews, recalls, or the next visit — so repeat revenue quietly vanishes.",
+                stat: "58% of patients never return",
+              },
+              {
+                icon: "⭐",
+                accent: "indigo",
+                title: "Poor Google Reviews",
+                desc: "Happy patients leave without reviewing. Unhappy ones post publicly first. Your online reputation grows by accident, not design.",
+                stat: "Only 1 in 12 patients leave a review",
+              },
+              {
+                icon: "📄",
+                accent: "blue",
+                title: "Paperwork Overload",
+                desc: "Doctors spend hours on notes, prescriptions, and admin after every consult. That's time stolen from patients — and from going home on time.",
+                stat: "6+ hrs/week on admin per doctor",
+              },
+              {
+                icon: "💬",
+                accent: "mint",
+                title: "WhatsApp Chaos",
+                desc: "Staff manually message every patient for reminders, reports, and directions. One busy day and the whole queue falls apart.",
+                stat: "200+ manual messages per week",
+              },
+              {
+                icon: "💰",
+                accent: "indigo",
+                title: "Empty Appointment Slots",
+                desc: "No-shows, late cancellations, and forgotten recalls leave chairs empty. Revenue disappears slot by slot — and nobody tracks why.",
+                stat: "₹3L+ lost monthly on average",
+              },
             ].map((card) => (
-              <div key={card.title} className="why-card reveal">
+              <div key={card.title} className={`why-card reveal accent-${card.accent}`}>
                 <div className="why-ic">{card.icon}</div>
                 <h3>{card.title}</h3>
-                {card.lines.map((line) => (
-                  <p key={line}>{line}</p>
-                ))}
+                <p>{card.desc}</p>
+                <span className="why-stat">{card.stat}</span>
               </div>
             ))}
           </div>
           <div className="problems-close reveal">
-            <h3>ClinicOS fixes all of it automatically.</h3>
+            <h3>ClinicOS fixes all of it — automatically, 24×7.</h3>
+            <p>One platform replaces your front desk chaos with an AI team that never sleeps.</p>
           </div>
         </div>
       </section>
@@ -204,22 +295,26 @@ export function ClinicosLanding() {
       {/* HOW IT WORKS */}
       <section className="timeline-section" id="how-it-works">
         <div className="wrap">
-          <div className="reveal" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
+          <div className="reveal section-intro center">
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               How ClinicOS Works
             </div>
             <h2 style={{ margin: "0 auto" }}>From first call to lifelong patient — on autopilot.</h2>
+            <p className="lead" style={{ marginLeft: "auto", marginRight: "auto" }}>
+              Every patient touchpoint is connected. ClinicOS runs the full loop — booking, care,
+              follow-up, reviews, and recall — so your team focuses on medicine, not messaging.
+            </p>
           </div>
           <div className="timeline">
             {[
-              { icon: "📅", title: "Patient Books", desc: "Online, WhatsApp, or phone — any channel." },
-              { icon: "🤖", title: "AI Receptionist answers", desc: "24×7 in 10 languages. No missed enquiries." },
-              { icon: "🏥", title: "Patient Visits", desc: "Smart queue, zero crowding, on-time consults." },
-              { icon: "🩺", title: "Doctor treats patient", desc: "Full focus on care. AI handles the rest." },
-              { icon: "💬", title: "AI sends follow-up", desc: "Medicine reminders, care instructions, check-ins." },
-              { icon: "⭐", title: "Google review request", desc: "Timed perfectly — happy patients leave 5★ reviews." },
-              { icon: "🔔", title: "Recall after 6 months", desc: "Chronic patients brought back before they drift." },
-              { icon: "🔄", title: "Patient returns", desc: "The loop never breaks. Revenue compounds." },
+              { icon: "📅", title: "Patient Books", desc: "Online, WhatsApp, or phone — patients reach you on any channel, any time of day." },
+              { icon: "🤖", title: "AI Receptionist answers", desc: "24×7 in 10 languages. Books appointments, answers FAQs, and escalates emergencies instantly." },
+              { icon: "🏥", title: "Patient Visits", desc: "Smart queue with live wait times on WhatsApp. Zero crowding, on-time consultations." },
+              { icon: "🩺", title: "Doctor treats patient", desc: "Full focus on care. AI Scribe drafts notes and prescriptions while you consult." },
+              { icon: "💬", title: "AI sends follow-up", desc: "Medicine reminders, care instructions, and check-ins in the patient's own language." },
+              { icon: "⭐", title: "Google review request", desc: "Timed at the perfect moment — happy patients leave 5★ reviews; unhappy ones are routed privately." },
+              { icon: "🔔", title: "Recall after 6 months", desc: "Chronic and annual patients are brought back before they quietly drift away." },
+              { icon: "🔄", title: "Patient returns", desc: "The loop never breaks. Revenue compounds with every repeat visit." },
             ].map((step) => (
               <div key={step.title} className="timeline-step">
                 <div className="timeline-dot">{step.icon}</div>
@@ -233,10 +328,29 @@ export function ClinicosLanding() {
         </div>
       </section>
 
+      {/* TRUST BAND */}
+      <section className="trust-band">
+        <div className="wrap">
+          <div className="stats-band reveal">
+            {[
+              { val: "2,000+", label: "Clinics across 140 Indian cities" },
+              { val: "4.1M+", label: "Appointments booked through ClinicOS" },
+              { val: "₹86Cr", label: "Revenue recovered for clinics in 2025" },
+              { val: "4.9★", label: "Average clinic rating after 6 months" },
+            ].map((stat) => (
+              <div key={stat.label} className="stat-cell">
+                <div className="n">{stat.val}</div>
+                <div className="d">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* AI EMPLOYEES */}
       <section className="ai-section" id="ai-employees">
         <div className="wrap">
-          <div className="reveal" style={{ textAlign: "center", maxWidth: 720, margin: "0 auto" }}>
+          <div className="reveal section-intro center">
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               AI Employees
             </div>
@@ -245,87 +359,142 @@ export function ClinicosLanding() {
               <br />
               They never sleep.
             </h2>
+            <p className="lead" style={{ marginLeft: "auto", marginRight: "auto" }}>
+              Not chatbots bolted on top. Six specialised AI agents trained on real Indian clinic
+              workflows — calls, recalls, reviews, notes, and growth — working as one coordinated team.
+            </p>
           </div>
           <div className="ai-grid">
             {[
-              { emoji: "🧠", title: "AI Receptionist", lines: ["Books appointments.", "Answers WhatsApp.", "Handles calls."] },
-              { emoji: "📈", title: "Growth AI", lines: ["Finds patients who haven't returned."] },
-              { emoji: "⭐", title: "Reputation AI", lines: ["Gets Google Reviews."] },
-              { emoji: "💊", title: "Follow-up AI", lines: ["Medicine reminders."] },
-              { emoji: "📄", title: "AI Scribe", lines: ["Writes notes."] },
-              { emoji: "📢", title: "Marketing AI", lines: ["Creates campaigns."] },
+              {
+                emoji: "🧠",
+                title: "AI Receptionist",
+                desc: "Answers every call and WhatsApp message in 10 languages. Books, reschedules, sends directions, and hands emergencies to a human instantly.",
+                chip: "96% call-to-booking rate",
+              },
+              {
+                emoji: "📈",
+                title: "Growth AI",
+                desc: "Scores every patient's return likelihood and intervenes early — a gentle nudge, a doctor's note, a booking link — before they disappear.",
+                chip: "38% fewer drop-offs",
+              },
+              {
+                emoji: "⭐",
+                title: "Reputation AI",
+                desc: "Sends review requests at the perfect moment. Routes negative feedback privately to you first, so your Google rating climbs quietly.",
+                chip: "4.9★ average across clinics",
+              },
+              {
+                emoji: "💊",
+                title: "Follow-up AI",
+                desc: "Post-visit care, medicine reminders, and re-booking nudges — all in the patient's preferred language, with zero staff effort.",
+                chip: "3× more repeat visits",
+              },
+              {
+                emoji: "📄",
+                title: "AI Scribe",
+                desc: "Listens during consultations (with consent), drafts structured notes and e-prescriptions, and files them to your EMR automatically.",
+                chip: "90 min saved per doctor daily",
+              },
+              {
+                emoji: "📢",
+                title: "Marketing AI",
+                desc: "Creates and runs campaigns for slow days, seasonal rushes, and new services — explained in plain language, optimised with live data.",
+                chip: "Weekly growth playbook",
+              },
             ].map((card) => (
               <div key={card.title} className="ai-card reveal">
                 <span className="ai-emoji">{card.emoji}</span>
                 <h3>{card.title}</h3>
-                {card.lines.map((line) => (
-                  <p key={line}>{line}</p>
-                ))}
+                <p>{card.desc}</p>
+                <span className="glow-chip">● {card.chip}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* PRODUCT SHOWCASE */}
-      <section className="bento-section" id="platform">
+      {/* RESULTS */}
+      <section className="results-section" id="results">
         <div className="wrap">
-          <div className="reveal">
-            <div className="eyebrow">Product showcase</div>
-            <h2>One workflow. Every touchpoint. Zero manual work.</h2>
-            <p className="lead">
-              See how a single patient journey flows through ClinicOS — from first enquiry to return visit.
+          <div className="reveal section-intro center">
+            <div className="eyebrow" style={{ justifyContent: "center" }}>
+              Real results
+            </div>
+            <h2 style={{ margin: "0 auto" }}>What happens after switching to ClinicOS</h2>
+            <p className="lead" style={{ marginLeft: "auto", marginRight: "auto" }}>
+              Clinics on ClinicOS see measurable growth within 90 days — more bookings, higher retention,
+              and dramatically less front-desk workload.
             </p>
           </div>
-          <div className="bento">
-            <div className="b-card b-12 reveal">
-              <span className="b-tag">End-to-end workflow</span>
-              <h3>The complete patient journey — automated</h3>
-              <p>Every step connected. Every gap closed. Revenue recovered at every stage.</p>
-              <div className="workflow-chain">
-                {[
-                  "AI Receptionist",
-                  "Appointment",
-                  "Billing",
-                  "Prescription",
-                  "Review",
-                  "Return Visit",
-                ].map((step, i) => (
-                  <span key={step} style={{ display: "contents" }}>
-                    {i > 0 && <span className="workflow-arrow">↓</span>}
-                    <span className="workflow-step">
-                      <span className="wf-num">{i + 1}</span>
-                      {step}
-                    </span>
-                  </span>
-                ))}
+          <div className="results-grid">
+            {[
+              { val: "35%", label: "More Bookings", hint: "Within first 90 days", color: "blue" },
+              { val: "42%", label: "More Returning Patients", hint: "Via AI recall engine", color: "mint" },
+              { val: "75%", label: "Less Reception Work", hint: "Calls & WhatsApp automated", color: "indigo" },
+              { val: "4.9★", label: "Google Rating", hint: "After 6 months average", color: "blue" },
+              { val: "6 hrs", label: "Saved Per Doctor Weekly", hint: "Notes & admin offloaded", color: "mint" },
+              { val: "₹3L+", label: "Additional Revenue", hint: "Average per clinic / year", color: "indigo" },
+            ].map((stat) => (
+              <div key={stat.label} className={`result-card reveal accent-${stat.color}`}>
+                <div className="val">{stat.val}</div>
+                <div className="label">{stat.label}</div>
+                <div className="hint">{stat.hint}</div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* RESULTS */}
-      <section id="results">
+      {/* TESTIMONIALS */}
+      <section className="testimonials-section" id="testimonials">
         <div className="wrap">
-          <div className="reveal" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
+          <div className="reveal section-intro center">
             <div className="eyebrow" style={{ justifyContent: "center" }}>
-              Real results
+              Trusted by clinics
             </div>
-            <h2 style={{ margin: "0 auto" }}>What Happens After Switching?</h2>
+            <h2 style={{ margin: "0 auto" }}>From single-doctor practices to 40-branch chains</h2>
+            <p className="lead" style={{ marginLeft: "auto", marginRight: "auto" }}>
+              Doctors across India use ClinicOS to grow faster without hiring more staff.
+            </p>
           </div>
-          <div className="results-grid">
+          <div className="testi-grid">
             {[
-              { val: "35%", label: "More Bookings" },
-              { val: "42%", label: "More Returning Patients" },
-              { val: "75%", label: "Less Reception Work" },
-              { val: "4.9★", label: "Google Rating" },
-              { val: "6 hrs", label: "Saved Per Doctor Weekly" },
-              { val: "₹3L+", label: "Average Additional Revenue" },
-            ].map((stat) => (
-              <div key={stat.label} className="result-card reveal">
-                <div className="val">{stat.val}</div>
-                <div className="label">{stat.label}</div>
+              {
+                quote:
+                  "We were losing every call that came during consultations. In month one, ClinicOS booked 118 appointments we would simply never have known about.",
+                name: "Dr. Rohan Shetty",
+                role: "Shetty Dental Studio, Bengaluru",
+                initials: "RS",
+                accent: "blue",
+              },
+              {
+                quote:
+                  "The follow-up AI feels like hiring three coordinators. Our repeat-visit rate went from 41% to 67%, and my staff finally leaves on time.",
+                name: "Dr. Priya Nair",
+                role: "Aster Skin & Hair, Kochi",
+                initials: "PN",
+                accent: "mint",
+              },
+              {
+                quote:
+                  "We run 12 branches on one ClinicOS dashboard. I see every branch's revenue, queue, and rating on my phone over morning chai.",
+                name: "Arjun Malhotra",
+                role: "COO, LifeSpring Clinics (12 branches)",
+                initials: "AM",
+                accent: "indigo",
+              },
+            ].map((t) => (
+              <div key={t.name} className={`testi reveal accent-${t.accent}`}>
+                <div className="stars">★★★★★</div>
+                <q>{t.quote}</q>
+                <div className="who">
+                  <span className={`av ${t.accent}`}>{t.initials}</span>
+                  <div>
+                    <b>{t.name}</b>
+                    <span>{t.role}</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -335,11 +504,15 @@ export function ClinicosLanding() {
       {/* PRICING */}
       <section className="pricing-section" id="pricing">
         <div className="wrap">
-          <div className="reveal" style={{ textAlign: "center" }}>
+          <div className="reveal section-intro center">
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               Pricing
             </div>
-            <h2 style={{ margin: "0 auto" }}>Choose How Fast You Want To Grow.</h2>
+            <h2 style={{ margin: "0 auto" }}>Choose how fast you want to grow</h2>
+            <p className="lead" style={{ marginLeft: "auto", marginRight: "auto" }}>
+              Every plan pays for itself with a handful of recovered appointments. Start free — no card
+              required. Migration from your current software done in 48 hours.
+            </p>
           </div>
           <div className="price-grid">
             <div className="price-card reveal">
@@ -347,7 +520,7 @@ export function ClinicosLanding() {
               <div className="price">
                 ₹2,999<small>/month</small>
               </div>
-              <p className="plan-desc">For new clinics.</p>
+              <p className="plan-desc">For new clinics ready to stop losing patients to missed calls and manual follow-ups.</p>
               <ul className="feat-list">
                 {[
                   "Online Booking",
@@ -374,7 +547,7 @@ export function ClinicosLanding() {
               <div className="price">
                 ₹7,999<small>/month</small>
               </div>
-              <p className="plan-desc">Everything above +</p>
+              <p className="plan-desc">The full AI growth engine — follow-ups, recalls, reviews, and revenue insights on autopilot.</p>
               <ul className="feat-list">
                 {[
                   "AI Follow-ups",
@@ -513,11 +686,15 @@ export function ClinicosLanding() {
       {/* COMPARISON */}
       <section className="compare-section" id="compare">
         <div className="wrap">
-          <div className="reveal" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
+          <div className="reveal section-intro center">
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               Why switch
             </div>
             <h2 style={{ margin: "0 auto" }}>Manual clinic vs. ClinicOS</h2>
+            <p className="lead" style={{ marginLeft: "auto", marginRight: "auto" }}>
+              See how ClinicOS replaces spreadsheets, agency fees, and overwhelmed front-desk staff with
+              one intelligent platform.
+            </p>
           </div>
           <div className="compare-table reveal">
             <table>

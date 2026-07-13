@@ -37,13 +37,14 @@ export async function DashboardShell({ profile, basePath, children }: DashboardS
       features,
       hasLinkedDoctor,
     });
-    const navItems = buildTopNav(sections);
+    const { items: navItems, settingsHref } = buildTopNav(sections);
 
     return (
       <div className="min-h-screen bg-[var(--surface-1)]">
         <TopNavbar
           profile={profile}
           navItems={navItems}
+          settingsHref={settingsHref}
           clinicName={clinicName}
           basePath={basePath}
         />
@@ -53,13 +54,14 @@ export async function DashboardShell({ profile, basePath, children }: DashboardS
   }
 
   const sections = buildSidebarNav(profile, permissions, basePath, { showFranchise, hasLinkedDoctor });
-  const navItems = buildTopNav(sections);
+  const { items: navItems, settingsHref } = buildTopNav(sections);
 
   return (
     <div className="min-h-screen bg-[var(--surface-1)]">
       <TopNavbar
         profile={profile}
         navItems={navItems}
+        settingsHref={settingsHref}
         clinicName={clinicName}
         basePath={basePath}
       />

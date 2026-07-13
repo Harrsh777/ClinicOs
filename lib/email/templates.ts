@@ -103,3 +103,55 @@ export function passwordResetEmail(params: {
     <p style="font-size:13px;color:#6b7280">This link expires in 1 hour. If you did not request this, ignore this email.</p>
   `);
 }
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function row(label: string, value: string | null | undefined) {
+  if (!value?.trim()) return "";
+  return `<tr><td style="padding:6px 0;color:#6b7280;vertical-align:top;width:140px">${escapeHtml(label)}</td><td style="padding:6px 0"><strong>${escapeHtml(value)}</strong></td></tr>`;
+}
+
+export function demoRequestNotificationEmail(params: {
+  clinicName: string;
+  doctorName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address?: string | null;
+  city: string;
+  state: string;
+  pincode?: string | null;
+  clinicType?: string | null;
+  preferredDate: string;
+  preferredTime: string;
+  notes?: string | null;
+  adminUrl?: string;
+}) {
+  const adminUrl = params.adminUrl ?? `${APP_URL}/admin/demo-requests`;
+  return layout(`
+    <h2 style="margin-top:0">New demo request</h2>
+    <p>A visitor submitted the Book a Demo form on the Clinicos landing page.</p>
+    <table style="width:100%;background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">
+      ${row("Clinic", params.clinicName)}
+      ${row("Clinic type", params.clinicType)}
+      ${row("Lead doctor", params.doctorName)}
+      ${row("Contact person", params.contactName)}
+      ${row("Email", params.email)}
+      ${row("Mobile", params.phone)}
+      ${row("Address", params.address)}
+      ${row("City", params.city)}
+      ${row("State", params.state)}
+      ${row("Pincode", params.pincode)}
+      ${row("Preferred date", params.preferredDate)}
+      ${row("Preferred time", `${params.preferredTime} IST`)}
+      ${row("Notes", params.notes)}
+    </table>
+    <p><a href="${adminUrl}" style="display:inline-block;background:#16C784;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">View in admin</a></p>
+  `);
+}
