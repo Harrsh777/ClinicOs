@@ -66,6 +66,18 @@ export function getPublicBookingUrl(clinicSlug: string, origin?: string) {
   return `${base}${getPublicBookingPath(clinicSlug)}`;
 }
 
+export function getPublicWhatsAppUrl(whatsappNumber: string, prefill?: string): string {
+  const digits = whatsappNumber.replace(/\D/g, "");
+  const phone = digits.startsWith("91") ? digits : `91${digits.slice(-10)}`;
+  const text = encodeURIComponent(prefill ?? "Hi");
+  return `https://wa.me/${phone}?text=${text}`;
+}
+
+export function getPublicTelUrl(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return `tel:+${digits.startsWith("91") ? digits : `91${digits.slice(-10)}`}`;
+}
+
 /**
  * Rewrites /{slug}/booking → /c/{slug}/bookings (and other short portal paths).
  * Returns null when the path is not a short clinic portal URL.

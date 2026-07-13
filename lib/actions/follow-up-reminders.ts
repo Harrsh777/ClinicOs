@@ -7,6 +7,7 @@ import { generateEngagementMessage } from "@/lib/ai/engagement-message";
 import { analyzeRecoveryReply } from "@/lib/ai/recovery-analysis";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
 import { normalizeIndianPhone } from "@/lib/validations/phone";
+import { isBookingIntent, parseMenuChoice } from "@/lib/whatsapp/concierge/menu";
 import { computeSendOnDate } from "@/lib/engagement/schedule";
 import type {
   EngagementReminderType,
@@ -260,6 +261,10 @@ export async function handleEngagementReply(params: {
     .maybeSingle();
 
   if (!reminder) return { handled: false };
+
+  if (isBookingIntent(params.message) || parseMenuChoice(params.message)) {
+    return { handled: false };
+  }
 
   const options = (reminder.interactive_options ?? []) as {
     id: number;

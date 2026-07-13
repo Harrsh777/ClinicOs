@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Calendar, MapPin, Phone, Clock, QrCode } from "lucide-react";
+import { Calendar, MapPin, Phone, Clock, QrCode, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { PublicClinic } from "@/lib/portal/clinic-public";
+import { getPublicTelUrl, getPublicWhatsAppUrl } from "@/lib/portal/public-urls";
 
 interface Doctor {
   id: string;
@@ -17,6 +18,10 @@ export function ClinicLanding({
   clinic: PublicClinic;
   doctors: Doctor[];
 }) {
+  const whatsappNumber = clinic.branding?.whatsapp_number;
+  const callPhone = clinic.phone;
+  const whatsappPrefill = `Hi, I'd like to connect with ${clinic.name}`;
+
   return (
     <div className="space-y-8">
       <div className="text-center">
@@ -25,27 +30,42 @@ export function ClinicLanding({
           <p className="mt-2 text-[var(--text-secondary)]">{clinic.branding.tagline}</p>
         )}
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link href={`/c/${clinic.slug}/walk-in`}>
-            <Button size="lg" className="gap-2">
-              <Clock className="h-5 w-5" />
-              Walk-in Now
-            </Button>
-          </Link>
           <Link href={`/c/${clinic.slug}/bookings`}>
-            <Button variant="secondary" size="lg" className="gap-2">
+            <Button size="lg" className="gap-2">
               <Calendar className="h-5 w-5" />
               Book Appointment
             </Button>
           </Link>
-          <Link href={`/c/${clinic.slug}/check-in`}>
-            <Button variant="secondary" size="lg" className="gap-2">
-              <QrCode className="h-5 w-5" />
-              Check In
+          {whatsappNumber && (
+            <a
+              href={getPublicWhatsAppUrl(whatsappNumber, whatsappPrefill)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button size="lg" variant="secondary" className="gap-2 bg-[#25D366]/10 text-[#128C7E] border-[#25D366]/30 hover:bg-[#25D366]/20">
+                <MessageCircle className="h-5 w-5" />
+                WhatsApp Us
+              </Button>
+            </a>
+          )}
+          {callPhone && (
+            <a href={getPublicTelUrl(callPhone)}>
+              <Button size="lg" variant="secondary" className="gap-2">
+                <Phone className="h-5 w-5" />
+                Call Clinic
+              </Button>
+            </a>
+          )}
+          <Link href={`/c/${clinic.slug}/walk-in`}>
+            <Button variant="ghost" size="lg" className="gap-2">
+              <Clock className="h-5 w-5" />
+              Walk-in Now
             </Button>
           </Link>
-          <Link href={`/c/${clinic.slug}/login`}>
-            <Button variant="ghost" size="lg">
-              Patient Sign In
+          <Link href={`/c/${clinic.slug}/check-in`}>
+            <Button variant="ghost" size="lg" className="gap-2">
+              <QrCode className="h-5 w-5" />
+              Check In
             </Button>
           </Link>
         </div>
@@ -61,12 +81,33 @@ export function ClinicLanding({
             </div>
           </Card>
         )}
-        {clinic.phone && (
+        {callPhone && (
           <Card className="flex gap-3 items-start">
             <Phone className="h-5 w-5 text-[var(--brand-500)] shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-sm">Phone</p>
-              <p className="text-sm text-[var(--text-muted)]">{clinic.phone}</p>
+              <a href={getPublicTelUrl(callPhone)} className="text-sm text-[var(--brand-600)] hover:underline">
+                {callPhone}
+              </a>
+            </div>
+          </Card>
+        )}
+        {whatsappNumber && (
+          <Card className="flex gap-3 items-start">
+            <MessageCircle className="h-5 w-5 text-[#128C7E] shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-sm">WhatsApp</p>
+              <a
+                href={getPublicWhatsAppUrl(whatsappNumber, whatsappPrefill)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-[#128C7E] hover:underline"
+              >
+                Message us on WhatsApp
+              </a>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Book, reschedule, or ask questions — automated 24/7
+              </p>
             </div>
           </Card>
         )}
@@ -101,7 +142,8 @@ export function ClinicLanding({
 
       <Card className="text-center bg-[var(--brand-50)] border-[var(--brand-200)]">
         <p className="text-sm text-[var(--brand-700)]">
-          Walk in now for an instant queue token, or book a slot for later. Pay securely online — your token syncs to reception live.
+          Book online, walk in for an instant queue token, or WhatsApp us to book with live slot availability.
+          Appointments sync to the clinic dashboard instantly.
         </p>
       </Card>
     </div>

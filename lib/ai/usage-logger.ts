@@ -4,6 +4,7 @@ export type AIFeature =
   | "scribe"
   | "lab_analysis"
   | "appointment_bot"
+  | "whatsapp_concierge"
   | "billing_assistant"
   | "follow_up"
   | "health_risk"

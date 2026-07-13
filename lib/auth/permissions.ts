@@ -38,6 +38,7 @@ const ROLE_DEFAULT_MODULES: Record<UserRole, Record<string, PermissionLevel>> = 
     permissions: "admin",
     settings: "admin",
     finance: "admin",
+    conversations: "admin",
   },
   doctor: {
     dashboard: "read",
@@ -48,6 +49,7 @@ const ROLE_DEFAULT_MODULES: Record<UserRole, Record<string, PermissionLevel>> = 
     prescriptions: "write",
     lab: "write",
     teleconsult: "write",
+    conversations: "read",
   },
   receptionist: {
     dashboard: "read",
@@ -58,6 +60,7 @@ const ROLE_DEFAULT_MODULES: Record<UserRole, Record<string, PermissionLevel>> = 
     lab: "write",
     insurance: "write",
     pharmacy: "write",
+    conversations: "write",
   },
   finance_manager: {
     dashboard: "read",

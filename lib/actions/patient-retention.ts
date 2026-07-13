@@ -9,11 +9,15 @@ import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
 import { todayStr } from "@/lib/engagement/schedule";
 import type { EngagementReminderType } from "@/lib/engagement/types";
 import { REMINDER_TYPE_LABELS } from "@/lib/engagement/types";
+import { generatePatientCode } from "@/lib/db/sequences";
+import { validateIndianPhone } from "@/lib/validations/phone";
+import { parseDueAmount, parseRetentionCsv, parseVisitDate } from "@/lib/retention/csv";
 import type {
   RetentionDashboardData,
   RetentionPatientRow,
   RetentionReason,
 } from "@/lib/retention/types";
+import { z } from "zod";
 
 type EmrSummary = {
   symptoms?: string;
@@ -73,6 +77,7 @@ function buildRetentionReasons(params: {
   doctorAttention: boolean;
   noResponse: boolean;
   vaccinationHint: boolean;
+  hasDues: boolean;
 }): RetentionReason[] {
   const reasons: RetentionReason[] = [];
   if (params.overdueFollowUp) reasons.push("overdue_follow_up");
@@ -83,7 +88,33 @@ function buildRetentionReasons(params: {
   if (params.doctorAttention) reasons.push("doctor_attention");
   if (params.noResponse) reasons.push("no_response");
   if (params.vaccinationHint) reasons.push("vaccination_due");
+  if (params.hasDues) reasons.push("has_dues");
   return reasons;
+}
+
+function computeBillDue(bill: {
+  status: string;
+  patient_amount: number | string;
+  paid_amount: number | string;
+  total_amount: number | string;
+}): number {
+  const patientAmount = Number(bill.patient_amount ?? 0);
+  const paidAmount = Number(bill.paid_amount ?? 0);
+  if (bill.status === "unpaid") {
+    return Math.max(0, patientAmount > 0 ? patientAmount - paidAmount : Number(bill.total_amount) - paidAmount);
+  }
+  if (bill.status === "partial") {
+    return Math.max(0, patientAmount - paidAmount);
+  }
+  return 0;
+}
+
+function resolveLastVisitAt(
+  lastVisitAt: string | null,
+  overrideDate: string | null
+): string | null {
+  if (overrideDate) return `${overrideDate}T00:00:00.000Z`;
+  return lastVisitAt;
 }
 
 export async function getRetentionDashboardData(
@@ -93,12 +124,14 @@ export async function getRetentionDashboardData(
   const today = todayStr();
   const monthStartStr = monthStart();
 
-  const [{ data: clinic }, { data: patients }, { data: emrRows }, { data: reminders }] =
+  const [{ data: clinic }, { data: patients }, { data: emrRows }, { data: reminders }, { data: bills }] =
     await Promise.all([
       supabase.from("clinics").select("name").eq("id", clinicId).single(),
       supabase
         .from("patients")
-        .select("id, full_name, phone, last_visit_at, created_at")
+        .select(
+          "id, full_name, phone, last_visit_at, created_at, retention_visit_reason, retention_due_override, retention_last_visit_override"
+        )
         .eq("clinic_id", clinicId)
         .eq("is_active", true)
         .order("full_name"),
@@ -115,7 +148,20 @@ export async function getRetentionDashboardData(
         .eq("clinic_id", clinicId)
         .not("status", "in", '("completed","cancelled")')
         .order("created_at", { ascending: false }),
+      supabase
+        .from("bills")
+        .select("patient_id, status, patient_amount, paid_amount, total_amount")
+        .eq("clinic_id", clinicId)
+        .in("status", ["unpaid", "partial"]),
     ]);
+
+  const duesByPatient = new Map<string, number>();
+  for (const bill of bills ?? []) {
+    const due = computeBillDue(bill);
+    if (due > 0) {
+      duesByPatient.set(bill.patient_id, (duesByPatient.get(bill.patient_id) ?? 0) + due);
+    }
+  }
 
   const latestEmrByPatient = new Map<string, EmrSummary>();
   for (const row of emrRows ?? []) {
@@ -137,13 +183,32 @@ export async function getRetentionDashboardData(
   let doctorAttention = 0;
   let readyToSend = 0;
   let totalAtRisk = 0;
+  let withDues = 0;
+  let totalDues = 0;
+  let totalVisited = 0;
 
   for (const patient of patients ?? []) {
     const emr = latestEmrByPatient.get(patient.id);
     const ctx = extractVisitContext(emr ?? null);
-    const daysSinceVisit = daysBetween(patient.last_visit_at);
-    const hasPriorVisit = Boolean(patient.last_visit_at || emr);
-    if (!hasPriorVisit) continue;
+    const effectiveLastVisit = resolveLastVisitAt(
+      patient.last_visit_at,
+      patient.retention_last_visit_override
+    );
+    const daysSinceVisit = daysBetween(effectiveLastVisit);
+    const hasPriorVisit = Boolean(effectiveLastVisit || emr || patient.retention_visit_reason);
+    if (hasPriorVisit) totalVisited++;
+
+    const dueFromBills = duesByPatient.get(patient.id) ?? 0;
+    const hasDueOverride = patient.retention_due_override !== null;
+    const dueAmount = hasDueOverride
+      ? Number(patient.retention_due_override ?? 0)
+      : dueFromBills;
+    if (dueAmount > 0) {
+      withDues++;
+      totalDues += dueAmount;
+    }
+
+    const visitReason = patient.retention_visit_reason?.trim() || ctx.visitReason;
 
     const patientReminders = remindersByPatient.get(patient.id) ?? [];
 
@@ -198,6 +263,7 @@ export async function getRetentionDashboardData(
       doctorAttention: Boolean(attentionReminder),
       noResponse: Boolean(noResponseReminder),
       vaccinationHint,
+      hasDues: dueAmount > 0,
     });
 
     const suggestedReminderType = inferReminderType(
@@ -225,18 +291,23 @@ export async function getRetentionDashboardData(
       patientId: patient.id,
       patientName: patient.full_name,
       patientPhone: patient.phone,
-      lastVisitAt: patient.last_visit_at,
+      lastVisitAt: effectiveLastVisit,
       daysSinceVisit,
-      visitReason: ctx.visitReason,
+      visitReason: hasPriorVisit ? visitReason : patient.retention_visit_reason?.trim() || "—",
+      visitReasonEditable: true,
       complaint: primaryReminder?.complaint ?? ctx.complaint,
       lastDiagnosis: primaryReminder?.diagnosis ?? ctx.diagnosis,
       doctorName: primaryReminder?.doctor_name ?? ctx.doctorName,
+      dueAmount,
+      dueFromBills,
+      hasDueOverride,
       retentionReasons,
       reminderId: primaryReminder?.id ?? null,
       reminderType: (primaryReminder?.reminder_type as EngagementReminderType) ?? null,
       followUpDate: primaryReminder?.follow_up_date ?? ctx.followUpDate,
       reminderStatus: primaryReminder?.status ?? null,
       suggestedReminderType,
+      hasVisitHistory: hasPriorVisit,
     });
   }
 
@@ -252,7 +323,10 @@ export async function getRetentionDashboardData(
   return {
     clinicName: clinic?.name ?? "Your clinic",
     stats: {
-      totalVisited: retentionPatients.length,
+      totalPatients: retentionPatients.length,
+      totalVisited,
+      withDues,
+      totalDues,
       overdueThisMonth,
       inactivePatients,
       doctorAttention,
@@ -530,6 +604,295 @@ export async function sendBulkRetentionMessagesAction(params: {
     } else {
       failed++;
       errors.push(`${row.patientName}: ${result.error ?? "send failed"}`);
+    }
+  }
+
+  revalidatePath("/owner/retention");
+  revalidatePath("/doctor/retention");
+  revalidatePath("/receptionist/retention");
+
+  return { sent, failed, errors, simulated: anySimulated };
+}
+
+const addRetentionPatientSchema = z.object({
+  fullName: z.string().min(2),
+  phone: z.string().min(10),
+  visitReason: z.string().optional(),
+  lastVisitDate: z.string().optional(),
+  dueAmount: z.coerce.number().min(0).optional(),
+});
+
+export async function addRetentionPatientAction(input: {
+  fullName: string;
+  phone: string;
+  visitReason?: string;
+  lastVisitDate?: string;
+  dueAmount?: number;
+}): Promise<{ success?: boolean; patientId?: string; error?: string }> {
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  const parsed = addRetentionPatientSchema.safeParse(input);
+  if (!parsed.success) return { error: "Please provide name and phone" };
+
+  const phoneResult = validateIndianPhone(parsed.data.phone);
+  if ("error" in phoneResult) return { error: phoneResult.error };
+
+  const supabase = await createClient();
+  const service = await createServiceClient();
+
+  const { data: existing } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("phone", phoneResult.phone)
+    .maybeSingle();
+
+  if (existing) {
+    return { error: "A patient with this phone number already exists. Edit them in the list instead." };
+  }
+
+  const patientCode = await generatePatientCode(service, profile.clinic_id);
+  const visitDate = parsed.data.lastVisitDate
+    ? parseVisitDate(parsed.data.lastVisitDate)
+    : null;
+
+  const { data, error } = await supabase
+    .from("patients")
+    .insert({
+      clinic_id: profile.clinic_id,
+      full_name: parsed.data.fullName.trim(),
+      phone: phoneResult.phone,
+      patient_code: patientCode,
+      created_by: profile.id,
+      retention_visit_reason: parsed.data.visitReason?.trim() || null,
+      retention_last_visit_override: visitDate,
+      retention_due_override:
+        parsed.data.dueAmount !== undefined ? parsed.data.dueAmount : null,
+      last_visit_at: visitDate ? `${visitDate}T00:00:00.000Z` : null,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/owner/retention");
+  revalidatePath("/doctor/retention");
+  revalidatePath("/receptionist/retention");
+  revalidatePath("/owner/patients");
+
+  return { success: true, patientId: data.id };
+}
+
+export async function importRetentionPatientsAction(csvText: string): Promise<{
+  imported: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { imported: 0, skipped: 0, errors: ["No clinic assigned"] };
+
+  const { rows, errors: parseErrors } = parseRetentionCsv(csvText);
+  if (parseErrors.length && rows.length === 0) {
+    return { imported: 0, skipped: 0, errors: parseErrors };
+  }
+
+  const supabase = await createClient();
+  const service = await createServiceClient();
+  let imported = 0;
+  let skipped = 0;
+  const errors = [...parseErrors];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const phoneResult = validateIndianPhone(row.phone);
+    if ("error" in phoneResult) {
+      errors.push(`Row ${i + 2}: ${phoneResult.error}`);
+      skipped++;
+      continue;
+    }
+
+    const { data: existing } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("clinic_id", profile.clinic_id)
+      .eq("phone", phoneResult.phone)
+      .maybeSingle();
+
+    if (existing) {
+      const visitDate = parseVisitDate(row.last_visit_date);
+      const dueAmount = parseDueAmount(row.due_amount);
+
+      const { error: updateError } = await supabase
+        .from("patients")
+        .update({
+          full_name: row.full_name.trim(),
+          retention_visit_reason: row.visit_reason?.trim() || null,
+          retention_last_visit_override: visitDate,
+          retention_due_override: dueAmount,
+          ...(visitDate ? { last_visit_at: `${visitDate}T00:00:00.000Z` } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+
+      if (updateError) {
+        errors.push(`Row ${i + 2}: ${updateError.message}`);
+        skipped++;
+      } else {
+        imported++;
+      }
+      continue;
+    }
+
+    const patientCode = await generatePatientCode(service, profile.clinic_id);
+    const visitDate = parseVisitDate(row.last_visit_date);
+    const dueAmount = parseDueAmount(row.due_amount);
+
+    const { error: insertError } = await supabase.from("patients").insert({
+      clinic_id: profile.clinic_id,
+      full_name: row.full_name.trim(),
+      phone: phoneResult.phone,
+      patient_code: patientCode,
+      created_by: profile.id,
+      retention_visit_reason: row.visit_reason?.trim() || null,
+      retention_last_visit_override: visitDate,
+      retention_due_override: dueAmount,
+      last_visit_at: visitDate ? `${visitDate}T00:00:00.000Z` : null,
+    });
+
+    if (insertError) {
+      errors.push(`Row ${i + 2}: ${insertError.message}`);
+      skipped++;
+    } else {
+      imported++;
+    }
+  }
+
+  revalidatePath("/owner/retention");
+  revalidatePath("/doctor/retention");
+  revalidatePath("/receptionist/retention");
+  revalidatePath("/owner/patients");
+
+  return { imported, skipped, errors };
+}
+
+export async function updateRetentionPatientFieldsAction(input: {
+  patientId: string;
+  fullName?: string;
+  phone?: string;
+  visitReason?: string;
+  lastVisitDate?: string | null;
+  dueAmount?: number | null;
+}): Promise<{ success?: boolean; error?: string }> {
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  const supabase = await createClient();
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.fullName !== undefined) {
+    if (input.fullName.trim().length < 2) return { error: "Name is too short" };
+    updates.full_name = input.fullName.trim();
+  }
+
+  if (input.phone !== undefined) {
+    const phoneResult = validateIndianPhone(input.phone);
+    if ("error" in phoneResult) return { error: phoneResult.error };
+    updates.phone = phoneResult.phone;
+  }
+
+  if (input.visitReason !== undefined) {
+    updates.retention_visit_reason = input.visitReason.trim() || null;
+  }
+
+  if (input.lastVisitDate !== undefined) {
+    if (input.lastVisitDate === null || input.lastVisitDate === "") {
+      updates.retention_last_visit_override = null;
+    } else {
+      const parsed = parseVisitDate(input.lastVisitDate);
+      if (!parsed) return { error: "Invalid visit date" };
+      updates.retention_last_visit_override = parsed;
+      updates.last_visit_at = `${parsed}T00:00:00.000Z`;
+    }
+  }
+
+  if (input.dueAmount !== undefined) {
+    if (input.dueAmount === null) {
+      updates.retention_due_override = null;
+    } else if (input.dueAmount < 0) {
+      return { error: "Due amount cannot be negative" };
+    } else {
+      updates.retention_due_override = input.dueAmount;
+    }
+  }
+
+  const { error } = await supabase
+    .from("patients")
+    .update(updates)
+    .eq("id", input.patientId)
+    .eq("clinic_id", profile.clinic_id);
+
+  if (error) {
+    if (error.code === "23505") return { error: "Phone number already used by another patient" };
+    return { error: error.message };
+  }
+
+  revalidatePath("/owner/retention");
+  revalidatePath("/doctor/retention");
+  revalidatePath("/receptionist/retention");
+
+  return { success: true };
+}
+
+export async function sendRetentionBroadcastAction(params: {
+  patientIds: string[];
+  message: string;
+}): Promise<{
+  sent: number;
+  failed: number;
+  errors: string[];
+  simulated?: boolean;
+}> {
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { sent: 0, failed: 0, errors: ["No clinic assigned"] };
+
+  const supabase = await createClient();
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  let anySimulated = false;
+
+  for (const patientId of params.patientIds) {
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("id, full_name, phone")
+      .eq("id", patientId)
+      .eq("clinic_id", profile.clinic_id)
+      .single();
+
+    if (!patient) {
+      failed++;
+      errors.push(`Patient ${patientId} not found`);
+      continue;
+    }
+
+    const result = await sendWhatsAppMessage({
+      clinicId: profile.clinic_id,
+      patientId: patient.id,
+      patientPhone: patient.phone,
+      content: params.message.trim(),
+      intent: "broadcast",
+      metadata: { source: "retention_broadcast", campaign: true },
+    });
+
+    if (result.success) {
+      sent++;
+      if (result.simulated) anySimulated = true;
+    } else {
+      failed++;
+      errors.push(`${patient.full_name}: ${result.error ?? "send failed"}`);
     }
   }
 

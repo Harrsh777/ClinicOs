@@ -366,6 +366,29 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
     ],
   },
   {
+    key: "conversations",
+    label: "Conversations",
+    icon: "MessageSquare",
+    roles: ["clinic_owner", "receptionist", "doctor"],
+    groups: [
+      {
+        key: "conversations-inbox",
+        name: "WhatsApp Inbox",
+        icon: "MessageSquare",
+        moduleKey: "conversations",
+        path: "/conversations",
+        items: [
+          {
+            key: "conversations",
+            name: "Inbox",
+            path: "/conversations",
+            moduleKey: "conversations",
+          },
+        ],
+      },
+    ],
+  },
+  {
     key: "franchise",
     label: "Franchise",
     icon: "Building2",
@@ -409,6 +432,22 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
         roles: ["clinic_owner"],
         items: [
           { key: "branding", name: "Logo & Theme", path: "/branding", moduleKey: "branding" },
+        ],
+      },
+      {
+        key: "conversations-settings",
+        name: "Conversations",
+        icon: "MessageSquare",
+        moduleKey: "conversations",
+        path: "/conversations",
+        roles: ["clinic_owner"],
+        items: [
+          {
+            key: "conversations-settings",
+            name: "WhatsApp & Inbox",
+            path: "/conversations",
+            moduleKey: "conversations",
+          },
         ],
       },
       {

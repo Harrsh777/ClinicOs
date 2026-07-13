@@ -2911,4 +2911,148 @@ When you're ready to implement, Phase 0 (database migration + worker scaffold) i
 
 
 
-Agent
+What ClinicOS uses (Meta APIs)
+ClinicOS uses the WhatsApp Cloud API via Meta Graph API v21.0. It does not need Twilio or a separate BSP if you go direct with Meta.
+
+API	Purpose
+WhatsApp Embedded Signup
+Clinic owner connects their number in one click (/owner/conversations)
+OAuth token exchange
+Turns Meta auth code into a long-lived access token
+GET /{WABA_ID}/phone_numbers
+Gets Phone Number ID + display number
+POST /{Waba_ID}/subscribed_apps
+Subscribes your app to that WhatsApp account
+POST /{Phone-Number-ID}/messages
+Sends text messages (retention, bot replies, broadcasts)
+Webhooks
+Receives patient replies + delivery/read status
+You do not manually copy Phone Number ID, WABA ID, or tokens per clinic — Embedded Signup stores them encrypted after connect.
+
+What you need to create (one-time, platform level)
+1. Meta Developer App
+Go to developers.facebook.com and create an app with:
+
+Product: WhatsApp
+Use case: Business (WhatsApp Business Platform)
+From the app you’ll get:
+
+App ID → META_APP_ID / NEXT_PUBLIC_META_APP_ID
+App Secret → META_APP_SECRET
+2. WhatsApp Embedded Signup configuration
+In Meta App Dashboard → WhatsApp → Embedded Signup:
+
+Create an Embedded Signup configuration
+Copy the Configuration ID → NEXT_PUBLIC_META_CONFIG_ID
+This is what powers the “Connect with Meta” button in ClinicOS.
+
+3. WhatsApp Business Account (WABA)
+Each clinic needs:
+
+A WhatsApp Business Account (WABA)
+A verified phone number on that WABA (can be new or migrated)
+The clinic owner selects/creates this during Embedded Signup in ClinicOS — you don’t set this manually in code.
+
+4. Webhook URL (critical)
+In Meta App → WhatsApp → Configuration → Webhook:
+
+Field	Value
+Callback URL
+https://YOUR_DOMAIN/api/webhooks/whatsapp
+Verify token
+Any secret string you choose (e.g. clinicos_whatsapp_verify_2026)
+Subscribe to these webhook fields:
+
+messages (patient replies → concierge bot)
+message_deliveries / message_reads (optional but recommended for status)
+Use the same verify token in your env:
+
+META_WEBHOOK_VERIFY_TOKEN=clinicos_whatsapp_verify_2026
+Environment variables (your .env.local / Vercel)
+Required for production WhatsApp
+# Meta app (platform-level — you create once)
+META_APP_ID=your_meta_app_id
+META_APP_SECRET=your_meta_app_secret
+NEXT_PUBLIC_META_APP_ID=your_meta_app_id
+NEXT_PUBLIC_META_CONFIG_ID=your_embedded_signup_config_id
+# Webhook verification
+META_WEBHOOK_VERIFY_TOKEN=your_chosen_verify_token
+# App URL (for OAuth redirects + patient portal WhatsApp links)
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+# Encrypt stored clinic WhatsApp tokens (production — generate a random 32-byte hex key)
+CREDENTIALS_ENCRYPTION_KEY=64_character_hex_string
+Optional fallbacks (only if not using per-clinic Embedded Signup)
+WHATSAPP_API_TOKEN=...        # single shared token (legacy/dev)
+WHATSAPP_PHONE_NUMBER_ID=...  # single shared phone ID (legacy/dev)
+WHATSAPP_WEBHOOK_SECRET=...   # extra webhook auth header (optional)
+ClinicOS prefers per-clinic connections via Embedded Signup. The fallback vars are for dev/single-clinic testing only.
+
+What each clinic owner does (no API keys from them)
+Go to /owner/conversations
+Click Connect with Meta
+Log in with Facebook Business
+Select/create WABA + phone number
+Done — ClinicOS stores credentials and updates clinic_branding.whatsapp_number
+They do not need to give you API keys manually.
+
+What you need to run in Supabase
+Apply these migrations (if not already):
+
+024_conversations_foundation.sql
+025_retention_enhancements.sql
+026_whatsapp_concierge.sql
+Important WhatsApp rules (for retention + broadcasts)
+Message type	When it works
+Session messages (free text)
+Patient messaged you in the last 24 hours, or they replied to your message
+Template messages
+Required for cold outreach outside the 24-hour window
+Right now ClinicOS sends plain text for:
+
+Retention follow-ups
+Broadcasts (“Monsoon checkup…”)
+Concierge bot replies
+That works when:
+
+Patient recently contacted the clinic, or
+They reply to your message (opens a new 24h window)
+For mass cold campaigns to patients who haven’t messaged in 30+ days, Meta will require approved message templates. That’s a Meta Business Manager step, not something ClinicOS generates automatically yet.
+
+Dev / testing without Meta (no API needed)
+If META_APP_ID / META_APP_SECRET are missing:
+
+/owner/conversations → Connect (Demo) simulates WhatsApp
+Messages are logged but not sent to real phones
+Good for UI and flow testing only
+Checklist — what to send / set up
+#	Item	Who provides
+1
+Meta Developer App (App ID + Secret)
+You
+2
+Embedded Signup Config ID
+You
+3
+Webhook URL + verify token in Meta dashboard
+You
+4
+NEXT_PUBLIC_APP_URL pointing to live HTTPS domain
+You
+5
+CREDENTIALS_ENCRYPTION_KEY in production
+You
+6
+WhatsApp Business Account + phone number
+Each clinic (via Embedded Signup)
+7
+Business verification on Meta (for production scale)
+Each clinic / your platform
+8
+Migrations 024–026 applied
+You
+What you do not need to give ClinicOS
+Per-clinic access tokens (auto-stored after connect)
+Phone Number ID / WABA ID manually (auto from Embedded Signup)
+A separate WhatsApp BSP account (unless you choose one)
+Twilio / Gupshup keys (not used in current code)
+If you want, I can next give you a step-by-step Meta Developer Dashboard walkthrough (screens + exact clicks) or a ready-to-paste .env.example block for your project.

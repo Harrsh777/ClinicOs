@@ -1,5 +1,12 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { normalizeIndianPhone } from "@/lib/validations/phone";
+import { getClinicWhatsAppCredentials } from "@/lib/whatsapp/connections";
+import { sendWhatsAppTextMessage } from "@/lib/whatsapp/meta-client";
+import {
+  upsertConversationFromInbound,
+  recordConversationMessage,
+  updateConversationMessageStatus,
+} from "@/lib/conversations/service";
 
 export interface SendWhatsAppParams {
   clinicId: string;
@@ -10,6 +17,9 @@ export interface SendWhatsAppParams {
   deliveryStatus?: "scheduled" | "sent";
   scheduledAt?: string;
   metadata?: Record<string, unknown>;
+  conversationId?: string;
+  senderProfileId?: string;
+  senderType?: "staff" | "ai" | "system" | "campaign";
 }
 
 export interface SendWhatsAppResult {
@@ -21,49 +31,42 @@ export interface SendWhatsAppResult {
 }
 
 async function sendViaMetaApi(
+  clinicId: string,
   toPhone: string,
   content: string
-): Promise<{ externalId?: string; error?: string }> {
+): Promise<{ externalId?: string; error?: string; simulated?: boolean }> {
+  const credentials = await getClinicWhatsAppCredentials(clinicId);
+
+  if (credentials) {
+    if (credentials.accessToken === "simulated-token") {
+      return { externalId: `sim_${Date.now()}`, simulated: true };
+    }
+    const result = await sendWhatsAppTextMessage({
+      phoneNumberId: credentials.phoneNumberId,
+      accessToken: credentials.accessToken,
+      toPhone,
+      content,
+    });
+    return { externalId: result.externalId, error: result.error };
+  }
+
   const token = process.env.WHATSAPP_API_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
   if (!token || !phoneNumberId) {
+    if (process.env.NODE_ENV === "development") {
+      return { externalId: `sim_${Date.now()}`, simulated: true };
+    }
     return { error: "WhatsApp API not configured" };
   }
 
-  const to = `91${normalizeIndianPhone(toPhone)}`;
-
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to,
-          type: "text",
-          text: { body: content },
-        }),
-      }
-    );
-
-    const data = (await res.json()) as {
-      messages?: { id: string }[];
-      error?: { message: string };
-    };
-
-    if (!res.ok) {
-      return { error: data.error?.message ?? `WhatsApp API error (${res.status})` };
-    }
-
-    return { externalId: data.messages?.[0]?.id };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "WhatsApp send failed" };
-  }
+  const result = await sendWhatsAppTextMessage({
+    phoneNumberId,
+    accessToken: token,
+    toPhone,
+    content,
+  });
+  return { externalId: result.externalId, error: result.error };
 }
 
 export async function sendWhatsAppMessage(
@@ -73,18 +76,21 @@ export async function sendWhatsAppMessage(
   const phone = normalizeIndianPhone(params.patientPhone);
   const now = new Date().toISOString();
   const shouldSendNow = params.deliveryStatus !== "scheduled";
+  const toPhone = `91${phone}`;
 
   let externalMessageId: string | undefined;
   let sendError: string | undefined;
   let simulated = false;
 
   if (shouldSendNow) {
-    const apiResult = await sendViaMetaApi(phone, params.content);
+    const apiResult = await sendViaMetaApi(params.clinicId, toPhone, params.content);
     if (apiResult.externalId) {
       externalMessageId = apiResult.externalId;
+      simulated = apiResult.simulated ?? false;
     } else if (apiResult.error) {
-      if (process.env.NODE_ENV === "development" || !process.env.WHATSAPP_API_TOKEN) {
+      if (process.env.NODE_ENV === "development") {
         simulated = true;
+        externalMessageId = `sim_${Date.now()}`;
       } else {
         sendError = apiResult.error;
       }
@@ -122,6 +128,30 @@ export async function sendWhatsAppMessage(
     return { success: false, error: dbError.message };
   }
 
+  let conversationId = params.conversationId;
+  if (!conversationId) {
+    conversationId = await upsertConversationFromInbound({
+      clinicId: params.clinicId,
+      phone,
+      patientId: params.patientId,
+      preview: params.content,
+    });
+  }
+
+  await recordConversationMessage({
+    clinicId: params.clinicId,
+    conversationId,
+    patientId: params.patientId,
+    direction: "outbound",
+    senderType: params.senderType ?? "system",
+    content: params.content,
+    status: sendError ? "failed" : simulated || externalMessageId ? "sent" : "queued",
+    externalMessageId,
+    intent: params.intent,
+    senderProfileId: params.senderProfileId,
+    metadata: params.metadata,
+  });
+
   return {
     success: !sendError,
     messageId: row?.id,
@@ -154,6 +184,8 @@ export async function updateWhatsAppDeliveryStatus(
     .from("whatsapp_messages")
     .update(updates)
     .eq("external_message_id", externalMessageId);
+
+  await updateConversationMessageStatus(externalMessageId, status, failedReason);
 
   const { data: msg } = await service
     .from("whatsapp_messages")

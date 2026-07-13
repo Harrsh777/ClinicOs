@@ -2,18 +2,16 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { normalizeIndianPhone } from "@/lib/validations/phone";
 import { handleEngagementReply } from "@/lib/actions/follow-up-reminders";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
+import { getConnectionByPhoneNumberId } from "@/lib/whatsapp/connections";
 import {
-  parseAppointmentMessage,
-  formatHelpReply,
-} from "@/lib/ai/appointment-bot";
-import { parseFollowUpResponse, getFollowUpStatus } from "@/lib/ai/follow-up";
+  upsertConversationFromInbound,
+  recordConversationMessage,
+} from "@/lib/conversations/service";
 import { logAIUsage } from "@/lib/ai/usage-logger";
-import {
-  handleWhatsAppBooking,
-  cancelUpcomingAppointment,
-  continueBookingSession,
-  getActiveBookingSession,
-} from "@/lib/whatsapp/booking";
+import { handleConciergeMessage } from "@/lib/whatsapp/concierge/handler";
+import { isRetentionBookingReply } from "@/lib/whatsapp/concierge/retention-reply";
+import { getConciergeSession } from "@/lib/whatsapp/concierge/session";
+import { isBookingIntent, parseMenuChoice } from "@/lib/whatsapp/concierge/menu";
 
 export interface InboundWhatsAppMessage {
   phone: string;
@@ -25,6 +23,9 @@ export interface InboundWhatsAppMessage {
 export async function resolveClinicFromPhoneNumberId(
   phoneNumberId: string
 ): Promise<string | undefined> {
+  const connection = await getConnectionByPhoneNumberId(phoneNumberId);
+  if (connection?.clinic_id) return connection.clinic_id;
+
   const service = await createServiceClient();
 
   const { data: byMetaId } = await service
@@ -45,10 +46,25 @@ export async function resolveClinicFromPhoneNumberId(
   return fallback?.clinic_id;
 }
 
-async function getClinicName(clinicId: string): Promise<string> {
+async function getClinicContext(clinicId: string) {
   const service = await createServiceClient();
-  const { data } = await service.from("clinics").select("name").eq("id", clinicId).single();
-  return data?.name ?? "your clinic";
+  const { data } = await service
+    .from("clinics")
+    .select("name, slug, phone")
+    .eq("id", clinicId)
+    .single();
+
+  const { data: branding } = await service
+    .from("clinic_branding")
+    .select("whatsapp_number")
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+
+  return {
+    name: data?.name ?? "your clinic",
+    slug: data?.slug ?? null,
+    phone: branding?.whatsapp_number ?? data?.phone ?? null,
+  };
 }
 
 export async function processInboundWhatsApp(
@@ -78,7 +94,7 @@ export async function processInboundWhatsApp(
     };
   }
 
-  const clinicName = await getClinicName(resolvedClinicId);
+  const clinic = await getClinicContext(resolvedClinicId);
 
   await service.from("whatsapp_messages").insert({
     clinic_id: resolvedClinicId,
@@ -87,118 +103,73 @@ export async function processInboundWhatsApp(
     content: message,
   });
 
-  const engagement = await handleEngagementReply({
+  const conversationId = await upsertConversationFromInbound({
     clinicId: resolvedClinicId,
-    patientPhone: phone,
-    message,
+    phone,
+    preview: message,
   });
 
-  if (engagement.handled && engagement.reply) {
-    await sendWhatsAppMessage({
+  await recordConversationMessage({
+    clinicId: resolvedClinicId,
+    conversationId,
+    direction: "inbound",
+    senderType: "patient",
+    content: message,
+    status: "delivered",
+  });
+
+  const activeSession = await getConciergeSession(resolvedClinicId, phone);
+  const retentionBookReply = await isRetentionBookingReply(resolvedClinicId, phone, message);
+
+  const skipEngagement =
+    retentionBookReply ||
+    isBookingIntent(message) ||
+    Boolean(parseMenuChoice(message)) ||
+    (activeSession?.step && activeSession.step !== "menu");
+
+  if (!skipEngagement) {
+    const engagement = await handleEngagementReply({
       clinicId: resolvedClinicId,
       patientPhone: phone,
-      content: engagement.reply,
-      intent: "engagement_reply_ack",
-    });
-    return { reply: engagement.reply, intent: "engagement_reply" };
-  }
-
-  const intent = parseAppointmentMessage(message);
-  await logAIUsage(resolvedClinicId, "appointment_bot", 0, { intent: intent.intent });
-
-  let reply = "Thank you for your message. A clinic staff member will respond shortly.";
-  let outboundIntent: string = intent.intent;
-
-  if (intent.intent === "help") {
-    reply = formatHelpReply(clinicName);
-  } else if (intent.intent === "cancel") {
-    reply = await cancelUpcomingAppointment(resolvedClinicId, phone);
-  } else if (intent.intent === "book") {
-    const booking = await handleWhatsAppBooking({
-      clinicId: resolvedClinicId,
-      phone,
       message,
-      intent,
     });
-    reply = booking.reply;
-    outboundIntent = booking.booked ? "book_confirmed" : "book_collecting";
-  } else if (intent.intent === "status") {
-    const { data: patient } = await service
-      .from("patients")
-      .select("id")
-      .eq("clinic_id", resolvedClinicId)
-      .eq("phone", phone)
-      .maybeSingle();
 
-    if (patient) {
-      const { data: apt } = await service
-        .from("appointments")
-        .select("appointment_date, appointment_time, status, booking_symptoms, appointment_number")
-        .eq("patient_id", patient.id)
-        .gte("appointment_date", new Date().toISOString().split("T")[0])
-        .in("status", ["confirmed", "pending"])
-        .order("appointment_date")
-        .order("appointment_time")
-        .limit(1)
-        .maybeSingle();
-
-      reply = apt
-        ? `Your next consultation is on ${apt.appointment_date} at ${apt.appointment_time} (${apt.status}).` +
-          (apt.booking_symptoms ? ` Reason: ${apt.booking_symptoms}.` : "") +
-          (apt.appointment_number ? ` Ref: ${apt.appointment_number}.` : "")
-        : "You have no upcoming consultations. Reply BOOK to schedule one.";
-    } else {
-      reply = "We couldn't find your patient record. Please register at the clinic first.";
-    }
-  } else {
-    const activeSession = await getActiveBookingSession(resolvedClinicId, phone);
-    if (activeSession) {
-      const continued = await continueBookingSession({
+    if (engagement.handled && engagement.reply) {
+      await sendWhatsAppMessage({
         clinicId: resolvedClinicId,
-        phone,
-        message,
+        patientPhone: phone,
+        content: engagement.reply,
+        intent: "engagement_reply_ack",
       });
-      if (continued.handled) {
-        reply = continued.reply;
-        outboundIntent = "book_collecting";
-      }
+      return { reply: engagement.reply, intent: "engagement_reply" };
     }
   }
 
-  const followUpResponse = parseFollowUpResponse(message);
-  if (followUpResponse !== "unknown") {
-    const status = getFollowUpStatus(followUpResponse);
-    const { data: patient } = await service
-      .from("patients")
-      .select("id")
-      .eq("clinic_id", resolvedClinicId)
-      .eq("phone", phone)
-      .maybeSingle();
+  const concierge = await handleConciergeMessage({
+    clinicId: resolvedClinicId,
+    phone,
+    message,
+    clinicName: clinic.name,
+    clinicPhone: clinic.phone,
+    clinicSlug: clinic.slug,
+  });
 
-    if (patient) {
-      await service
-        .from("follow_up_tasks")
-        .update({ status, response: message, responded_at: new Date().toISOString() })
-        .eq("clinic_id", resolvedClinicId)
-        .eq("patient_id", patient.id)
-        .eq("status", "sent");
-    }
-
-    reply =
-      followUpResponse === "yes"
-        ? "Great! Keep taking your medicines as prescribed."
-        : "Thank you for letting us know. Your doctor will be notified.";
-    outboundIntent = "follow_up";
-  }
+  await logAIUsage(resolvedClinicId, "whatsapp_concierge", 0, {
+    intent: concierge.intent,
+    booked: concierge.booked ?? false,
+  });
 
   await sendWhatsAppMessage({
     clinicId: resolvedClinicId,
     patientPhone: phone,
-    content: reply,
-    intent: outboundIntent,
+    content: concierge.reply,
+    intent: concierge.intent,
+    metadata: concierge.appointmentId
+      ? { appointmentId: concierge.appointmentId, source: "whatsapp_concierge" }
+      : { source: "whatsapp_concierge" },
   });
 
-  return { reply, intent: outboundIntent };
+  return { reply: concierge.reply, intent: concierge.intent };
 }
 
 export function extractMetaInboundMessage(body: Record<string, unknown>): InboundWhatsAppMessage | null {
