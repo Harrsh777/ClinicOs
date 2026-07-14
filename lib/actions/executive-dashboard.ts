@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { getRevenueStats } from "@/lib/actions/billing";
 import { getAIBillingInsights, getHealthRiskFlags, getFollowUpTasks } from "@/lib/actions/ai-insights";
+import { generateDashboardRecommendations, type DashboardAIRecommendation } from "@/lib/ai/dashboard-recommendations";
 import { getOwnerClinicIds } from "@/lib/actions/franchise";
 
 export interface DashboardAppointment {
@@ -65,6 +66,7 @@ export interface ExecutiveDashboardData {
     followUpOpportunities: number;
     highRiskPatients: number;
     lowPerformingBranch: string | null;
+    recommendations: DashboardAIRecommendation[];
   };
   charts: {
     dailyRevenue: { date: string; revenue: number; invoices: number }[];
@@ -679,6 +681,30 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
     (f) => !["adherence_yes", "adherence_no"].includes(f.status)
   ).length;
 
+  const revenueLeak = primaryInsights.filter(
+    (i) => i.type === "missing_bill" || i.type === "unpaid_invoice"
+  ).length;
+
+  const recommendations = await generateDashboardRecommendations({
+    clinicId,
+    revenueLeak,
+    followUpOpportunities: pendingFollowUps,
+    highRiskPatients: healthRisks.length,
+    outstandingCount,
+    outstandingPayments,
+    revenueToday,
+    revenueThisMonth,
+    revenueGrowth,
+    patientGrowth,
+    billingInsights: primaryInsights,
+    healthRisks: healthRisks.map((r) => ({
+      risk_type: r.risk_type,
+      severity: r.severity,
+      patientName: (r.patients as { full_name: string })?.full_name ?? "Patient",
+    })),
+    lowPerformingBranch,
+  }).catch(() => []);
+
   const business = {
     revenueToday,
     revenueThisMonth,
@@ -710,10 +736,11 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
     operations: operationsWithTotals,
     growth,
     aiInsights: {
-      revenueLeak: primaryInsights.filter((i) => i.type === "missing_bill" || i.type === "unpaid_invoice").length,
+      revenueLeak,
       followUpOpportunities: pendingFollowUps,
       highRiskPatients: healthRisks.length,
       lowPerformingBranch,
+      recommendations,
     },
     charts,
     appointments: extras.appointments,

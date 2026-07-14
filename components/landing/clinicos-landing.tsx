@@ -132,66 +132,81 @@ export function ClinicosLanding() {
         <div className="wrap">
           <div className="reveal section-intro">
             <div className="eyebrow">All-in-one platform</div>
-            <h2>Six tools your front desk juggles today. One OS that runs itself.</h2>
+            <h2>One system for what your front desk does in six apps.</h2>
             <p className="lead">
-              Scheduling, billing, records, follow-ups, reviews, and analytics — connected in one
-              workflow so nothing falls through the cracks.
+              Appointments, UPI payments, prescriptions, WhatsApp recalls, Google reviews, and revenue
+              reports — linked end-to-end. When a patient books online, pays at checkout, and gets a
+              follow-up on WhatsApp, no one re-enters the same details twice.
             </p>
           </div>
           <div className="bento">
             <div className="b-card b-7 reveal">
-              <span className="b-tag">Smart scheduling</span>
-              <h3>A live queue patients actually trust</h3>
+              <span className="b-tag">Queue &amp; scheduling</span>
+              <h3>One queue for walk-ins and online bookings</h3>
               <p>
-                Real-time token tracking, automatic wait-time updates on WhatsApp, and zero crowding
-                in your waiting room. Patients arrive exactly when needed.
+                Check patients in with a token. ClinicOS texts their live position and wait time on
+                WhatsApp, then pings them when to walk in — so your waiting room stays half empty, not
+                packed.
               </p>
               <div className="b-visual">
                 <div className="queue-row">
                   <span className="av">AR</span>
-                  <span className="queue-name">Ananya Rao · Consultation</span>
+                  <span className="queue-name">Token #12 · Ananya Rao · Consultation</span>
                   <span className="st now">In room</span>
                 </div>
                 <div className="queue-row">
                   <span className="av m">VK</span>
-                  <span className="queue-name">Vikram Khanna · Follow-up</span>
+                  <span className="queue-name">Token #13 · Vikram Khanna · Follow-up</span>
                   <span className="st next">Up next · 4 min</span>
                 </div>
                 <div className="queue-row">
                   <span className="av">SM</span>
-                  <span className="queue-name">Sana Merchant · New patient</span>
-                  <span className="st wait">Notified · ETA 20 min</span>
+                  <span className="queue-name">Token #14 · Sana Merchant · Walk-in</span>
+                  <span className="st wait">WhatsApp sent · ETA 20 min</span>
                 </div>
               </div>
             </div>
             <div className="b-card b-5 reveal">
               <span className="b-tag">AI follow-ups</span>
-              <h3>Conversations that book themselves</h3>
+              <h3>Recalls and re-bookings over WhatsApp</h3>
               <p>
-                Post-visit care, medicine reminders, and re-booking — all handled in the patient&apos;s own language.
+                After every visit, ClinicOS messages the patient in Hindi, English, or Tamil — medicine
+                reminders, lab alerts, and two-slot booking offers. They reply; the slot lands on your
+                calendar.
               </p>
               <div className="b-visual">
                 <div className="wa-bubble">
-                  Hi Meera! Dr. Iyer recommended a review in 2 weeks. Shall I book Tuesday 11 AM or Thursday 5 PM?
+                  Hi Meera! Dr. Iyer asked for a thyroid review in 2 weeks. Tuesday 11 AM or Thursday 5
+                  PM?
                 </div>
-                <div className="wa-bubble reply">Thursday works!</div>
-                <div className="wa-time">Booked automatically · no staff involved</div>
+                <div className="wa-bubble reply">Thursday 5 PM works</div>
+                <div className="wa-time">Appointment #847 booked · calendar updated</div>
               </div>
             </div>
             <div className="b-card b-6 reveal">
               <span className="b-tag">Billing &amp; payments</span>
-              <h3>UPI-first billing</h3>
-              <p>GST-ready invoices, payment links on WhatsApp, and same-day settlement reports your accountant will love.</p>
+              <h3>Collect fees before they leave the chair</h3>
+              <p>
+                Generate a GST invoice in two taps, send a UPI or Razorpay link on WhatsApp, and log cash
+                at the desk. Your CA gets a daily settlement report — no end-of-month spreadsheet chase.
+              </p>
             </div>
             <div className="b-card b-6 reveal">
               <span className="b-tag">Patient records</span>
-              <h3>EMR without the clutter</h3>
-              <p>Voice-dictated notes, e-prescriptions in seconds, ABDM-compliant and secure by default.</p>
+              <h3>Notes and prescriptions in one chart</h3>
+              <p>
+                Dictate consult notes by voice; ClinicOS structures them and prints an e-prescription with
+                your clinic letterhead. Records link to ABDM Health IDs and stay encrypted at rest.
+              </p>
             </div>
             <div className="b-card b-6 reveal">
-              <span className="b-tag">Growth analytics</span>
-              <h3>Know exactly where revenue comes from</h3>
-              <p>See which channels, doctors, and treatments drive growth — updated live, explained in plain language.</p>
+              <span className="b-tag">Revenue analytics</span>
+              <h3>See which channel actually pays</h3>
+              <p>
+                Track collections by Google listing, doctor, treatment, and AI recall — not just a monthly
+                total. Ask &ldquo;Which service grew fastest this quarter?&rdquo; and get an answer in
+                plain English.
+              </p>
               <div className="b-visual">
                 <div className="rev-line">
                   <b>Google &amp; Maps</b><span className="g">₹3.4L · +22%</span>
@@ -206,10 +221,11 @@ export function ClinicosLanding() {
             </div>
             <div className="b-card b-6 reveal">
               <span className="b-tag">Multi-branch</span>
-              <h3>One dashboard, every location</h3>
+              <h3>Run every branch from one login</h3>
               <p>
-                Compare branches, share patient records across locations, and roll out changes everywhere in one
-                click. Built for clinic chains from day one.
+                Compare wait times, collections, and ratings across locations on one screen. Patient
+                history follows them to any branch, and a new price list goes live everywhere in one
+                update.
               </p>
             </div>
           </div>

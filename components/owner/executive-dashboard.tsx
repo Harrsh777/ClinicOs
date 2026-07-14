@@ -27,6 +27,7 @@ import {
   getDashboardDailyRevenue,
   getDashboardOperationsSnapshot,
 } from "@/lib/actions/executive-dashboard";
+import { AIRecommendationsList } from "@/components/ai/ai-recommendations-list";
 import {
   IndianRupee,
   Users,
@@ -945,6 +946,8 @@ export function ExecutiveDashboard({
                 </Link>
               ))}
             </div>
+
+            <AIRecommendationsList recommendations={data.aiInsights.recommendations} />
           </DashboardCard>
         </div>
       </div>

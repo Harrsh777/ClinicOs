@@ -8,6 +8,13 @@ function getResend() {
   return new Resend(key);
 }
 
+export type EmailAttachmentInput = {
+  filename: string;
+  content: string | Buffer;
+  contentType?: string;
+  contentId?: string;
+};
+
 export type SendEmailResult = { ok: true; id?: string } | { ok: false; error: string };
 
 export async function sendEmail(params: {
@@ -15,6 +22,7 @@ export async function sendEmail(params: {
   subject: string;
   html: string;
   from?: string;
+  attachments?: EmailAttachmentInput[];
 }): Promise<SendEmailResult> {
   const resend = getResend();
   if (!resend) {
@@ -28,6 +36,12 @@ export async function sendEmail(params: {
       to: params.to,
       subject: params.subject,
       html: params.html,
+      attachments: params.attachments?.map((attachment) => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: attachment.contentType,
+        contentId: attachment.contentId,
+      })),
     });
     if (error) return { ok: false, error: error.message };
     return { ok: true, id: data?.id };

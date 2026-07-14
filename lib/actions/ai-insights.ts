@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { generateBillingInsights, type BillingInsight } from "@/lib/ai/billing-assistant";
 import { analyzeHealthRisksWithAI } from "@/lib/ai/health-risk";
+import {
+  generateDashboardRecommendations,
+  type DashboardAIRecommendation,
+} from "@/lib/ai/dashboard-recommendations";
+import { getRevenueStats } from "@/lib/actions/billing";
 
 export async function getAIBillingInsights(clinicId: string): Promise<BillingInsight[]> {
   await requireRole(["clinic_owner", "finance_manager"]);
@@ -157,4 +162,45 @@ export async function getAIUsageSummary(clinicId: string) {
     byFeature[log.feature] = cur;
   }
   return byFeature;
+}
+
+export async function getDashboardAIRecommendations(
+  clinicId: string
+): Promise<DashboardAIRecommendation[]> {
+  await requireRole(["clinic_owner"]);
+
+  const [billingInsights, healthRisks, followUps, revenue] = await Promise.all([
+    getAIBillingInsights(clinicId),
+    getHealthRiskFlags(clinicId),
+    getFollowUpTasks(clinicId),
+    getRevenueStats(clinicId),
+  ]);
+
+  const pendingFollowUps = followUps.filter(
+    (f) => !["adherence_yes", "adherence_no"].includes(f.status)
+  ).length;
+
+  const revenueLeak = billingInsights.filter(
+    (i) => i.type === "missing_bill" || i.type === "unpaid_invoice"
+  ).length;
+
+  return generateDashboardRecommendations({
+    clinicId,
+    revenueLeak,
+    followUpOpportunities: pendingFollowUps,
+    highRiskPatients: healthRisks.length,
+    outstandingCount: revenue.unpaidCount,
+    outstandingPayments: revenue.unpaidTotal,
+    revenueToday: revenue.todayRevenue,
+    revenueThisMonth: revenue.monthRevenue,
+    revenueGrowth: 0,
+    patientGrowth: 0,
+    billingInsights,
+    healthRisks: healthRisks.map((r) => ({
+      risk_type: r.risk_type,
+      severity: r.severity,
+      patientName: (r.patients as { full_name: string })?.full_name ?? "Patient",
+    })),
+    lowPerformingBranch: null,
+  });
 }

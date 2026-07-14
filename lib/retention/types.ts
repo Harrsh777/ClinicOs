@@ -42,6 +42,7 @@ export interface RetentionPatientRow {
   patientId: string;
   patientName: string;
   patientPhone: string;
+  patientEmail: string | null;
   lastVisitAt: string | null;
   daysSinceVisit: number | null;
   visitReason: string;

@@ -1,8 +1,15 @@
 import { requireRole } from "@/lib/auth/session";
-import { getAIBillingInsights, getHealthRiskFlags, getFollowUpTasks, getAIUsageSummary } from "@/lib/actions/ai-insights";
+import {
+  getAIBillingInsights,
+  getHealthRiskFlags,
+  getFollowUpTasks,
+  getAIUsageSummary,
+  getDashboardAIRecommendations,
+} from "@/lib/actions/ai-insights";
 import { PageHeader, Card, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AIRecommendationsList } from "@/components/ai/ai-recommendations-list";
 import Link from "next/link";
 import { Sparkles, AlertTriangle, Heart, MessageSquare, Brain } from "lucide-react";
 
@@ -10,11 +17,12 @@ export default async function OwnerAIInsightsPage() {
   const profile = await requireRole(["clinic_owner"]);
   const clinicId = profile.clinic_id!;
 
-  const [billingInsights, healthRisks, followUps, aiUsage] = await Promise.all([
+  const [billingInsights, healthRisks, followUps, aiUsage, recommendations] = await Promise.all([
     getAIBillingInsights(clinicId),
     getHealthRiskFlags(clinicId),
     getFollowUpTasks(clinicId),
     getAIUsageSummary(clinicId),
+    getDashboardAIRecommendations(clinicId),
   ]);
 
   const totalAICost = Object.values(aiUsage).reduce((s, v) => s + v.cost, 0);
@@ -30,6 +38,17 @@ export default async function OwnerAIInsightsPage() {
         <StatCard label="Pending Follow-ups" value={pendingFollowUps} icon={<MessageSquare className="h-5 w-5" />} />
         <StatCard label="AI Cost (est.)" value={`$${totalAICost.toFixed(3)}`} icon={<Brain className="h-5 w-5" />} />
       </div>
+
+      <Card className="mb-8">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles className="h-5 w-5 text-[var(--brand-500)]" />
+          <h3 className="font-semibold">AI Recommendations</h3>
+        </div>
+        <p className="text-sm text-[var(--text-muted)] mb-4">
+          Personalized insights synthesized from billing, follow-ups, and patient risk data.
+        </p>
+        <AIRecommendationsList recommendations={recommendations} compact />
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

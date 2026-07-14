@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireAuth, requireRole } from "@/lib/auth/session";
 import { generateRetentionMessage } from "@/lib/ai/retention-message";
+import { generateRetentionEmail } from "@/lib/ai/retention-email";
+import { sendEmail, type EmailAttachmentInput } from "@/lib/email/send";
+import { buildRetentionEmailHtml, plainTextToEmailHtml } from "@/lib/email/retention-template";
 import { scheduleEngagementReminder } from "@/lib/actions/follow-up-reminders";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
 import { todayStr } from "@/lib/engagement/schedule";
@@ -130,7 +133,7 @@ export async function getRetentionDashboardData(
       supabase
         .from("patients")
         .select(
-          "id, full_name, phone, last_visit_at, created_at, retention_visit_reason, retention_due_override, retention_last_visit_override"
+          "id, full_name, phone, email, last_visit_at, created_at, retention_visit_reason, retention_due_override, retention_last_visit_override"
         )
         .eq("clinic_id", clinicId)
         .eq("is_active", true)
@@ -291,6 +294,7 @@ export async function getRetentionDashboardData(
       patientId: patient.id,
       patientName: patient.full_name,
       patientPhone: patient.phone,
+      patientEmail: patient.email?.trim() || null,
       lastVisitAt: effectiveLastVisit,
       daysSinceVisit,
       visitReason: hasPriorVisit ? visitReason : patient.retention_visit_reason?.trim() || "—",
@@ -393,6 +397,308 @@ export async function generateRetentionMessageAction(params: {
   });
 
   return { message };
+}
+
+const retentionEmailAttachmentSchema = z.object({
+  filename: z.string().min(1).max(200),
+  contentType: z.string().optional(),
+  data: z.string().min(1),
+});
+
+const MAX_EMAIL_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+
+function parseRetentionEmailAttachments(
+  attachments?: { filename: string; contentType?: string; data: string }[]
+) {
+  if (!attachments?.length) {
+    return { attachments: [] as EmailAttachmentInput[], inlineCids: [] as string[] };
+  }
+
+  if (attachments.length > MAX_EMAIL_ATTACHMENTS) {
+    return { error: `Maximum ${MAX_EMAIL_ATTACHMENTS} attachments allowed` };
+  }
+
+  const parsed: EmailAttachmentInput[] = [];
+  const inlineCids: string[] = [];
+
+  for (const [index, file] of attachments.entries()) {
+    const validated = retentionEmailAttachmentSchema.safeParse(file);
+    if (!validated.success) return { error: "Invalid attachment payload" };
+
+    const buffer = Buffer.from(validated.data.data, "base64");
+    if (buffer.byteLength > MAX_ATTACHMENT_BYTES) {
+      return { error: `${validated.data.filename} exceeds 4 MB limit` };
+    }
+
+    const contentType = validated.data.contentType ?? "application/octet-stream";
+    if (!contentType.startsWith("image/")) {
+      return { error: "Only image attachments are supported" };
+    }
+
+    const cid = `retention-img-${index + 1}`;
+    parsed.push({
+      filename: validated.data.filename,
+      content: buffer,
+      contentType,
+      contentId: cid,
+    });
+    inlineCids.push(cid);
+  }
+
+  return { attachments: parsed, inlineCids };
+}
+
+async function loadRetentionPatientContext(patientId: string, clinicId: string) {
+  const supabase = await createClient();
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("id, full_name, phone, email, last_visit_at")
+    .eq("id", patientId)
+    .eq("clinic_id", clinicId)
+    .single();
+
+  if (!patient) return { error: "Patient not found" as const };
+
+  const { data: emr } = await supabase
+    .from("emr_records")
+    .select("summary")
+    .eq("patient_id", patientId)
+    .eq("clinic_id", clinicId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("name")
+    .eq("id", clinicId)
+    .single();
+
+  return {
+    patient,
+    ctx: extractVisitContext((emr?.summary ?? {}) as EmrSummary),
+    clinicName: clinic?.name ?? "Your clinic",
+  };
+}
+
+function revalidateRetentionPaths() {
+  revalidatePath("/owner/retention");
+  revalidatePath("/doctor/retention");
+  revalidatePath("/receptionist/retention");
+}
+
+export async function generateRetentionEmailAction(params: {
+  patientId: string;
+  reminderType?: EngagementReminderType;
+  customInstructions?: string;
+}): Promise<{ subject?: string; body?: string; error?: string }> {
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  const loaded = await loadRetentionPatientContext(params.patientId, profile.clinic_id);
+  if ("error" in loaded) return { error: loaded.error };
+
+  const reminderType = params.reminderType ?? "clinical_follow_up";
+  const generated = await generateRetentionEmail(profile.clinic_id, {
+    patientName: loaded.patient.full_name,
+    visitReason: loaded.ctx.visitReason,
+    complaint: loaded.ctx.complaint,
+    diagnosis: loaded.ctx.diagnosis,
+    doctorName: loaded.ctx.doctorName,
+    followUpDate: loaded.ctx.followUpDate,
+    clinicName: loaded.clinicName,
+    reminderType,
+    daysSinceVisit: daysBetween(loaded.patient.last_visit_at),
+    customInstructions: params.customInstructions,
+  });
+
+  return { subject: generated.subject, body: generated.body };
+}
+
+export async function sendRetentionEmailAction(params: {
+  patientId: string;
+  subject: string;
+  body: string;
+  attachments?: { filename: string; contentType?: string; data: string }[];
+}): Promise<{ success?: boolean; error?: string }> {
+  await requireAuth();
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  if (!params.subject.trim()) return { error: "Subject is required" };
+  if (!params.body.trim()) return { error: "Email body cannot be empty" };
+
+  const loaded = await loadRetentionPatientContext(params.patientId, profile.clinic_id);
+  if ("error" in loaded) return { error: loaded.error };
+
+  if (!loaded.patient.email) {
+    return { error: "Patient has no email on file. Add their email in Patients first." };
+  }
+
+  const attachmentResult = parseRetentionEmailAttachments(params.attachments);
+  if ("error" in attachmentResult) {
+    return { error: attachmentResult.error ?? "Invalid attachments" };
+  }
+
+  const html = buildRetentionEmailHtml({
+    clinicName: loaded.clinicName,
+    patientName: loaded.patient.full_name,
+    bodyHtml: plainTextToEmailHtml(params.body.trim()),
+    inlineImageCids: attachmentResult.inlineCids,
+  });
+
+  const result = await sendEmail({
+    to: loaded.patient.email,
+    subject: params.subject.trim(),
+    html,
+    attachments: attachmentResult.attachments,
+  });
+
+  revalidateRetentionPaths();
+
+  if (!result.ok) return { error: result.error };
+  return { success: true };
+}
+
+export async function sendRetentionEmailBroadcastAction(params: {
+  patientIds: string[];
+  subject: string;
+  body: string;
+  attachments?: { filename: string; contentType?: string; data: string }[];
+}): Promise<{ sent: number; failed: number; errors: string[] }> {
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { sent: 0, failed: 0, errors: ["No clinic assigned"] };
+
+  if (!params.subject.trim()) return { sent: 0, failed: 0, errors: ["Subject is required"] };
+  if (!params.body.trim()) return { sent: 0, failed: 0, errors: ["Email body cannot be empty"] };
+
+  const attachmentResult = parseRetentionEmailAttachments(params.attachments);
+  if ("error" in attachmentResult) {
+    return { sent: 0, failed: 0, errors: [attachmentResult.error ?? "Invalid attachments"] };
+  }
+
+  const supabase = await createClient();
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("name")
+    .eq("id", profile.clinic_id)
+    .single();
+
+  const clinicName = clinic?.name ?? "Your clinic";
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const patientId of params.patientIds) {
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("id, full_name, email")
+      .eq("id", patientId)
+      .eq("clinic_id", profile.clinic_id)
+      .single();
+
+    if (!patient) {
+      failed++;
+      errors.push(`Patient ${patientId} not found`);
+      continue;
+    }
+
+    if (!patient.email) {
+      failed++;
+      errors.push(`${patient.full_name}: no email on file`);
+      continue;
+    }
+
+    const html = buildRetentionEmailHtml({
+      clinicName,
+      patientName: patient.full_name,
+      bodyHtml: plainTextToEmailHtml(params.body.trim()),
+      inlineImageCids: attachmentResult.inlineCids,
+    });
+
+    const result = await sendEmail({
+      to: patient.email,
+      subject: params.subject.trim(),
+      html,
+      attachments: attachmentResult.attachments,
+    });
+
+    if (result.ok) sent++;
+    else {
+      failed++;
+      errors.push(`${patient.full_name}: ${result.error}`);
+    }
+  }
+
+  revalidateRetentionPaths();
+  return { sent, failed, errors };
+}
+
+export async function sendBulkRetentionEmailsAction(params: {
+  patientIds: string[];
+  customInstructions?: string;
+  attachments?: { filename: string; contentType?: string; data: string }[];
+}): Promise<{ sent: number; failed: number; errors: string[] }> {
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { sent: 0, failed: 0, errors: ["No clinic assigned"] };
+
+  const attachmentResult = parseRetentionEmailAttachments(params.attachments);
+  if ("error" in attachmentResult) {
+    return { sent: 0, failed: 0, errors: [attachmentResult.error ?? "Invalid attachments"] };
+  }
+
+  const dashboard = await getRetentionDashboardData(profile.clinic_id);
+  const targetSet = new Set(params.patientIds);
+  const targets = dashboard.patients.filter((p) => targetSet.has(p.patientId));
+
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const row of targets) {
+    if (!row.patientEmail) {
+      failed++;
+      errors.push(`${row.patientName}: no email on file`);
+      continue;
+    }
+
+    const generated = await generateRetentionEmail(profile.clinic_id, {
+      patientName: row.patientName,
+      visitReason: row.visitReason,
+      complaint: row.complaint,
+      diagnosis: row.lastDiagnosis,
+      doctorName: row.doctorName,
+      followUpDate: row.followUpDate,
+      clinicName: dashboard.clinicName,
+      reminderType: row.suggestedReminderType,
+      daysSinceVisit: row.daysSinceVisit,
+      customInstructions: params.customInstructions,
+    });
+
+    const html = buildRetentionEmailHtml({
+      clinicName: dashboard.clinicName,
+      patientName: row.patientName,
+      bodyHtml: plainTextToEmailHtml(generated.body),
+      inlineImageCids: attachmentResult.inlineCids,
+    });
+
+    const result = await sendEmail({
+      to: row.patientEmail,
+      subject: generated.subject,
+      html,
+      attachments: attachmentResult.attachments,
+    });
+
+    if (result.ok) sent++;
+    else {
+      failed++;
+      errors.push(`${row.patientName}: ${result.error}`);
+    }
+  }
+
+  revalidateRetentionPaths();
+  return { sent, failed, errors };
 }
 
 async function ensureReminderAndSend(params: {

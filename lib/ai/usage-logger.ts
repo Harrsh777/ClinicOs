@@ -11,7 +11,8 @@ export type AIFeature =
   | "engagement_message"
   | "recovery_analysis"
   | "patient_brief"
-  | "doctor_assistant";
+  | "doctor_assistant"
+  | "dashboard_insights";
 
 const COST_PER_1K_TOKENS = 0.00015;
 
