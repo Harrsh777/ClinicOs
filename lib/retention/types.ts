@@ -11,7 +11,7 @@ export type RetentionReason =
 
 export const RETENTION_REASON_LABELS: Record<RetentionReason, string> = {
   overdue_follow_up: "Overdue follow-up",
-  inactive_patient: "Inactive (90+ days)",
+  inactive_patient: "Inactive (6+ months)",
   medicine_reminder: "Medicine reminder due",
   vaccination_due: "Vaccination due",
   doctor_attention: "Needs doctor attention",

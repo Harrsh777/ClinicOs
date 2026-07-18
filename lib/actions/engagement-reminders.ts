@@ -3,7 +3,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { scheduleEngagementReminder } from "@/lib/actions/follow-up-reminders";
 import type { EngagementReminderType, EngagementScheduleRule } from "@/lib/engagement/types";
-import { computeSendOnDate, todayStr } from "@/lib/engagement/schedule";
+import { todayStr } from "@/lib/engagement/schedule";
 
 export async function scheduleSmartReminder(params: {
   clinicId: string;
@@ -88,42 +88,77 @@ export async function processBirthdayReminders() {
   return { scheduled };
 }
 
-/** Cron: re-engage patients with no visit in 90+ days */
-export async function processInactivePatientReminders(inactiveDays = 90) {
+/** Cron: re-engage patients inactive 6 / 12 / 18 months (clinics with reactivateEnabled). */
+export async function processInactivePatientReminders() {
   const service = await createServiceClient();
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - inactiveDays);
-  const cutoffStr = cutoff.toISOString();
+  const {
+    parseGrowthSettings,
+    REACTIVATE_HORIZONS,
+    inactiveHorizonForDays,
+  } = await import("@/lib/engagement/growth-settings");
+
+  const { data: clinics } = await service.from("clinics").select("id, settings");
+  const enabledClinicIds = new Set(
+    (clinics ?? [])
+      .filter((c) => parseGrowthSettings((c.settings ?? {}) as Record<string, unknown>).reactivateEnabled)
+      .map((c) => c.id as string)
+  );
+
+  if (enabledClinicIds.size === 0) return { scheduled: 0 };
+
+  const minHorizon = Math.min(...REACTIVATE_HORIZONS);
+  const newestCutoff = new Date();
+  newestCutoff.setDate(newestCutoff.getDate() - minHorizon);
+  const newestCutoffStr = newestCutoff.toISOString();
 
   const { data: patients } = await service
     .from("patients")
     .select("id, clinic_id, full_name, phone, last_visit_at")
     .eq("is_active", true)
-    .or(`last_visit_at.is.null,last_visit_at.lt.${cutoffStr}`);
+    .in("clinic_id", [...enabledClinicIds])
+    .not("last_visit_at", "is", null)
+    .lt("last_visit_at", newestCutoffStr);
 
   let scheduled = 0;
-  const targetDate = computeSendOnDate(todayStr(), "7_days");
+  const today = todayStr();
+  const now = Date.now();
 
   for (const p of patients ?? []) {
-    const { count } = await service
+    if (!p.phone?.trim()) continue;
+    if (!p.last_visit_at) continue;
+
+    const daysSinceVisit = Math.floor((now - new Date(p.last_visit_at).getTime()) / 86_400_000);
+
+    const horizon = inactiveHorizonForDays(daysSinceVisit);
+    if (!horizon) continue;
+
+    const horizonCutoff = new Date();
+    horizonCutoff.setDate(horizonCutoff.getDate() - horizon);
+    const horizonCutoffStr = horizonCutoff.toISOString();
+
+    const { data: existing } = await service
       .from("follow_up_reminders")
-      .select("id", { count: "exact", head: true })
+      .select("id, context")
       .eq("patient_id", p.id)
       .eq("reminder_type", "inactive_patient")
-      .gte("created_at", cutoffStr);
+      .gte("created_at", horizonCutoffStr);
 
-    if ((count ?? 0) > 0) continue;
+    const alreadyScheduled = (existing ?? []).some((row) => {
+      const ctx = (row.context ?? {}) as Record<string, unknown>;
+      return Number(ctx.inactiveDays) === horizon;
+    });
+    if (alreadyScheduled) continue;
 
     await scheduleEngagementReminder({
       clinicId: p.clinic_id,
       patientId: p.id,
       patientName: p.full_name,
       patientPhone: p.phone,
-      targetDate: todayStr(),
+      targetDate: today,
       reminderType: "inactive_patient",
       scheduleRule: "custom",
-      customSendOnDate: targetDate,
-      context: { inactiveDays },
+      customSendOnDate: today,
+      context: { inactiveDays: horizon },
     });
     scheduled++;
   }

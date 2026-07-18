@@ -27,6 +27,8 @@ import {
   getDashboardDailyRevenue,
   getDashboardOperationsSnapshot,
 } from "@/lib/actions/executive-dashboard";
+import { getDashboardAIRecommendations } from "@/lib/actions/ai-insights";
+import type { DashboardAIRecommendation } from "@/lib/ai/dashboard-recommendations";
 import { AIRecommendationsList } from "@/components/ai/ai-recommendations-list";
 import {
   IndianRupee,
@@ -388,6 +390,10 @@ export function ExecutiveDashboard({
     },
     queueStatus: data.charts.queueStatus,
   });
+  const [recommendations, setRecommendations] = useState<DashboardAIRecommendation[]>(
+    data.aiInsights.recommendations
+  );
+  const [aiRecsLoading, setAiRecsLoading] = useState(false);
 
   const firstName = userName.split(" ")[0];
 
@@ -404,6 +410,21 @@ export function ExecutiveDashboard({
     const clock = setInterval(() => setLiveTime(new Date()), 1000);
     return () => clearInterval(clock);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAiRecsLoading(true);
+    void getDashboardAIRecommendations(clinicId)
+      .then((recs) => {
+        if (!cancelled && recs.length > 0) setRecommendations(recs);
+      })
+      .finally(() => {
+        if (!cancelled) setAiRecsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clinicId]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -947,7 +968,7 @@ export function ExecutiveDashboard({
               ))}
             </div>
 
-            <AIRecommendationsList recommendations={data.aiInsights.recommendations} />
+            <AIRecommendationsList recommendations={recommendations} loading={aiRecsLoading} />
           </DashboardCard>
         </div>
       </div>

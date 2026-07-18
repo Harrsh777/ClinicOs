@@ -84,7 +84,7 @@ function buildRetentionReasons(params: {
 }): RetentionReason[] {
   const reasons: RetentionReason[] = [];
   if (params.overdueFollowUp) reasons.push("overdue_follow_up");
-  if (params.hasPriorVisit && params.daysSinceVisit !== null && params.daysSinceVisit >= 90) {
+  if (params.hasPriorVisit && params.daysSinceVisit !== null && params.daysSinceVisit >= 180) {
     reasons.push("inactive_patient");
   }
   if (params.activeMedicineReminder) reasons.push("medicine_reminder");

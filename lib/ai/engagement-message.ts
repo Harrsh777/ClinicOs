@@ -6,6 +6,7 @@ import type {
   InteractiveOption,
 } from "@/lib/engagement/types";
 import { REMINDER_TYPE_LABELS } from "@/lib/engagement/types";
+import { formatReactivateMessage } from "@/lib/engagement/growth-messages";
 
 const EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
 
@@ -58,6 +59,18 @@ function fallbackMessage(ctx: EngagementMessageContext): GeneratedEngagementMess
     body += `This is a gentle reminder about your medicines from ${ctx.clinicName}.\n\nHow is your medication going?\n\n`;
   } else if (ctx.reminderType === "birthday") {
     body += `Happy Birthday from all of us at ${ctx.clinicName}! 🎂\n\nWishing you great health.\n\n`;
+  } else if (ctx.reminderType === "inactive_patient") {
+    return {
+      message: formatReactivateMessage({
+        clinicName: ctx.clinicName,
+        patientName: ctx.patientName,
+      }),
+      options: [
+        { id: 1, label: "Book a checkup", emoji: "1️⃣" },
+        { id: 2, label: "Remind me later", emoji: "2️⃣" },
+        { id: 3, label: "Not interested", emoji: "3️⃣" },
+      ],
+    };
   } else {
     body += `${typeLabel} reminder from ${ctx.clinicName}.\n\n`;
     if (ctx.advice) body += `${ctx.advice}\n\n`;
@@ -74,6 +87,11 @@ export async function generateEngagementMessage(
   ctx: EngagementMessageContext
 ): Promise<GeneratedEngagementMessage> {
   const fallback = fallbackMessage(ctx);
+
+  // Keep reactivation copy consistent (growth automation)
+  if (ctx.reminderType === "inactive_patient" || ctx.reminderType === "birthday") {
+    return fallback;
+  }
 
   const result = await aiChatCompletion({
     clinicId,

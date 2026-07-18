@@ -8,7 +8,7 @@ import {
 import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_ROUTES, type Profile } from "@/lib/types/database";
 import { getClinicFeatures, getFeatureRouteGuard, isFeatureEnabled } from "@/lib/clinic/features";
-import { getClinicModules, getModuleKeyFromPath, isClinicModuleEnabled } from "@/lib/clinic/modules";
+import { getClinicModules, getModuleKeyFromPath, isClinicModuleEnabled, CORE_CLINIC_MODULES } from "@/lib/clinic/modules";
 import { isShortClinicPortalPath, resolveAnyShortClinicPath } from "@/lib/portal/public-urls";
 import { PLATFORM_ADMIN_COOKIE } from "@/lib/auth/platform-admin.constants";
 import { verifyPlatformAdminSession } from "@/lib/auth/platform-admin-session";
@@ -246,7 +246,7 @@ export async function middleware(request: NextRequest) {
 
   if (profile.clinic_id && profile.role !== "super_admin") {
     const moduleKey = getModuleKeyFromPath(pathname);
-    if (moduleKey) {
+    if (moduleKey && !CORE_CLINIC_MODULES.includes(moduleKey as (typeof CORE_CLINIC_MODULES)[number])) {
       const modules = await getClinicModules(profile.clinic_id);
       if (!isClinicModuleEnabled(modules, moduleKey)) {
         const roleBase = ROLE_ROUTES[profile.role as keyof typeof ROLE_ROUTES] ?? "/";

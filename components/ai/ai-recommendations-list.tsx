@@ -20,11 +20,13 @@ const priorityVariant = (p: string): "danger" | "warning" | "neutral" =>
 export function AIRecommendationsList({
   recommendations,
   compact = false,
+  loading = false,
 }: {
   recommendations: DashboardAIRecommendation[];
   compact?: boolean;
+  loading?: boolean;
 }) {
-  if (!recommendations.length) return null;
+  if (!recommendations.length && !loading) return null;
 
   return (
     <div className={cn("space-y-3", !compact && "mt-6 border-t border-[var(--border)] pt-6")}>
@@ -37,11 +39,21 @@ export function AIRecommendationsList({
             AI-written recommendations
           </h4>
           <p className="text-xs text-[var(--text-muted)]">
-            Prioritized actions based on your clinic data
+            {loading ? "Generating personalized insights…" : "Prioritized actions based on your clinic data"}
           </p>
         </div>
       </div>
 
+      {loading && recommendations.length === 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-28 animate-pulse rounded-2xl border border-[var(--border)] bg-[var(--surface-1)]"
+            />
+          ))}
+        </div>
+      ) : (
       <div className={cn("grid gap-3", compact ? "grid-cols-1" : "sm:grid-cols-2")}>
         {recommendations.map((rec) => {
           const color = categoryColors[rec.category] ?? "#64748B";
@@ -79,6 +91,7 @@ export function AIRecommendationsList({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

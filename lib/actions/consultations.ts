@@ -8,6 +8,56 @@ import { getConsultationsBasePath } from "@/lib/auth/linked-doctor";
 import { calculateBillTotals } from "@/lib/billing/calculator";
 import { z } from "zod";
 
+async function sendGoogleReviewAskIfEnabled(params: {
+  clinicId: string;
+  consultationId: string;
+  patientId: string;
+  patientPhone?: string | null;
+  doctorName?: string | null;
+}) {
+  if (!params.patientPhone?.trim()) return;
+
+  const supabase = await createClient();
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("name, settings")
+    .eq("id", params.clinicId)
+    .single();
+
+  if (!clinic) return;
+
+  const { parseGrowthSettings } = await import("@/lib/engagement/growth-settings");
+  const growth = parseGrowthSettings((clinic.settings ?? {}) as Record<string, unknown>);
+  if (!growth.googleReviewEnabled || !growth.googleReviewUrl) return;
+
+  const { data: existing } = await supabase
+    .from("whatsapp_messages")
+    .select("id")
+    .eq("clinic_id", params.clinicId)
+    .eq("intent", "google_review")
+    .contains("metadata", { consultation_id: params.consultationId })
+    .maybeSingle();
+
+  if (existing) return;
+
+  const { formatGoogleReviewMessage } = await import("@/lib/engagement/growth-messages");
+  const { sendWhatsAppMessage } = await import("@/lib/whatsapp/send");
+
+  await sendWhatsAppMessage({
+    clinicId: params.clinicId,
+    patientId: params.patientId,
+    patientPhone: params.patientPhone,
+    content: formatGoogleReviewMessage({
+      doctorName: params.doctorName,
+      clinicName: clinic.name,
+      reviewUrl: growth.googleReviewUrl,
+    }),
+    intent: "google_review",
+    metadata: { consultation_id: params.consultationId },
+    senderType: "system",
+  });
+}
+
 export async function startConsultationAction(params: {
   patientId: string;
   doctorId: string;
@@ -258,6 +308,21 @@ export async function endConsultationAction(consultationId: string) {
     await completeFollowUpRemindersForVisit(consultation.patient_id, profile.clinic_id);
   }
 
+  // Keep reactivation / retention accurate
+  const { data: patientVisit } = await supabase
+    .from("patients")
+    .select("visit_count")
+    .eq("id", consultation.patient_id)
+    .single();
+
+  await supabase
+    .from("patients")
+    .update({
+      last_visit_at: endedAt,
+      visit_count: (patientVisit?.visit_count ?? 0) + 1,
+    })
+    .eq("id", consultation.patient_id);
+
   const patient = consultation.patients as { full_name: string; phone: string };
   if (emrRecord?.id && notes?.follow_up_date && patient) {
     const { scheduleFollowUpReminder } = await import("@/lib/actions/follow-up-reminders");
@@ -292,6 +357,19 @@ export async function endConsultationAction(consultationId: string) {
         });
       }
     }
+  }
+
+  // Google Review ask (non-blocking)
+  try {
+    await sendGoogleReviewAskIfEnabled({
+      clinicId: profile.clinic_id,
+      consultationId,
+      patientId: consultation.patient_id,
+      patientPhone: patient?.phone,
+      doctorName: doctorName ?? null,
+    });
+  } catch (err) {
+    console.warn("[growth] google review ask failed:", err);
   }
 
   const doctor = consultation.doctors as { consultation_fee: number | null } | null;

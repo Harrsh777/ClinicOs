@@ -6,12 +6,13 @@ import { Calendar, Copy, Check, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
-import { getPublicBookingPath } from "@/lib/portal/public-urls";
+import { getPublicAppOrigin, getPublicBookingPath, getPublicBookingUrl } from "@/lib/portal/public-urls";
 
 interface PublicBookingLinkCardProps {
   clinicSlug: string;
   clinicName: string;
   portalEnabled: boolean;
+  appOrigin?: string;
   compact?: boolean;
   setupHref?: string;
 }
@@ -20,21 +21,21 @@ export function PublicBookingLinkCard({
   clinicSlug,
   clinicName,
   portalEnabled,
+  appOrigin,
   compact = false,
   setupHref = "/owner/onboarding",
 }: PublicBookingLinkCardProps) {
   const [copied, setCopied] = useState(false);
   const bookingPath = getPublicBookingPath(clinicSlug);
-  const fullUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}${bookingPath}`
-      : bookingPath;
+  const resolvedOrigin =
+    appOrigin ||
+    getPublicAppOrigin() ||
+    (typeof window !== "undefined" ? window.location.origin : "");
+  const fullUrl = getPublicBookingUrl(clinicSlug, resolvedOrigin);
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(
-        typeof window !== "undefined" ? `${window.location.origin}${bookingPath}` : bookingPath
-      );
+      await navigator.clipboard.writeText(fullUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

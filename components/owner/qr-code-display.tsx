@@ -1,18 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { getPublicBookingPath, getPublicPortalPath } from "@/lib/portal/public-urls";
+import {
+  getPublicAppOrigin,
+  getPublicBookingPath,
+  getPublicBookingUrl,
+  getPublicPortalPath,
+} from "@/lib/portal/public-urls";
 
 interface QRCodeDisplayProps {
   clinicSlug: string;
   clinicName: string;
+  appOrigin?: string;
 }
 
-export function QRCodeDisplay({ clinicSlug, clinicName }: QRCodeDisplayProps) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const portalUrl = `${origin}${getPublicPortalPath(clinicSlug)}`;
-  const bookingUrl = `${origin}${getPublicBookingPath(clinicSlug)}`;
-  const checkInUrl = `${origin}/c/${clinicSlug}/check-in`;
+export function QRCodeDisplay({ clinicSlug, clinicName, appOrigin }: QRCodeDisplayProps) {
+  const resolvedOrigin =
+    appOrigin ||
+    getPublicAppOrigin() ||
+    (typeof window !== "undefined" ? window.location.origin : "");
+  const portalUrl = resolvedOrigin
+    ? `${resolvedOrigin}${getPublicPortalPath(clinicSlug)}`
+    : getPublicPortalPath(clinicSlug);
+  const bookingUrl = getPublicBookingUrl(clinicSlug, resolvedOrigin);
+  const checkInUrl = resolvedOrigin
+    ? `${resolvedOrigin}/c/${clinicSlug}/check-in`
+    : `/c/${clinicSlug}/check-in`;
 
   return (
     <div className="space-y-6">

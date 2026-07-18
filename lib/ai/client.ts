@@ -21,6 +21,18 @@ export interface AIChatResult {
   provider: "gemini" | "groq";
 }
 
+const AI_REQUEST_TIMEOUT_MS = 8_000;
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  return fetch(input, {
+    ...init,
+    signal: init?.signal ?? AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
+  });
+}
+
 async function geminiChatCompletion(params: AIChatParams): Promise<AIChatResult | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
@@ -29,7 +41,7 @@ async function geminiChatCompletion(params: AIChatParams): Promise<AIChatResult 
   const url = `${GEMINI_BASE}/models/${model}:generateContent`;
 
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -74,7 +86,7 @@ async function callGroqApi(params: AIChatParams): Promise<AIChatResult | null> {
   if (!apiKey) return null;
 
   try {
-    const res = await fetch(GROQ_API_URL, {
+    const res = await fetchWithTimeout(GROQ_API_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

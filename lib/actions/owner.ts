@@ -479,6 +479,70 @@ export async function updateClinicSettingsAction(formData: FormData) {
   return { success: true };
 }
 
+const growthSchema = z.object({
+  googleReviewEnabled: z.boolean(),
+  googleReviewUrl: z.string().max(500).optional(),
+  reactivateEnabled: z.boolean(),
+  noShowRemindersEnabled: z.boolean(),
+});
+
+export async function updateGrowthAutomationsAction(formData: FormData) {
+  const profile = await requireRole(["clinic_owner"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  const googleReviewUrl = String(formData.get("googleReviewUrl") ?? "").trim();
+  const parsed = growthSchema.safeParse({
+    googleReviewEnabled: formData.get("googleReviewEnabled") === "on",
+    googleReviewUrl,
+    reactivateEnabled: formData.get("reactivateEnabled") === "on",
+    noShowRemindersEnabled: formData.get("noShowRemindersEnabled") === "on",
+  });
+
+  if (!parsed.success) return { error: "Invalid growth settings" };
+
+  if (parsed.data.googleReviewEnabled && !parsed.data.googleReviewUrl) {
+    return { error: "Add your Google Review link before enabling review requests" };
+  }
+
+  if (parsed.data.googleReviewUrl) {
+    try {
+      const url = new URL(parsed.data.googleReviewUrl);
+      if (!["http:", "https:"].includes(url.protocol)) {
+        return { error: "Google Review link must be a valid http(s) URL" };
+      }
+    } catch {
+      return { error: "Google Review link must be a valid URL" };
+    }
+  }
+
+  const { mergeGrowthSettings } = await import("@/lib/engagement/growth-settings");
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("clinics")
+    .select("settings")
+    .eq("id", profile.clinic_id)
+    .single();
+
+  const settings = mergeGrowthSettings(
+    (existing?.settings ?? {}) as Record<string, unknown>,
+    {
+      googleReviewEnabled: parsed.data.googleReviewEnabled,
+      googleReviewUrl: parsed.data.googleReviewUrl ?? "",
+      reactivateEnabled: parsed.data.reactivateEnabled,
+      noShowRemindersEnabled: parsed.data.noShowRemindersEnabled,
+    }
+  );
+
+  const { error } = await supabase
+    .from("clinics")
+    .update({ settings })
+    .eq("id", profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/owner/settings");
+  return { success: true };
+}
+
 export async function getClinicStaff(clinicId: string) {
   const supabase = await createClient();
   const { data } = await supabase

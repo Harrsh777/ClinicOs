@@ -61,9 +61,18 @@ export function getPublicPortalPath(clinicSlug: string) {
   return `/${clinicSlug}`;
 }
 
+/** Canonical site origin for shareable patient links (booking, QR codes, invites). */
+export function getPublicAppOrigin(fallbackOrigin?: string): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  if (configured) return configured;
+  const fallback = fallbackOrigin?.replace(/\/$/, "");
+  return fallback ?? "";
+}
+
 export function getPublicBookingUrl(clinicSlug: string, origin?: string) {
-  const base = (origin ?? process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  return `${base}${getPublicBookingPath(clinicSlug)}`;
+  const base = getPublicAppOrigin(origin);
+  const path = getPublicBookingPath(clinicSlug);
+  return base ? `${base}${path}` : path;
 }
 
 export function getPublicWhatsAppUrl(whatsappNumber: string, prefill?: string): string {

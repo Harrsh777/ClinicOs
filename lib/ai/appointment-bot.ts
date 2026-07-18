@@ -189,7 +189,7 @@ export function formatReminderReply(
 ): string {
   const reasonLine = reason ? `\nReason: ${reason}` : "";
   return (
-    `Reminder from ${clinicName}: You have a consultation tomorrow (${date}) at ${time}.${reasonLine}\n\n` +
+    `Reminder: Appointment tomorrow at ${time} (${date}) at ${clinicName}.${reasonLine}\n\n` +
     `Reply YES to confirm or CANCEL to cancel.`
   );
 }

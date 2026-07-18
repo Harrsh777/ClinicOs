@@ -4,7 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { getRevenueStats } from "@/lib/actions/billing";
 import { getAIBillingInsights, getHealthRiskFlags, getFollowUpTasks } from "@/lib/actions/ai-insights";
-import { generateDashboardRecommendations, type DashboardAIRecommendation } from "@/lib/ai/dashboard-recommendations";
+import {
+  buildRuleBasedDashboardRecommendations,
+  type DashboardAIRecommendation,
+} from "@/lib/ai/dashboard-recommendations";
 import { getOwnerClinicIds } from "@/lib/actions/franchise";
 
 export interface DashboardAppointment {
@@ -685,7 +688,7 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
     (i) => i.type === "missing_bill" || i.type === "unpaid_invoice"
   ).length;
 
-  const recommendations = await generateDashboardRecommendations({
+  const recommendations = buildRuleBasedDashboardRecommendations({
     clinicId,
     revenueLeak,
     followUpOpportunities: pendingFollowUps,
@@ -703,7 +706,7 @@ export async function getExecutiveDashboard(clinicId: string): Promise<Executive
       patientName: (r.patients as { full_name: string })?.full_name ?? "Patient",
     })),
     lowPerformingBranch,
-  }).catch(() => []);
+  });
 
   const business = {
     revenueToday,

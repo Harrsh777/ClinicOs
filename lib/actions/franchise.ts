@@ -1,12 +1,15 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { getRevenueStats } from "@/lib/actions/billing";
 import { z } from "zod";
 
-export async function getOwnerClinicIds(primaryClinicId: string): Promise<string[]> {
+export const getOwnerClinicIds = cache(async function getOwnerClinicIds(
+  primaryClinicId: string
+): Promise<string[]> {
   const supabase = await createClient();
   const { data: clinic, error } = await supabase
     .from("clinics")
@@ -23,7 +26,7 @@ export async function getOwnerClinicIds(primaryClinicId: string): Promise<string
     .eq("status", "active");
 
   return (branches ?? []).map((b) => b.id);
-}
+});
 
 export async function getFranchiseOverview(ownerClinicId: string) {
   await requireRole(["clinic_owner"]);

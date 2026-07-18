@@ -143,8 +143,8 @@ export function generateRetentionInsights(data: RetentionDashboardData): Retenti
       title: "Re-engage inactive patients",
       recommendation:
         stats.inactivePatients === 1
-          ? "One patient hasn't visited in 90+ days. A seasonal health checkup or preventive screening message can bring them back before they switch clinics."
-          : `${stats.inactivePatients} patients are inactive (no visit in 90+ days). Run a win-back broadcast — mention a specific service tied to their last visit reason for better open rates.`,
+          ? "One patient hasn't visited in 6+ months. A seasonal health checkup or preventive screening message can bring them back before they switch clinics."
+          : `${stats.inactivePatients} patients are inactive (no visit in 6+ months). Run a win-back broadcast — mention a specific service tied to their last visit reason for better open rates.`,
       actionLabel: "View inactive patients",
       filterKey: "inactive_patient",
     });

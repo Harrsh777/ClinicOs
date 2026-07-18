@@ -8,17 +8,6 @@ import {
   getMinDemoDate,
 } from "@/lib/validations/demo-request";
 
-const COLORS = {
-  primary: "#FCFCFA",
-  card: "#FFFFFF",
-  text: "#111111",
-  accent: "#16C784",
-  accent2: "#6EC6FF",
-  white: "#FFFFFF",
-  border: "rgba(17,17,17,0.1)",
-  muted: "#5C6470",
-};
-
 const CLINIC_TYPES = [
   "Multi-Specialty Hospital",
   "Single Specialty Clinic",
@@ -34,27 +23,6 @@ const INDIAN_STATES = [
   "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan",
   "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
 ];
-
-const fieldStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: `1px solid ${COLORS.border}`,
-  fontSize: 14,
-  fontFamily: "Inter, sans-serif",
-  color: COLORS.text,
-  background: COLORS.white,
-  outline: "none",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 12,
-  fontWeight: 600,
-  color: COLORS.muted,
-  marginBottom: 6,
-  fontFamily: "Inter, sans-serif",
-};
 
 interface BookDemoModalProps {
   open: boolean;
@@ -108,231 +76,186 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
 
   function fieldError(name: string) {
     return fieldErrors[name] ? (
-      <p style={{ marginTop: 4, fontSize: 11, color: "#ef4444", fontFamily: "Inter, sans-serif" }}>{fieldErrors[name]}</p>
+      <p className="demo-field-error">{fieldErrors[name]}</p>
     ) : null;
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      onClose={onClose}
-      className="demo-modal"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        margin: "auto",
-        width: "min(640px, calc(100vw - 32px))",
-        maxHeight: "min(90vh, 900px)",
-        overflow: "auto",
-        border: "none",
-        borderRadius: 20,
-        padding: 0,
-        background: COLORS.card,
-        color: COLORS.text,
-        boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
-      }}
-    >
-      <div style={{ padding: "28px 28px 24px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 700, color: COLORS.accent, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "Inter, sans-serif" }}>
-              Book a Demo
-            </p>
-            <h2 style={{ marginTop: 6, fontSize: 24, fontWeight: 800, color: COLORS.text, fontFamily: "Sora, Inter, sans-serif", letterSpacing: "-0.03em" }}>
-              Grow your practice — live walkthrough
-            </h2>
-            <p style={{ marginTop: 8, fontSize: 14, color: COLORS.muted, lineHeight: 1.6, fontFamily: "Inter, sans-serif" }}>
-              Pick a date and time, share your clinic details, and our team will reach out to confirm.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              border: "none",
-              background: COLORS.border,
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              cursor: "pointer",
-              fontSize: 18,
-              lineHeight: 1,
-              color: COLORS.muted,
-            }}
-          >
-            ×
-          </button>
+    <dialog ref={dialogRef} onClose={onClose} className="demo-modal">
+      <div className="demo-modal-header">
+        <div className="demo-modal-header-copy">
+          <p className="demo-eyebrow">Book a demo</p>
+          <h2 className="demo-title serif">See ClinicOS in action</h2>
+          <p className="demo-subtitle">
+            Choose a slot and share a few clinic details — we&apos;ll confirm by email within one business day.
+          </p>
         </div>
+        <button type="button" onClick={onClose} aria-label="Close" className="demo-close">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
       {success ? (
-        <div style={{ padding: 28, textAlign: "center" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>✓</div>
-          <h3 style={{ fontSize: 20, fontWeight: 700, color: COLORS.text, fontFamily: "Inter, sans-serif" }}>Demo request received</h3>
-          <p style={{ marginTop: 8, fontSize: 14, color: COLORS.muted, lineHeight: 1.6, fontFamily: "Inter, sans-serif" }}>
-            Thanks for your interest in Clinicos. We&apos;ll email you shortly to confirm your demo slot.
+        <div className="demo-success">
+          <div className="demo-success-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 12.5l4.5 4.5L19 7.5"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <h3 className="serif">Demo request received</h3>
+          <p>
+            Thanks for your interest in ClinicOS. We&apos;ll email you shortly to confirm your demo slot.
           </p>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              marginTop: 24,
-              padding: "12px 24px",
-              borderRadius: 12,
-              border: "none",
-              background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.accent2})`,
-              color: "#FFFFFF",
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
+          <button type="button" onClick={onClose} className="demo-btn-primary">
             Done
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} style={{ padding: 28 }}>
-          {error && (
-            <div style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 10, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontFamily: "Inter, sans-serif" }}>
-              {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="demo-form">
+          {error && <div className="demo-alert">{error}</div>}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-            <div>
-              <label style={labelStyle}>Preferred date *</label>
-              <input type="date" name="preferredDate" required min={getMinDemoDate()} max={getMaxDemoDate()} style={fieldStyle} />
-              {fieldError("preferredDate")}
+          <section className="demo-section">
+            <div className="demo-section-label">
+              <span className="demo-step">1</span>
+              <span>Preferred schedule</span>
             </div>
-            <div>
-              <label style={labelStyle}>Preferred time *</label>
-              <select name="preferredTime" required defaultValue="" style={fieldStyle}>
-                <option value="" disabled>Select a slot</option>
-                {DEMO_TIME_SLOTS.map((slot) => (
-                  <option key={slot} value={slot}>{slot} IST</option>
-                ))}
-              </select>
-              {fieldError("preferredTime")}
+            <div className="demo-grid demo-grid-2">
+              <div className="demo-field">
+                <label htmlFor="preferredDate">Preferred date *</label>
+                <input
+                  id="preferredDate"
+                  type="date"
+                  name="preferredDate"
+                  required
+                  min={getMinDemoDate()}
+                  max={getMaxDemoDate()}
+                />
+                {fieldError("preferredDate")}
+              </div>
+              <div className="demo-field">
+                <label htmlFor="preferredTime">Preferred time *</label>
+                <select id="preferredTime" name="preferredTime" required defaultValue="">
+                  <option value="" disabled>
+                    Select a slot
+                  </option>
+                  {DEMO_TIME_SLOTS.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {slot} IST
+                    </option>
+                  ))}
+                </select>
+                {fieldError("preferredTime")}
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-            <div>
-              <label style={labelStyle}>Clinic name *</label>
-              <input name="clinicName" required placeholder="City Health Clinic" style={fieldStyle} />
-              {fieldError("clinicName")}
+          <section className="demo-section">
+            <div className="demo-section-label">
+              <span className="demo-step">2</span>
+              <span>Clinic details</span>
             </div>
-            <div>
-              <label style={labelStyle}>Clinic type</label>
-              <select name="clinicType" defaultValue="" style={fieldStyle}>
-                <option value="">Select type</option>
-                {CLINIC_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+            <div className="demo-grid demo-grid-2">
+              <div className="demo-field">
+                <label htmlFor="clinicName">Clinic name *</label>
+                <input id="clinicName" name="clinicName" required placeholder="City Health Clinic" />
+                {fieldError("clinicName")}
+              </div>
+              <div className="demo-field">
+                <label htmlFor="clinicType">Clinic type</label>
+                <select id="clinicType" name="clinicType" defaultValue="">
+                  <option value="">Select type</option>
+                  {CLINIC_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="demo-field">
+                <label htmlFor="doctorName">Lead doctor name *</label>
+                <input id="doctorName" name="doctorName" required placeholder="Dr. Amit Verma" />
+                {fieldError("doctorName")}
+              </div>
+              <div className="demo-field">
+                <label htmlFor="contactName">Contact person *</label>
+                <input id="contactName" name="contactName" required placeholder="Clinic owner / manager" />
+                {fieldError("contactName")}
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-            <div>
-              <label style={labelStyle}>Lead doctor name *</label>
-              <input name="doctorName" required placeholder="Dr. Amit Verma" style={fieldStyle} />
-              {fieldError("doctorName")}
+          <section className="demo-section">
+            <div className="demo-section-label">
+              <span className="demo-step">3</span>
+              <span>Contact &amp; location</span>
             </div>
-            <div>
-              <label style={labelStyle}>Contact person *</label>
-              <input name="contactName" required placeholder="Clinic owner / manager" style={fieldStyle} />
-              {fieldError("contactName")}
+            <div className="demo-grid demo-grid-2">
+              <div className="demo-field">
+                <label htmlFor="email">Email *</label>
+                <input id="email" name="email" type="email" required placeholder="owner@clinic.com" />
+                {fieldError("email")}
+              </div>
+              <div className="demo-field">
+                <label htmlFor="phone">Mobile *</label>
+                <input id="phone" name="phone" type="tel" required placeholder="10-digit mobile" />
+                {fieldError("phone")}
+              </div>
             </div>
-          </div>
+            <div className="demo-field">
+              <label htmlFor="address">Clinic address</label>
+              <input id="address" name="address" placeholder="Street, area, landmark" />
+            </div>
+            <div className="demo-grid demo-grid-3">
+              <div className="demo-field">
+                <label htmlFor="city">City *</label>
+                <input id="city" name="city" required placeholder="Mumbai" />
+                {fieldError("city")}
+              </div>
+              <div className="demo-field">
+                <label htmlFor="state">State *</label>
+                <select id="state" name="state" required defaultValue="">
+                  <option value="" disabled>
+                    Select state
+                  </option>
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                {fieldError("state")}
+              </div>
+              <div className="demo-field">
+                <label htmlFor="pincode">Pincode</label>
+                <input id="pincode" name="pincode" placeholder="400001" maxLength={6} />
+                {fieldError("pincode")}
+              </div>
+            </div>
+            <div className="demo-field">
+              <label htmlFor="notes">Notes (optional)</label>
+              <textarea
+                id="notes"
+                name="notes"
+                rows={3}
+                placeholder="Clinic size, current software, or anything we should prepare for the demo..."
+              />
+            </div>
+          </section>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-            <div>
-              <label style={labelStyle}>Email *</label>
-              <input name="email" type="email" required placeholder="owner@clinic.com" style={fieldStyle} />
-              {fieldError("email")}
-            </div>
-            <div>
-              <label style={labelStyle}>Mobile *</label>
-              <input name="phone" type="tel" required placeholder="10-digit mobile" style={fieldStyle} />
-              {fieldError("phone")}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>Clinic address</label>
-            <input name="address" placeholder="Street, area, landmark" style={fieldStyle} />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px", gap: 14, marginBottom: 14 }}>
-            <div>
-              <label style={labelStyle}>City *</label>
-              <input name="city" required placeholder="Mumbai" style={fieldStyle} />
-              {fieldError("city")}
-            </div>
-            <div>
-              <label style={labelStyle}>State *</label>
-              <select name="state" required defaultValue="" style={fieldStyle}>
-                <option value="" disabled>Select state</option>
-                {INDIAN_STATES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              {fieldError("state")}
-            </div>
-            <div>
-              <label style={labelStyle}>Pincode</label>
-              <input name="pincode" placeholder="400001" maxLength={6} style={fieldStyle} />
-              {fieldError("pincode")}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>Notes (optional)</label>
-            <textarea
-              name="notes"
-              rows={3}
-              placeholder="Tell us about your clinic size, current software, or specific needs..."
-              style={{ ...fieldStyle, resize: "vertical", minHeight: 80 }}
-            />
-          </div>
-
-          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              style={{
-                padding: "12px 20px",
-                borderRadius: 12,
-                border: `1px solid ${COLORS.border}`,
-                background: "transparent",
-                color: COLORS.muted,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
-              }}
-            >
+          <div className="demo-actions">
+            <button type="button" onClick={onClose} disabled={loading} className="demo-btn-ghost">
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: "12px 24px",
-                borderRadius: 12,
-                border: "none",
-                background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.accent2})`,
-                color: "#FFFFFF",
-                fontWeight: 700,
-                cursor: loading ? "wait" : "pointer",
-                opacity: loading ? 0.7 : 1,
-                fontFamily: "Inter, sans-serif",
-              }}
-            >
-              {loading ? "Submitting..." : "Request Demo"}
+            <button type="submit" disabled={loading} className="demo-btn-primary">
+              {loading ? "Submitting…" : "Request demo"}
             </button>
           </div>
         </form>

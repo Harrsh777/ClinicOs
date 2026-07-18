@@ -35,7 +35,9 @@ function formatInr(amount: number) {
   }).format(amount);
 }
 
-function ruleBasedRecommendations(input: DashboardRecommendationInput): DashboardAIRecommendation[] {
+export function buildRuleBasedDashboardRecommendations(
+  input: DashboardRecommendationInput
+): DashboardAIRecommendation[] {
   const recs: DashboardAIRecommendation[] = [];
 
   if (input.revenueLeak > 0) {
@@ -164,7 +166,7 @@ function ruleBasedRecommendations(input: DashboardRecommendationInput): Dashboar
 export async function generateDashboardRecommendations(
   input: DashboardRecommendationInput
 ): Promise<DashboardAIRecommendation[]> {
-  const fallback = ruleBasedRecommendations(input);
+  const fallback = buildRuleBasedDashboardRecommendations(input);
 
   const billingContext = input.billingInsights
     .slice(0, 5)

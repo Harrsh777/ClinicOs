@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getReceptionistDashboard } from "@/lib/actions/role-dashboards";
 import { PublicBookingLinkCard } from "@/components/owner/public-booking-link-card";
+import { getPublicAppOrigin } from "@/lib/portal/public-urls";
 import { Button } from "@/components/ui/button";
 
 export default async function ReceptionistDashboard() {
@@ -18,6 +19,7 @@ export default async function ReceptionistDashboard() {
       .single(),
     getReceptionistDashboard(profile.clinic_id!),
   ]);
+  const appOrigin = getPublicAppOrigin();
 
   return (
     <div>
@@ -28,6 +30,7 @@ export default async function ReceptionistDashboard() {
             clinicSlug={clinic.slug}
             clinicName={clinic.name}
             portalEnabled={clinic.portal_enabled ?? false}
+            appOrigin={appOrigin}
             compact
             setupHref="/receptionist"
           />

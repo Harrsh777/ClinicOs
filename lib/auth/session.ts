@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -33,7 +34,7 @@ export async function getSession() {
   return { supabase, user };
 }
 
-export async function getProfile(): Promise<Profile | null> {
+export const getProfile = cache(async function getProfile(): Promise<Profile | null> {
   const cached = await getProfileFromMiddleware();
   if (cached) return cached;
 
@@ -47,7 +48,7 @@ export async function getProfile(): Promise<Profile | null> {
     .single();
 
   return data as Profile | null;
-}
+});
 
 export async function requireAuth(): Promise<Profile> {
   const profile = await getProfile();

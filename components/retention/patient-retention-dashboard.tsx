@@ -41,6 +41,7 @@ import {
   type RetentionReason,
   type RetentionSortKey,
 } from "@/lib/retention/types";
+import { inactiveHorizonLabel } from "@/lib/engagement/growth-settings";
 import { REMINDER_TYPE_LABELS } from "@/lib/engagement/types";
 import { formatPhone } from "@/lib/utils";
 
@@ -59,6 +60,13 @@ function formatLastVisit(date: string | null, days: number | null) {
   });
   if (days === null) return formatted;
   return `${formatted} (${days}d ago)`;
+}
+
+function retentionReasonLabel(reason: RetentionReason, daysSinceVisit: number | null) {
+  if (reason === "inactive_patient" && daysSinceVisit != null) {
+    return inactiveHorizonLabel(daysSinceVisit);
+  }
+  return RETENTION_REASON_LABELS[reason];
 }
 
 function formatCurrency(amount: number) {
@@ -446,7 +454,7 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
                       ) : (
                         patient.retentionReasons.map((r) => (
                           <Badge key={r} variant={reasonBadgeVariant(r)} className="text-[10px]">
-                            {RETENTION_REASON_LABELS[r]}
+                            {retentionReasonLabel(r, patient.daysSinceVisit)}
                           </Badge>
                         ))
                       )}
