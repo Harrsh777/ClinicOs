@@ -308,6 +308,32 @@
   .jm { padding: 10px 12px; }
 }
 
+@media (max-width: 640px) {
+  .journey-sticky {
+    padding: 20px 16px;
+    gap: 12px;
+  }
+
+  .journey-head h2 {
+    font-size: 22px;
+  }
+
+  .journey-meters {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .journey-step h3 {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .journey-step p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+}
+
 /* ---------- reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {

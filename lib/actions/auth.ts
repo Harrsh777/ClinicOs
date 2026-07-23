@@ -301,7 +301,7 @@ export async function requestPasswordResetAction(formData: FormData) {
     .eq("id", resolved.clinicId)
     .single();
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.growclinicos.com";
   const { sendEmail } = await import("@/lib/email/send");
   const { passwordResetEmail } = await import("@/lib/email/templates");
 

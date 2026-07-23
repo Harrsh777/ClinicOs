@@ -119,7 +119,7 @@ export async function submitDemoRequestAction(formData: FormData) {
     return { error: error.message };
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.growclinicos.com";
   const emailResult = await sendEmail({
     from: DEMO_REQUEST_FROM_EMAIL,
     to: DEMO_REQUEST_NOTIFY_EMAIL,

@@ -224,6 +224,29 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
     ],
   },
   {
+    key: "certificates",
+    label: "Medical Certificates",
+    icon: "FileCheck",
+    roles: ["clinic_owner", "doctor"],
+    groups: [
+      {
+        key: "cert-core",
+        name: "Certificates",
+        icon: "FileCheck",
+        moduleKey: "certificates",
+        path: "/certificates",
+        items: [
+          {
+            key: "cert-history",
+            name: "Medical Certificates",
+            path: "/certificates",
+            moduleKey: "certificates",
+          },
+        ],
+      },
+    ],
+  },
+  {
     key: "lab",
     label: "Lab & Pharmacy",
     icon: "FlaskConical",

@@ -35,9 +35,15 @@ export interface PublicClinic {
     primary_color: string;
     secondary_color: string;
     logo_url: string | null;
+    cover_image_url: string | null;
+    theme_preset: "clinical_teal" | "kids_pediatric" | "dental_care" | "dermatology_rose" | "emergency_slate" | "holistic_sage";
+    specialization_badge: string | null;
+    bio_description: string | null;
     tagline: string | null;
     white_label: boolean;
     whatsapp_number: string | null;
+    teleconsult_enabled: boolean;
+    emergency_enabled: boolean;
   } | null;
 }
 
@@ -50,7 +56,6 @@ export async function getPublicClinicBySlug(slug: string): Promise<PublicClinic 
     )
     .eq("slug", slug)
     .eq("status", "active")
-    .eq("portal_enabled", true)
     .maybeSingle();
 
   if (!clinic) return null;
@@ -58,7 +63,7 @@ export async function getPublicClinicBySlug(slug: string): Promise<PublicClinic 
   const [{ data: branding }, { data: billing }] = await Promise.all([
     supabase
       .from("clinic_branding")
-      .select("primary_color, secondary_color, logo_url, tagline, white_label, whatsapp_number, portal_walk_in_enabled, portal_max_daily_walk_ins")
+      .select("primary_color, secondary_color, logo_url, cover_image_url, theme_preset, specialization_badge, bio_description, tagline, white_label, whatsapp_number, portal_walk_in_enabled, portal_max_daily_walk_ins, teleconsult_enabled, emergency_enabled")
       .eq("clinic_id", clinic.id)
       .maybeSingle(),
     supabase
@@ -78,7 +83,7 @@ export async function getPublicClinicBySlug(slug: string): Promise<PublicClinic 
     latitude: clinic.latitude ?? null,
     longitude: clinic.longitude ?? null,
     facility_images: clinic.facility_images ?? [],
-    emergency_available: clinic.emergency_available ?? false,
+    emergency_available: branding?.emergency_enabled ?? clinic.emergency_available ?? true,
     parking_available: clinic.parking_available ?? false,
     wheelchair_access: clinic.wheelchair_access ?? false,
     other_facilities: clinic.other_facilities ?? [],
@@ -86,7 +91,7 @@ export async function getPublicClinicBySlug(slug: string): Promise<PublicClinic 
     fees: {
       normal: Number(clinic.consultation_fee_default ?? 500),
       emergency: billing?.emergency_consultation_fee != null ? Number(billing.emergency_consultation_fee) : null,
-      video: billing?.video_consultation_fee != null ? Number(billing.video_consultation_fee) : null,
+      video: billing?.video_consultation_fee != null ? Number(billing.video_consultation_fee) : 600,
     },
     portal: {
       walkInEnabled: branding?.portal_walk_in_enabled ?? true,
@@ -94,12 +99,18 @@ export async function getPublicClinicBySlug(slug: string): Promise<PublicClinic 
     },
     branding: branding
       ? {
-          primary_color: branding.primary_color,
-          secondary_color: branding.secondary_color,
-          logo_url: branding.logo_url,
-          tagline: branding.tagline,
-          white_label: branding.white_label,
-          whatsapp_number: branding.whatsapp_number,
+          primary_color: branding.primary_color ?? "#0ea5e9",
+          secondary_color: branding.secondary_color ?? "#14b8a6",
+          logo_url: branding.logo_url ?? clinic.logo_url ?? null,
+          cover_image_url: branding.cover_image_url ?? null,
+          theme_preset: branding.theme_preset ?? "clinical_teal",
+          specialization_badge: branding.specialization_badge ?? null,
+          bio_description: branding.bio_description ?? null,
+          tagline: branding.tagline ?? null,
+          white_label: branding.white_label ?? false,
+          whatsapp_number: branding.whatsapp_number ?? null,
+          teleconsult_enabled: branding.teleconsult_enabled ?? true,
+          emergency_enabled: branding.emergency_enabled ?? true,
         }
       : null,
   };
@@ -121,6 +132,8 @@ export async function getPublicClinicByDomain(domain: string): Promise<string | 
 
 export async function getPublicDoctors(clinicId: string) {
   const service = await createServiceClient();
+
+  // 1. Query doctors where is_accepting_appointments = true
   const { data } = await service
     .from("doctors")
     .select(
@@ -128,7 +141,65 @@ export async function getPublicDoctors(clinicId: string) {
     )
     .eq("clinic_id", clinicId)
     .eq("is_accepting_appointments", true);
-  return data ?? [];
+
+  if (data && data.length > 0) {
+    return data;
+  }
+
+  // 2. Fallback: Doctors exist in clinic without is_accepting_appointments = true
+  const { data: allDocs } = await service
+    .from("doctors")
+    .select(
+      "id, consultation_fee, slot_duration_mins, degree, experience_years, registration_number, languages, biography, specialization, profiles(full_name, specialization, avatar_url)"
+    )
+    .eq("clinic_id", clinicId);
+
+  if (allDocs && allDocs.length > 0) {
+    await service
+      .from("doctors")
+      .update({ is_accepting_appointments: true })
+      .eq("clinic_id", clinicId);
+    return allDocs;
+  }
+
+  // 3. Fallback: Auto-create doctor record for clinic owners/doctors from profiles table
+  const { data: profiles } = await service
+    .from("profiles")
+    .select("id, full_name, specialization, avatar_url")
+    .eq("clinic_id", clinicId)
+    .in("role", ["clinic_owner", "doctor", "super_admin"]);
+
+  if (profiles && profiles.length > 0) {
+    const createdDoctors = [];
+    for (const p of profiles) {
+      const { data: insertedDoc } = await service
+        .from("doctors")
+        .insert({
+          profile_id: p.id,
+          clinic_id: clinicId,
+          is_accepting_appointments: true,
+        })
+        .select("id, consultation_fee, slot_duration_mins, degree, experience_years, registration_number, languages, biography, specialization")
+        .single();
+
+      if (insertedDoc) {
+        createdDoctors.push({
+          ...insertedDoc,
+          profiles: {
+            full_name: p.full_name,
+            specialization: p.specialization,
+            avatar_url: p.avatar_url,
+          },
+        });
+      }
+    }
+
+    if (createdDoctors.length > 0) {
+      return createdDoctors;
+    }
+  }
+
+  return [];
 }
 
 export async function getPublicDoctorSchedules(clinicId: string) {

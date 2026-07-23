@@ -11,7 +11,8 @@ export default async function DemoRequestsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  const { status } = await searchParams;
+  const params = (await searchParams) ?? {};
+  const status = params.status;
   const filter =
     status === "new" || status === "contacted" || status === "scheduled" || status === "closed" || status === "cancelled"
       ? status

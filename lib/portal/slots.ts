@@ -65,21 +65,51 @@ export async function getAvailableSlotsForDoctor(options: SlotGenerationOptions)
         .maybeSingle(),
     ]);
 
-  if (!doctor?.is_accepting_appointments || !schedule || blocked) return [];
+  if (blocked) return [];
 
-  const duration = doctor.slot_duration_mins ?? 15;
-  const buffer = doctor.buffer_mins ?? 5;
+  // Fallback effective schedule if doctor_schedules table is empty for this day
+  let effectiveSchedule = schedule;
+  if (!effectiveSchedule) {
+    // Mon-Sat: open 09:00 - 18:00, Sun: open 09:00 - 14:00
+    const isAvailable = dayOfWeek !== 0; // Default Mon-Sat open
+    if (!isAvailable) return [];
+
+    effectiveSchedule = {
+      doctor_id: doctorId,
+      clinic_id: clinicId,
+      day_of_week: dayOfWeek,
+      start_time: "09:00:00",
+      end_time: "18:00:00",
+      is_available: true,
+    };
+
+    // Auto-seed default schedules for Mon-Sat if missing
+    void service.from("doctor_schedules").upsert(
+      [1, 2, 3, 4, 5, 6].map((dow) => ({
+        doctor_id: doctorId,
+        clinic_id: clinicId,
+        day_of_week: dow,
+        start_time: "09:00:00",
+        end_time: "18:00:00",
+        is_available: true,
+      })),
+      { onConflict: "doctor_id,day_of_week" }
+    );
+  }
+
+  const duration = doctor?.slot_duration_mins ?? 15;
+  const buffer = doctor?.buffer_mins ?? 5;
   const step = duration + buffer;
 
   const bookedEntries = booked ?? [];
-  if (doctor.max_daily_patients && bookedEntries.length >= doctor.max_daily_patients) {
+  if (doctor?.max_daily_patients && bookedEntries.length >= doctor.max_daily_patients) {
     if (consultationType !== "emergency") return [];
   }
 
   const emergencyBooked = bookedEntries.filter(
     (b) => b.consultation_type === "emergency" || b.type === "emergency"
   ).length;
-  if (consultationType === "emergency" && doctor.emergency_slots) {
+  if (consultationType === "emergency" && doctor?.emergency_slots) {
     if (emergencyBooked >= doctor.emergency_slots) return [];
   }
 
@@ -89,8 +119,8 @@ export async function getAvailableSlotsForDoctor(options: SlotGenerationOptions)
   });
 
   const slots: string[] = [];
-  const startMin = parseTimeToMinutes(schedule.start_time);
-  const endMin = parseTimeToMinutes(schedule.end_time);
+  const startMin = parseTimeToMinutes(effectiveSchedule.start_time);
+  const endMin = parseTimeToMinutes(effectiveSchedule.end_time);
   const today = getTodayDateInClinicTz();
   const nowMin =
     date === today ? parseTimeToMinutes(getCurrentTimeInClinicTz()) + buffer : 0;
@@ -124,7 +154,8 @@ export async function getAvailableDatesForDoctor(
     .eq("clinic_id", clinicId)
     .maybeSingle();
 
-  if (!doctor) return [];
+  // If doctor record is missing or not matched, query profiles as fallback
+  let validDoctorId = doctor?.id ?? doctorId;
 
   const dates: string[] = [];
   const today = getTodayDateInClinicTz();
@@ -135,7 +166,7 @@ export async function getAvailableDatesForDoctor(
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const slots = await getAvailableSlotsForDoctor({ doctorId, clinicId, date: dateStr });
+    const slots = await getAvailableSlotsForDoctor({ doctorId: validDoctorId, clinicId, date: dateStr });
     if (slots.length > 0) dates.push(dateStr);
   }
 

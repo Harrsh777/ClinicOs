@@ -98,7 +98,7 @@ export async function approveClinicApplicationAction(formData: FormData) {
     })
     .eq("id", app.id);
 
-  const activateLink = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const activateLink = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.growclinicos.com";
 
   const emailResult = await sendEmail({
     to: result.ownerEmail!,
@@ -229,7 +229,7 @@ export async function resendApprovalEmailAction(formData: FormData) {
     });
   }
 
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.growclinicos.com";
   const emailResult = await sendEmail({
     to: app.owner_email,
     subject: `ClinicOS — Login credentials for ${app.clinic_name}`,

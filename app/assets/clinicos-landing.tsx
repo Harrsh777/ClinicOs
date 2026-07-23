@@ -7,9 +7,9 @@ import { BookDemoModal } from "@/components/landing/book-demo-modal";
 import { PlatformBento } from "@/components/landing/platform-bento";
 import { useLandingEffects } from "@/components/landing/use-landing-effects";
 import { ClinicOsWordmark } from "@/components/brand/clinicos-wordmark";
-import { ClinicJourney } from "@/components/landing/clinic-journey";
-import { TiltCard } from "@/components/landing/tilt-card";
-import { CountUp } from "@/components/landing/count-up";
+import { ClinicJourney } from "@/app/assets/clinic-journey";
+import { TiltCard } from "@/app/assets/tilt-card";
+import { CountUp } from "@/app/assets/count-up";
 import "./landing.css";
 import "./journey.css";
 
@@ -61,6 +61,7 @@ function useStaggerReveal() {
 
 export function ClinicosLanding() {
   const [demoOpen, setDemoOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [doctorsPerDay, setDoctorsPerDay] = useState(20);
   const [patientsPerMonth, setPatientsPerMonth] = useState(400);
   const [consultationFee, setConsultationFee] = useState(1000);
@@ -78,7 +79,7 @@ export function ClinicosLanding() {
     <div className="landing">
       {/* ============ HERO (unchanged) ============ */}
       <header className="hero" id="hero">
-        <nav>
+        <nav className={mobileNavOpen ? "mobile-open" : ""}>
           <a className="logo" href="#hero">
             <ClinicOsWordmark osClassName="text-[#2e63ff]" />
           </a>
@@ -106,8 +107,81 @@ export function ClinicosLanding() {
             <button type="button" className="nav-cta" onClick={openDemo(setDemoOpen)}>
               Book a demo <span className="arr">↗</span>
             </button>
+            <button
+              type="button"
+              className="nav-hamburger"
+              aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen((v) => !v)}
+            >
+              <span className="hamburger-line" />
+              <span className="hamburger-line" />
+              <span className="hamburger-line" />
+            </button>
           </div>
         </nav>
+
+        {mobileNavOpen && (
+          <div className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)}>
+            <div className="mobile-nav-drawer" onClick={(e) => e.stopPropagation()}>
+              <div className="mobile-nav-header">
+                <a className="logo" href="#hero" onClick={() => setMobileNavOpen(false)}>
+                  <ClinicOsWordmark osClassName="text-[#2e63ff]" />
+                </a>
+                <button
+                  type="button"
+                  className="mobile-nav-close"
+                  aria-label="Close menu"
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+              <ul className="mobile-nav-links">
+                <li>
+                  <a href="#platform" onClick={() => setMobileNavOpen(false)}>
+                    Product
+                  </a>
+                </li>
+                <li>
+                  <a href="#journey" onClick={() => setMobileNavOpen(false)}>
+                    The Journey
+                  </a>
+                </li>
+                <li>
+                  <a href="#problems" onClick={() => setMobileNavOpen(false)}>
+                    Problems
+                  </a>
+                </li>
+                <li>
+                  <a href="#ai-employees" onClick={() => setMobileNavOpen(false)}>
+                    AI Team
+                  </a>
+                </li>
+                <li>
+                  <a href="#pricing" onClick={() => setMobileNavOpen(false)}>
+                    Pricing
+                  </a>
+                </li>
+              </ul>
+              <div className="mobile-nav-actions">
+                <Link href="/login" className="nav-login" onClick={() => setMobileNavOpen(false)}>
+                  Sign In
+                </Link>
+                <button
+                  type="button"
+                  className="nav-cta"
+                  onClick={(e) => {
+                    setMobileNavOpen(false);
+                    openDemo(setDemoOpen)(e);
+                  }}
+                >
+                  Book a demo <span className="arr">↗</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="hero-img">
           <div className="hero-img-zoom">
@@ -730,7 +804,7 @@ export function ClinicosLanding() {
             </div>
           </div>
           <div className="foot-bottom">
-            <span>© 2026 ClinicOS Technologies Pvt. Ltd. · Bengaluru, India</span>
+            <span>Owned by EaseHawk Technologies Pvt Ltd</span>
             <span>Made with care for Indian healthcare 🇮🇳</span>
           </div>
           <div className="foot-founder-wrap">

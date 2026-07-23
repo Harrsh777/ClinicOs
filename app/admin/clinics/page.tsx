@@ -20,7 +20,8 @@ export default async function ClinicsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  const { status } = await searchParams;
+  const params = (await searchParams) ?? {};
+  const status = params.status;
   const filter =
     status === "pending" ||
     status === "approved" ||

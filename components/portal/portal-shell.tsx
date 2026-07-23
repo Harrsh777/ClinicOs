@@ -3,6 +3,15 @@ import Link from "next/link";
 import { Activity, Calendar, UserPlus } from "lucide-react";
 import { getPublicBookingPath, getPublicLoginPath, getPublicPortalPath } from "@/lib/portal/public-urls";
 
+const THEME_PALETTES: Record<string, { primary: string; secondary: string; pageBg: string }> = {
+  clinical_teal: { primary: "#0d9488", secondary: "#0284c7", pageBg: "bg-gradient-to-b from-teal-50/60 via-slate-50 to-teal-100/30" },
+  kids_pediatric: { primary: "#0284c7", secondary: "#f59e0b", pageBg: "bg-gradient-to-b from-sky-50 via-amber-50/40 to-sky-100/40" },
+  dental_care: { primary: "#0891b2", secondary: "#1e40af", pageBg: "bg-gradient-to-b from-cyan-50 via-blue-50/40 to-slate-100/50" },
+  dermatology_rose: { primary: "#e11d48", secondary: "#d97706", pageBg: "bg-gradient-to-b from-rose-50 via-pink-50/40 to-amber-50/30" },
+  emergency_slate: { primary: "#d97706", secondary: "#dc2626", pageBg: "bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 text-slate-100" },
+  holistic_sage: { primary: "#059669", secondary: "#d97706", pageBg: "bg-gradient-to-b from-emerald-50 via-teal-50/40 to-stone-100/50" },
+};
+
 export function PortalShell({
   clinic,
   children,
@@ -10,22 +19,24 @@ export function PortalShell({
   clinic: PublicClinic;
   children: React.ReactNode;
 }) {
-  const primary = clinic.branding?.primary_color ?? "#0ea5e9";
-  const secondary = clinic.branding?.secondary_color ?? "#14b8a6";
+  const presetKey = clinic.branding?.theme_preset ?? "clinical_teal";
+  const palette = THEME_PALETTES[presetKey] ?? THEME_PALETTES.clinical_teal;
+  const primary = clinic.branding?.primary_color || palette.primary;
+  const secondary = clinic.branding?.secondary_color || palette.secondary;
   const logo = clinic.branding?.logo_url ?? clinic.logo_url;
   const whiteLabel = clinic.branding?.white_label ?? false;
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-[var(--surface-1)] to-[var(--surface-2)]"
+      className={`min-h-screen ${palette.pageBg}`}
       style={
         {
           "--brand-500": primary,
           "--brand-600": primary,
           "--brand-700": primary,
-          "--brand-50": `${primary}12`,
-          "--brand-100": `${primary}22`,
-          "--brand-200": `${primary}35`,
+          "--brand-50": `${primary}15`,
+          "--brand-100": `${primary}25`,
+          "--brand-200": `${primary}40`,
           "--brand-800": primary,
           "--accent-500": secondary,
           "--accent-600": secondary,

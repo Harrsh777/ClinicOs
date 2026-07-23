@@ -1,10 +1,7 @@
 import { ASSIGNABLE_MODULES } from "@/lib/auth/permissions";
 
 /** Modules that can be toggled per clinic (excludes platform-only modules). */
-export const CLINIC_MODULE_KEYS = [
-  "dashboard",
-  ...ASSIGNABLE_MODULES,
-] as const;
+export const CLINIC_MODULE_KEYS = ASSIGNABLE_MODULES;
 
 export type ClinicModuleKey = (typeof CLINIC_MODULE_KEYS)[number];
 
@@ -55,6 +52,7 @@ const PATH_SEGMENT_TO_MODULE: Record<string, string> = {
   settings: "settings",
   branding: "branding",
   permissions: "permissions",
+  certificates: "certificates",
   "ai-insights": "ai_insights",
   retention: "patients",
   "follow-ups": "patients",

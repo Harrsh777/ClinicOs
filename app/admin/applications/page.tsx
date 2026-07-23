@@ -11,7 +11,8 @@ export default async function ApplicationsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  const { status } = await searchParams;
+  const params = (await searchParams) ?? {};
+  const status = params.status;
   const filter =
     status === "approved" || status === "rejected" || status === "pending" ? status : undefined;
   const [applications, plans] = await Promise.all([

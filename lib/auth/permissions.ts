@@ -39,6 +39,7 @@ const ROLE_DEFAULT_MODULES: Record<UserRole, Record<string, PermissionLevel>> = 
     settings: "admin",
     finance: "admin",
     conversations: "admin",
+    certificates: "admin",
   },
   doctor: {
     dashboard: "read",
@@ -50,6 +51,7 @@ const ROLE_DEFAULT_MODULES: Record<UserRole, Record<string, PermissionLevel>> = 
     lab: "write",
     teleconsult: "write",
     conversations: "read",
+    certificates: "write",
   },
   receptionist: {
     dashboard: "read",
@@ -61,6 +63,7 @@ const ROLE_DEFAULT_MODULES: Record<UserRole, Record<string, PermissionLevel>> = 
     insurance: "write",
     pharmacy: "write",
     conversations: "write",
+    certificates: "read",
   },
   finance_manager: {
     dashboard: "read",
@@ -192,4 +195,5 @@ export const ASSIGNABLE_MODULES = [
   "permissions",
   "finance",
   "settings",
+  "certificates",
 ] as const;

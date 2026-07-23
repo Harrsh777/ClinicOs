@@ -25,7 +25,7 @@ const MODULE_CATEGORIES: { label: string; keys: string[] }[] = [
   },
   {
     label: "Clinical",
-    keys: ["consultations", "prescriptions", "lab", "pharmacy", "inventory", "teleconsult"],
+    keys: ["consultations", "prescriptions", "certificates", "lab", "pharmacy", "inventory", "teleconsult"],
   },
   {
     label: "Finance",

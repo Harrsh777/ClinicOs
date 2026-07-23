@@ -13,7 +13,21 @@ import { isShortClinicPortalPath, resolveAnyShortClinicPath } from "@/lib/portal
 import { PLATFORM_ADMIN_COOKIE } from "@/lib/auth/platform-admin.constants";
 import { verifyPlatformAdminSession } from "@/lib/auth/platform-admin-session";
 
-const PUBLIC_ROUTES = ["/", "/login", "/signup", "/register", "/invite", "/privacy", "/terms", "/pricing", "/forgot-password"];
+const PUBLIC_ROUTES = [
+  "/",
+  "/login",
+  "/signup",
+  "/register",
+  "/invite",
+  "/privacy",
+  "/terms",
+  "/pricing",
+  "/forgot-password",
+  "/manifest.webmanifest",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+];
 const PUBLIC_PREFIXES = ["/check-in/", "/queue/", "/c/", "/api/health", "/api/webhooks/", "/api/portal/", "/activate/", "/reset-password/"];
 
 const PLATFORM_HOSTS = ["localhost", "127.0.0.1", "clinicos"];

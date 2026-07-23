@@ -137,6 +137,31 @@ export interface Clinic {
   gst_number?: string | null;
   emergency_contact?: string | null;
   enabled_services?: string[];
+  branding?: ClinicBranding;
+}
+
+export type ClinicThemePreset =
+  | "clinical_teal"
+  | "kids_pediatric"
+  | "dental_care"
+  | "dermatology_rose"
+  | "emergency_slate"
+  | "holistic_sage";
+
+export interface ClinicBranding {
+  id?: string;
+  clinic_id: string;
+  logo_url?: string | null;
+  cover_image_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  theme_preset?: ClinicThemePreset;
+  specialization_badge?: string | null;
+  bio_description?: string | null;
+  tagline?: string | null;
+  whatsapp_number?: string | null;
+  teleconsult_enabled?: boolean;
+  emergency_enabled?: boolean;
 }
 
 export interface SystemModule {
@@ -290,3 +315,88 @@ export const ROLE_ROUTES: Record<UserRole, string> = {
 };
 
 export const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export type CertificateCategory =
+  | "sick_leave"
+  | "fitness"
+  | "medical_leave"
+  | "return_to_work"
+  | "hospitalization"
+  | "vaccination"
+  | "disability"
+  | "pregnancy"
+  | "travel_fitness"
+  | "sports_fitness"
+  | "custom";
+
+export type CertificateStatus = "draft" | "issued" | "revoked" | "expired";
+
+export interface CertificateTemplate {
+  id: string;
+  clinic_id: string | null;
+  title: string;
+  category: CertificateCategory;
+  description: string | null;
+  content_html: string;
+  fields_schema: Array<{ key: string; label: string; type: "text" | "number" | "date" | "select"; options?: string[] }>;
+  is_system: boolean;
+  is_active: boolean;
+  version: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CertificateSignature {
+  id: string;
+  clinic_id: string;
+  doctor_id: string;
+  asset_type: "digital_signature" | "handwritten_signature" | "clinic_stamp" | "header_logo" | "footer_logo";
+  title: string;
+  file_path: string;
+  created_at: string;
+}
+
+export interface IssuedCertificate {
+  id: string;
+  certificate_code: string;
+  clinic_id: string;
+  template_id: string | null;
+  template_version: number;
+  patient_id: string;
+  doctor_id: string;
+  issued_at: string;
+  expiry_date: string | null;
+  status: CertificateStatus;
+  revoked_reason: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  diagnosis: string | null;
+  rest_duration_days: number | null;
+  custom_fields_data: Record<string, unknown>;
+  rendered_html: string;
+  signature_url: string | null;
+  stamp_url: string | null;
+  header_url: string | null;
+  qr_verification_token: string;
+  expiring_share_token: string | null;
+  share_token_expiry: string | null;
+  watermark_text: string | null;
+  pdf_storage_path: string | null;
+  created_at: string;
+  updated_at: string;
+  patients?: Patient;
+  doctors?: Doctor;
+  profiles?: Profile;
+}
+
+export interface CertificateAuditLog {
+  id: string;
+  certificate_id: string;
+  action: string;
+  performed_by: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+}

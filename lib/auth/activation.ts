@@ -74,6 +74,6 @@ export async function markActivationTokenUsed(tokenId: string) {
 }
 
 export function activationUrl(token: string) {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.growclinicos.com";
   return `${base}/activate/${token}`;
 }

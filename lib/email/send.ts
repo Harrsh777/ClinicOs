@@ -1,6 +1,9 @@
 import { Resend } from "resend";
 
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "ClinicOS <onboarding@clinicos.app>";
+const FROM_EMAIL =
+  process.env.RESEND_FROM_EMAIL ??
+  process.env.DEMO_REQUEST_FROM_EMAIL ??
+  "Clinicos <hello@growclinicos.com>";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
