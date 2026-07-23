@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { createPageMetadata } from "@/lib/seo/metadata";
 import "./globals.css";
 
 const inter = Inter({
@@ -9,12 +10,18 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  ...createPageMetadata(),
   title: {
-    default: "ClinicOS — India's First AI-Powered Clinic Growth OS",
+    default: "ClinicOS — India's First Clinic Growth Software",
     template: "%s · ClinicOS",
   },
-  description:
-    "ClinicOS helps doctors build a bigger practice — grow revenue, retain patients, and build reputation with India's AI-powered clinic growth operating system.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2e63ff",
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "light",
 };
 
 export default function RootLayout({
@@ -23,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="en-IN" className={`${inter.variable} h-full`}>
       <body className="min-h-full antialiased">{children}</body>
     </html>
   );

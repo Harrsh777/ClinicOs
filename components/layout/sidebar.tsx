@@ -58,6 +58,7 @@ import { cn, getInitials } from "@/lib/utils";
 import type { SidebarSectionResolved } from "@/lib/navigation/types";
 import type { Profile } from "@/lib/types/database";
 import { logoutAction } from "@/lib/actions/auth";
+import { ClinicOsWordmark } from "@/components/brand/clinicos-wordmark";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -391,11 +392,8 @@ export function Sidebar({ profile, sections, clinicName }: SidebarProps) {
     <aside className="clinic-sidebar">
       <div className="clinic-sidebar-header">
         <div className="clinic-sidebar-brand">
-          <div className="clinic-sidebar-logo">
-            <Activity className="h-5 w-5" />
-          </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold tracking-tight text-white">ClinicOS</p>
+            <ClinicOsWordmark className="text-base" osClassName="text-[var(--brand-400)]" />
             {clinicName ? (
               <p className="truncate text-xs text-slate-400">{clinicName}</p>
             ) : (

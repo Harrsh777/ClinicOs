@@ -25,6 +25,7 @@ import {
   sendBulkRetentionMessagesAction,
   sendRetentionBroadcastAction,
   sendRetentionEmailBroadcastAction,
+  generateRetentionEmailTemplateAction,
   updateRetentionPatientFieldsAction,
 } from "@/lib/actions/patient-retention";
 import { RetentionWhatsAppModal } from "@/components/retention/retention-whatsapp-modal";
@@ -43,6 +44,7 @@ import {
 } from "@/lib/retention/types";
 import { inactiveHorizonLabel } from "@/lib/engagement/growth-settings";
 import { REMINDER_TYPE_LABELS } from "@/lib/engagement/types";
+import { RETENTION_EMAIL_TAGS } from "@/lib/retention/email-tags";
 import { formatPhone } from "@/lib/utils";
 
 type FilterKey = "all" | "on_track" | "has_dues" | "no_visit" | RetentionReason;
@@ -131,7 +133,9 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
   const [bulkEmailSubject, setBulkEmailSubject] = useState("");
   const [bulkEmailBody, setBulkEmailBody] = useState("");
   const [bulkEmailFiles, setBulkEmailFiles] = useState<File[]>([]);
+  const [bulkTemplateAiOpen, setBulkTemplateAiOpen] = useState(false);
   const bulkEmailFileRef = useRef<HTMLInputElement>(null);
+  const bulkEmailBodyRef = useRef<HTMLTextAreaElement>(null);
   const [composePatient, setComposePatient] = useState<RetentionPatientRow | null>(null);
   const [composeEmailPatient, setComposeEmailPatient] = useState<RetentionPatientRow | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -218,7 +222,31 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
     setBulkEmailSubject("");
     setBulkEmailBody("");
     setBulkEmailFiles([]);
+    setBulkTemplateAiOpen(false);
   }
+
+  function insertBulkEmailTag(tag: string) {
+    const field = bulkEmailBodyRef.current;
+    if (!field) {
+      setBulkEmailBody((current) => (current ? `${current} ${tag}` : tag));
+      return;
+    }
+
+    const start = field.selectionStart ?? bulkEmailBody.length;
+    const end = field.selectionEnd ?? bulkEmailBody.length;
+    const next = `${bulkEmailBody.slice(0, start)}${tag}${bulkEmailBody.slice(end)}`;
+    setBulkEmailBody(next);
+    requestAnimationFrame(() => {
+      field.focus();
+      const cursor = start + tag.length;
+      field.setSelectionRange(cursor, cursor);
+    });
+  }
+
+  const previewPatient = useMemo(
+    () => data.patients.find((p) => selected.has(p.patientId)),
+    [data.patients, selected]
+  );
 
   return (
     <div>
@@ -600,11 +628,11 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
                 }`}
               >
                 <p className="font-medium">
-                  {bulkChannel === "email" ? "Same email" : "Same message"}
+                  {bulkChannel === "email" ? "Personalized template" : "Same message"}
                 </p>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">
                   {bulkChannel === "email"
-                    ? "One subject and body for everyone"
+                    ? "One draft with tags like {name} and {dues}"
                     : 'e.g. "Monsoon season — get a dengue checkup"'}
                 </p>
               </button>
@@ -648,12 +676,37 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
               )
             ) : bulkMode === "broadcast" ? (
               <div className="space-y-3">
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-0)] p-3">
+                  <p className="text-xs font-medium text-[var(--text-muted)] mb-2">
+                    Insert merge tags (personalized per patient)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {RETENTION_EMAIL_TAGS.map(({ tag, label }) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => insertBulkEmailTag(tag)}
+                        className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-mono text-[var(--brand-700)] hover:bg-[var(--brand-50)]"
+                        title={label}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  {previewPatient && (
+                    <p className="mt-2 text-[10px] text-[var(--text-muted)]">
+                      Preview for {previewPatient.patientName}: {"{name}"} → {previewPatient.patientName},{" "}
+                      {"{dues}"} → {previewPatient.dueAmount > 0 ? formatCurrency(previewPatient.dueAmount) : "no outstanding dues"},{" "}
+                      {"{problem}"} → {previewPatient.visitReason}
+                    </p>
+                  )}
+                </div>
                 <label className="block text-sm">
                   <span className="font-medium">Subject</span>
                   <input
                     type="text"
                     className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-0)] px-3 py-2 text-sm"
-                    placeholder="Health check-in from your clinic"
+                    placeholder="Reminder from {clinic} — outstanding dues"
                     value={bulkEmailSubject}
                     onChange={(e) => setBulkEmailSubject(e.target.value)}
                   />
@@ -661,12 +714,56 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
                 <label className="block text-sm">
                   <span className="font-medium">Email body</span>
                   <textarea
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-0)] p-3 text-sm min-h-[140px]"
-                    placeholder="Write your email message for all selected patients…"
+                    ref={bulkEmailBodyRef}
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-0)] p-3 text-sm min-h-[140px] font-mono text-[13px]"
+                    placeholder={`Hi {name},\n\nOur records show an outstanding balance of {dues} from your visit for {problem}. Please contact {clinic} to settle or discuss.\n\nWarm regards,\n{clinic}`}
                     value={bulkEmailBody}
                     onChange={(e) => setBulkEmailBody(e.target.value)}
                   />
                 </label>
+                <div className="rounded-xl border border-[var(--border)] bg-white p-3 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setBulkTemplateAiOpen((open) => !open)}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      AI template writer
+                    </Button>
+                  </div>
+                  {bulkTemplateAiOpen && (
+                    <>
+                      <textarea
+                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-0)] p-2 text-sm min-h-[70px]"
+                        placeholder='e.g. "Remind patients with dues to pay before month end"'
+                        value={bulkInstructions}
+                        onChange={(e) => setBulkInstructions(e.target.value)}
+                      />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={pending}
+                        onClick={() =>
+                          startTransition(async () => {
+                            const result = await generateRetentionEmailTemplateAction({
+                              customInstructions: bulkInstructions || undefined,
+                            });
+                            if (result.error) setFeedback(result.error);
+                            else {
+                              if (result.subject) setBulkEmailSubject(result.subject);
+                              if (result.body) setBulkEmailBody(result.body);
+                            }
+                          })
+                        }
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Generate template with tags
+                      </Button>
+                    </>
+                  )}
+                </div>
                 <div>
                   <input
                     ref={bulkEmailFileRef}
@@ -738,9 +835,13 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
             <p className="text-xs text-[var(--text-muted)]">
               {bulkChannel === "whatsapp"
                 ? "Patients can reply on WhatsApp and staff will see it in Conversations."
-                : selectedEmailCount < selectedIds.length
-                  ? `Patients without email on file will be skipped (${selectedIds.length - selectedEmailCount}).`
-                  : "Emails are sent from your clinic address via Resend."}
+                : bulkMode === "broadcast"
+                  ? selectedEmailCount < selectedIds.length
+                    ? `Each email is personalized with merge tags. Patients without email will be skipped (${selectedIds.length - selectedEmailCount}).`
+                    : "Each email is personalized with merge tags like {name}, {dues}, and {problem}."
+                  : selectedEmailCount < selectedIds.length
+                    ? `Patients without email on file will be skipped (${selectedIds.length - selectedEmailCount}).`
+                    : "Emails are sent from your clinic address via Resend."}
             </p>
 
             <div className="flex justify-end gap-2">
@@ -811,7 +912,7 @@ export function PatientRetentionDashboard({ data }: PatientRetentionDashboardPro
                 ) : (
                   <>
                     <Send className="h-4 w-4" />
-                    Send {bulkChannel === "email" ? "emails" : "broadcast"}
+                    Send {bulkChannel === "email" ? "personalized emails" : "broadcast"}
                   </>
                 )}
               </Button>

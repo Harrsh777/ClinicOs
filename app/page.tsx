@@ -1,17 +1,27 @@
-import type { Metadata } from "next";
+import { LandingSplash } from "@/components/brand/landing-splash";
 import { ClinicosLanding } from "@/components/landing/clinicos-landing";
+import { JsonLd } from "@/components/seo/json-ld";
+import { createPageMetadata } from "@/lib/seo/metadata";
+import { buildHomeStructuredData } from "@/lib/seo/structured-data";
+import { siteConfig } from "@/lib/seo/site";
 
-export const metadata: Metadata = {
-  title: "ClinicOS — India's First AI-Powered Clinic Growth Platform",
-  description:
-    "Grow your clinic. Let AI handle everything else. Attract more patients, automate operations, recover missed revenue, and spend more time treating patients.",
-  openGraph: {
-    title: "ClinicOS — Grow Your Clinic. Let AI Handle Everything Else.",
-    description:
-      "India's first AI-powered clinic growth platform for doctors who want more patients, less admin, and higher revenue.",
+export const metadata = {
+  ...createPageMetadata({
+    description: siteConfig.description,
+    path: "/",
+  }),
+  title: {
+    absolute: siteConfig.title,
   },
 };
 
 export default function HomePage() {
-  return <ClinicosLanding />;
+  return (
+    <>
+      <JsonLd data={buildHomeStructuredData()} />
+      <LandingSplash>
+        <ClinicosLanding />
+      </LandingSplash>
+    </>
+  );
 }

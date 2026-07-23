@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Activity,
   LogOut,
   ChevronDown,
   Cog,
 } from "lucide-react";
+import { ClinicOsWordmark } from "@/components/brand/clinicos-wordmark";
 import { cn, getInitials } from "@/lib/utils";
 import type { TopNavItem } from "@/lib/navigation/build-top-nav";
 import type { Profile } from "@/lib/types/database";
@@ -221,17 +221,21 @@ export function TopNavbar({ profile, navItems, settingsHref, clinicName, basePat
     <header className="clinic-topnav">
       <div className="clinic-topnav-inner">
         <Link href={basePath} className="clinic-topnav-brand">
-          <div className="clinic-topnav-logo">
-            <Activity className="h-4 w-4" />
-          </div>
           <div className="hidden min-w-0 sm:block">
-            <p className="truncate text-sm font-semibold tracking-tight text-[var(--text-primary)]">
-              ClinicOS
-            </p>
+            <ClinicOsWordmark
+              className="text-base"
+              clinicClassName="text-[var(--text-primary)]"
+              osClassName="text-[var(--brand-600)]"
+            />
             {clinicName && (
               <p className="truncate text-xs text-[var(--text-muted)]">{clinicName}</p>
             )}
           </div>
+          <ClinicOsWordmark
+            className="text-base sm:hidden"
+            clinicClassName="text-[var(--text-primary)]"
+            osClassName="text-[var(--brand-600)]"
+          />
         </Link>
 
         <div className="clinic-topnav-pills-wrap">

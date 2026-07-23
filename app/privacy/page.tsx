@@ -1,10 +1,12 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { createPageMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: "How ClinicOS collects, uses, and protects patient and clinic data.",
-};
+export const metadata = createPageMetadata({
+  title: "Privacy Policy — ClinicOS Clinic Growth Software",
+  description:
+    "Privacy policy for ClinicOS, India's first clinic growth software. Learn how we collect, use, and protect patient and clinic data.",
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (

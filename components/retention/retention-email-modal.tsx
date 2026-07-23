@@ -15,6 +15,7 @@ import {
   sendRetentionEmailAction,
 } from "@/lib/actions/patient-retention";
 import { filesToEmailAttachments } from "@/lib/retention/email-attachments";
+import { RETENTION_EMAIL_TAGS } from "@/lib/retention/email-tags";
 import type { RetentionPatientRow } from "@/lib/retention/types";
 
 interface RetentionEmailModalProps {
@@ -46,6 +47,7 @@ export function RetentionEmailModal({
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [showAiPanel, setShowAiPanel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     return () => {
@@ -91,6 +93,24 @@ export function RetentionEmailModal({
       const target = current.find((item) => item.id === id);
       if (target) URL.revokeObjectURL(target.previewUrl);
       return current.filter((item) => item.id !== id);
+    });
+  }
+
+  function insertTag(tag: string) {
+    const field = bodyRef.current;
+    if (!field) {
+      setBody((current) => (current ? `${current} ${tag}` : tag));
+      return;
+    }
+
+    const start = field.selectionStart ?? body.length;
+    const end = field.selectionEnd ?? body.length;
+    const next = `${body.slice(0, start)}${tag}${body.slice(end)}`;
+    setBody(next);
+    requestAnimationFrame(() => {
+      field.focus();
+      const cursor = start + tag.length;
+      field.setSelectionRange(cursor, cursor);
     });
   }
 
@@ -178,9 +198,10 @@ export function RetentionEmailModal({
           </div>
 
           <textarea
+            ref={bodyRef}
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Write your message…"
+            placeholder="Write your message… Use {name}, {dues}, {problem} for personalization."
             disabled={!hasEmail}
             className="min-h-[280px] w-full resize-y bg-white px-4 py-4 text-sm leading-relaxed outline-none placeholder:text-[var(--text-muted)]"
           />
@@ -253,6 +274,21 @@ export function RetentionEmailModal({
               <Sparkles className="h-4 w-4" />
               AI writer
             </Button>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {RETENTION_EMAIL_TAGS.map(({ tag, label }) => (
+              <button
+                key={tag}
+                type="button"
+                disabled={!hasEmail}
+                onClick={() => insertTag(tag)}
+                className="rounded-full bg-white px-2.5 py-1 text-xs font-mono text-[var(--brand-700)] ring-1 ring-[var(--border)] hover:bg-[var(--brand-50)] disabled:opacity-50"
+                title={label}
+              >
+                {tag}
+              </button>
+            ))}
           </div>
 
           {showAiPanel && (

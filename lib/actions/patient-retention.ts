@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireAuth, requireRole } from "@/lib/auth/session";
 import { generateRetentionMessage } from "@/lib/ai/retention-message";
-import { generateRetentionEmail } from "@/lib/ai/retention-email";
+import { generateRetentionEmail, generateRetentionEmailTemplate } from "@/lib/ai/retention-email";
+import {
+  applyRetentionEmailTags,
+  buildRetentionEmailTagVariables,
+  retentionRowToTagVariables,
+} from "@/lib/retention/email-tags";
 import { sendEmail, type EmailAttachmentInput } from "@/lib/email/send";
 import { buildRetentionEmailHtml, plainTextToEmailHtml } from "@/lib/email/retention-template";
 import { scheduleEngagementReminder } from "@/lib/actions/follow-up-reminders";
@@ -516,6 +521,29 @@ export async function generateRetentionEmailAction(params: {
   return { subject: generated.subject, body: generated.body };
 }
 
+export async function generateRetentionEmailTemplateAction(params?: {
+  customInstructions?: string;
+}): Promise<{ subject?: string; body?: string; error?: string }> {
+  const profile = await requireRole(["clinic_owner", "doctor", "receptionist"]);
+  if (!profile.clinic_id) return { error: "No clinic assigned" };
+
+  const supabase = await createClient();
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("name")
+    .eq("id", profile.clinic_id)
+    .single();
+
+  const clinicName = clinic?.name ?? "Your clinic";
+  const generated = await generateRetentionEmailTemplate(
+    profile.clinic_id,
+    clinicName,
+    params?.customInstructions
+  );
+
+  return { subject: generated.subject, body: generated.body };
+}
+
 export async function sendRetentionEmailAction(params: {
   patientId: string;
   subject: string;
@@ -541,16 +569,32 @@ export async function sendRetentionEmailAction(params: {
     return { error: attachmentResult.error ?? "Invalid attachments" };
   }
 
+  const dashboard = await getRetentionDashboardData(profile.clinic_id);
+  const row = dashboard.patients.find((p) => p.patientId === params.patientId);
+  const tagVars = row
+    ? retentionRowToTagVariables(row, loaded.clinicName)
+    : buildRetentionEmailTagVariables({
+        patientName: loaded.patient.full_name,
+        visitReason: loaded.ctx.visitReason,
+        diagnosis: loaded.ctx.diagnosis,
+        doctorName: loaded.ctx.doctorName,
+        lastVisitAt: loaded.patient.last_visit_at,
+        clinicName: loaded.clinicName,
+      });
+
+  const subject = applyRetentionEmailTags(params.subject.trim(), tagVars);
+  const body = applyRetentionEmailTags(params.body.trim(), tagVars);
+
   const html = buildRetentionEmailHtml({
     clinicName: loaded.clinicName,
     patientName: loaded.patient.full_name,
-    bodyHtml: plainTextToEmailHtml(params.body.trim()),
+    bodyHtml: plainTextToEmailHtml(body),
     inlineImageCids: attachmentResult.inlineCids,
   });
 
   const result = await sendEmail({
     to: loaded.patient.email,
-    subject: params.subject.trim(),
+    subject,
     html,
     attachments: attachmentResult.attachments,
   });
@@ -578,48 +622,35 @@ export async function sendRetentionEmailBroadcastAction(params: {
     return { sent: 0, failed: 0, errors: [attachmentResult.error ?? "Invalid attachments"] };
   }
 
-  const supabase = await createClient();
-  const { data: clinic } = await supabase
-    .from("clinics")
-    .select("name")
-    .eq("id", profile.clinic_id)
-    .single();
+  const dashboard = await getRetentionDashboardData(profile.clinic_id);
+  const targetSet = new Set(params.patientIds);
+  const targets = dashboard.patients.filter((p) => targetSet.has(p.patientId));
 
-  const clinicName = clinic?.name ?? "Your clinic";
   let sent = 0;
   let failed = 0;
   const errors: string[] = [];
 
-  for (const patientId of params.patientIds) {
-    const { data: patient } = await supabase
-      .from("patients")
-      .select("id, full_name, email")
-      .eq("id", patientId)
-      .eq("clinic_id", profile.clinic_id)
-      .single();
-
-    if (!patient) {
+  for (const row of targets) {
+    if (!row.patientEmail) {
       failed++;
-      errors.push(`Patient ${patientId} not found`);
+      errors.push(`${row.patientName}: no email on file`);
       continue;
     }
 
-    if (!patient.email) {
-      failed++;
-      errors.push(`${patient.full_name}: no email on file`);
-      continue;
-    }
+    const tagVars = retentionRowToTagVariables(row, dashboard.clinicName);
+    const subject = applyRetentionEmailTags(params.subject.trim(), tagVars);
+    const body = applyRetentionEmailTags(params.body.trim(), tagVars);
 
     const html = buildRetentionEmailHtml({
-      clinicName,
-      patientName: patient.full_name,
-      bodyHtml: plainTextToEmailHtml(params.body.trim()),
+      clinicName: dashboard.clinicName,
+      patientName: row.patientName,
+      bodyHtml: plainTextToEmailHtml(body),
       inlineImageCids: attachmentResult.inlineCids,
     });
 
     const result = await sendEmail({
-      to: patient.email,
-      subject: params.subject.trim(),
+      to: row.patientEmail,
+      subject,
       html,
       attachments: attachmentResult.attachments,
     });
@@ -627,7 +658,7 @@ export async function sendRetentionEmailBroadcastAction(params: {
     if (result.ok) sent++;
     else {
       failed++;
-      errors.push(`${patient.full_name}: ${result.error}`);
+      errors.push(`${row.patientName}: ${result.error}`);
     }
   }
 

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Alert } from "@/components/ui/alert";
 import "@/components/landing/landing.css";
+import { ClinicOsWordmark } from "@/components/brand/clinicos-wordmark";
 
 function formatClinicId(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, "");
@@ -25,16 +26,6 @@ function friendlyLoginError(message: string) {
     return "We could not complete sign in right now. Please contact your clinic administrator.";
   }
   return message;
-}
-
-function LogoMark() {
-  return (
-    <span className="logo-mark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round">
-        <path d="M12 4v16M4 12h16" />
-      </svg>
-    </span>
-  );
 }
 
 function LoginForm() {
@@ -97,8 +88,7 @@ function LoginForm() {
 
         <main className="login-main">
           <Link href="/" className="logo">
-            <LogoMark />
-            ClinicOS
+            <ClinicOsWordmark clinicClassName="text-[var(--navy)]" osClassName="text-[var(--blue)]" />
           </Link>
 
           <div className="login-main-header">

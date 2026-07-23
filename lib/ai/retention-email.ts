@@ -69,6 +69,84 @@ const RETENTION_EMAIL_SYSTEM = `You write warm, professional healthcare follow-u
 Use clear English, a caring tone, and reference the patient's specific visit reason.
 Never prescribe, diagnose, or give new medical advice — only check in and encourage follow-up.`;
 
+function buildFallbackEmailTemplate(clinicName: string) {
+  return {
+    subject: "Follow-up from {clinic}",
+    body: `Hi {name},
+
+We hope you are doing well since your visit to {clinic} for {problem}.
+
+If you have an outstanding balance of {dues}, please contact us at your earliest convenience. For any health concerns or to book a follow-up, reply to this email or call the clinic.
+
+Warm regards,
+{clinic}`,
+  };
+}
+
+function buildRetentionEmailTemplatePrompt(clinicName: string, customInstructions?: string): string {
+  return `Write a reusable patient retention email TEMPLATE for an Indian clinic named "${clinicName}".
+
+The template will be sent to many patients. Use merge tags for patient-specific details — do NOT use real patient names or amounts.
+
+AVAILABLE MERGE TAGS (use these exactly, with curly braces):
+- {name} — patient name
+- {dues} — outstanding balance (e.g. "₹500" or "no outstanding dues")
+- {problem} — visit reason / chief complaint
+- {clinic} — clinic name
+- {last_visit} — date of last visit
+- {doctor} — treating doctor
+- {diagnosis} — diagnosis on file
+
+INSTRUCTIONS
+1. Write a warm, professional email suitable for follow-ups, dues reminders, or seasonal check-ins.
+2. Use merge tags naturally in both subject and body where personalization helps.
+3. Body should be 2–4 short paragraphs, plain text with line breaks.
+4. No emojis. No numbered quick-reply options.
+5. Subject line under 70 characters.
+
+${customInstructions?.trim() ? `STAFF INSTRUCTIONS:\n${customInstructions.trim()}\n` : ""}
+Return JSON only:
+{
+  "subject": "subject with merge tags",
+  "body": "body with merge tags and paragraph breaks"
+}`;
+}
+
+const RETENTION_EMAIL_TEMPLATE_SYSTEM = `You write reusable healthcare email templates for Indian clinics.
+
+Templates must use merge tags like {name} and {dues} instead of real patient data.
+Never prescribe, diagnose, or give new medical advice.`;
+
+export async function generateRetentionEmailTemplate(
+  clinicId: string,
+  clinicName: string,
+  customInstructions?: string
+): Promise<{ subject: string; body: string }> {
+  const fallback = buildFallbackEmailTemplate(clinicName);
+
+  const result = await aiChatCompletion({
+    clinicId,
+    feature: "engagement_message",
+    jsonMode: true,
+    maxTokens: 800,
+    systemPrompt: RETENTION_EMAIL_TEMPLATE_SYSTEM,
+    userPrompt: buildRetentionEmailTemplatePrompt(clinicName, customInstructions),
+    metadata: {
+      source: "retention_email_template",
+    },
+  });
+
+  if (!result) return fallback;
+
+  const parsed = parseAIJson<{ subject: string; body: string }>(result.content);
+  if (!parsed?.subject?.trim() || !parsed?.body?.trim()) return fallback;
+
+  return {
+    subject: parsed.subject.trim(),
+    body: parsed.body.trim(),
+  };
+}
+
 export async function generateRetentionEmail(
   clinicId: string,
   input: RetentionMessageInput

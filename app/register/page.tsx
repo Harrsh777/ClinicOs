@@ -1,7 +1,15 @@
 import { Activity, CheckCircle2 } from "lucide-react";
 import { ClinicRegistrationForm } from "@/components/register/clinic-registration-form";
+import { createPageMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = createPageMetadata({
+  title: "Register Your Clinic — ClinicOS",
+  description:
+    "Register your clinic on ClinicOS, India's first clinic growth software. Start attracting more patients with AI-powered booking, follow-ups, and revenue growth tools.",
+  path: "/register",
+});
 
 export default function RegisterPage() {
   return (

@@ -1,10 +1,12 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { createPageMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: "Terms governing use of the ClinicOS clinic growth platform.",
-};
+export const metadata = createPageMetadata({
+  title: "Terms of Service — ClinicOS Clinic Growth Software",
+  description:
+    "Terms governing use of ClinicOS, India's first AI-powered clinic growth software for doctors and clinic owners.",
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (

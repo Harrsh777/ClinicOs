@@ -1,13 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import femaleHero from "@/app/assets/female_hero.png";
 import { BookDemoModal } from "@/components/landing/book-demo-modal";
 import { PlatformBento } from "@/components/landing/platform-bento";
 import { useLandingEffects } from "@/components/landing/use-landing-effects";
 import { ClinicOsWordmark } from "@/components/brand/clinicos-wordmark";
+import { ClinicJourney } from "@/components/landing/clinic-journey";
+import { TiltCard } from "@/components/landing/tilt-card";
+import { CountUp } from "@/components/landing/count-up";
 import "./landing.css";
+import "./journey.css";
 
 const HERO_IMAGE = femaleHero.src;
 
@@ -30,6 +34,31 @@ function openDemo(setDemoOpen: (v: boolean) => void) {
   };
 }
 
+/** Staggered scroll reveal for any element carrying data-reveal. */
+function useStaggerReveal() {
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    if (!els.length) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      els.forEach((el) => el.classList.add("revealed"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("revealed");
+            io.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.18, rootMargin: "0px 0px -8% 0px" },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+}
+
 export function ClinicosLanding() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [doctorsPerDay, setDoctorsPerDay] = useState(20);
@@ -38,6 +67,7 @@ export function ClinicosLanding() {
   const [noShowPercent, setNoShowPercent] = useState(15);
 
   useLandingEffects();
+  useStaggerReveal();
 
   const roi = useMemo(
     () => calcROI(doctorsPerDay, patientsPerMonth, consultationFee, noShowPercent),
@@ -45,7 +75,8 @@ export function ClinicosLanding() {
   );
 
   return (
-    <main className="landing">
+    <div className="landing">
+      {/* ============ HERO (unchanged) ============ */}
       <header className="hero" id="hero">
         <nav>
           <a className="logo" href="#hero">
@@ -56,10 +87,10 @@ export function ClinicosLanding() {
               <a href="#platform">Product</a>
             </li>
             <li>
-              <a href="#problems">Problems</a>
+              <a href="#journey">The Journey</a>
             </li>
             <li>
-              <a href="#how-it-works">How It Works</a>
+              <a href="#problems">Problems</a>
             </li>
             <li>
               <a href="#ai-employees">AI Team</a>
@@ -81,11 +112,7 @@ export function ClinicosLanding() {
         <div className="hero-img">
           <div className="hero-img-zoom">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              id="heroPhoto"
-              alt="Confident female doctor in a modern clinic"
-              src={HERO_IMAGE}
-            />
+            <img id="heroPhoto" alt="Confident female doctor in a modern clinic" src={HERO_IMAGE} />
           </div>
         </div>
         <div className="hero-shade" />
@@ -93,7 +120,6 @@ export function ClinicosLanding() {
 
         <div className="hero-bottom">
           <div className="hero-inner">
-            <p className="hero-eyebrow">India&apos;s First Clinic Growth Software</p>
             <h1>
               Grow Your Clinic.
               <br />
@@ -121,10 +147,13 @@ export function ClinicosLanding() {
 
       <PlatformBento />
 
-      {/* PROBLEMS */}
+      {/* ============ THE JOURNEY — pinned scroll story ============ */}
+      <ClinicJourney />
+
+      {/* ============ PROBLEMS — 3D tilt cards ============ */}
       <section className="problems-section" id="problems">
         <div className="wrap">
-          <div className="reveal section-intro">
+          <div className="section-intro" data-reveal>
             <div className="eyebrow">The biggest problems</div>
             <h2>
               Every Clinic Leaks Revenue.
@@ -181,81 +210,60 @@ export function ClinicosLanding() {
                 desc: "No-shows, late cancellations, and forgotten recalls leave chairs empty. Revenue disappears slot by slot — and nobody tracks why.",
                 stat: "₹3L+ lost monthly on average",
               },
-            ].map((card) => (
-              <div key={card.title} className={`why-card reveal accent-${card.accent}`}>
-                <div className="why-ic">{card.icon}</div>
-                <h3>{card.title}</h3>
-                <p>{card.desc}</p>
-                <span className="why-stat">{card.stat}</span>
-              </div>
+            ].map((card, i) => (
+              <TiltCard key={card.title} className={`why-card accent-${card.accent}`}>
+                <div data-reveal style={{ "--reveal-i": i } as React.CSSProperties}>
+                  <div className="why-ic">{card.icon}</div>
+                  <h3>{card.title}</h3>
+                  <p>{card.desc}</p>
+                  <span className="why-stat">{card.stat}</span>
+                </div>
+              </TiltCard>
             ))}
           </div>
-          <div className="problems-close reveal">
+          <div className="problems-close" data-reveal>
             <h3>ClinicOS fixes all of it — automatically, 24×7.</h3>
             <p>One platform replaces your front desk chaos with an AI team that never sleeps.</p>
           </div>
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section className="timeline-section" id="how-it-works">
-        <div className="wrap">
-          <div className="reveal section-intro center">
-            <div className="eyebrow" style={{ justifyContent: "center" }}>
-              How ClinicOS Works
-            </div>
-            <h2 style={{ margin: "0 auto" }}>From first call to lifelong patient — on autopilot.</h2>
-            <p className="lead" style={{ marginLeft: "auto", marginRight: "auto" }}>
-              Every patient touchpoint is connected. ClinicOS runs the full loop — booking, care,
-              follow-up, reviews, and recall — so your team focuses on medicine, not messaging.
-            </p>
-          </div>
-          <div className="timeline">
-            {[
-              { icon: "📅", title: "Patient Books", desc: "Online, WhatsApp, or phone — patients reach you on any channel, any time of day." },
-              { icon: "🤖", title: "AI Receptionist answers", desc: "24×7 in 10 languages. Books appointments, answers FAQs, and escalates emergencies instantly." },
-              { icon: "🏥", title: "Patient Visits", desc: "Smart queue with live wait times on WhatsApp. Zero crowding, on-time consultations." },
-              { icon: "🩺", title: "Doctor treats patient", desc: "Full focus on care. AI Scribe drafts notes and prescriptions while you consult." },
-              { icon: "💬", title: "AI sends follow-up", desc: "Medicine reminders, care instructions, and check-ins in the patient's own language." },
-              { icon: "⭐", title: "Google review request", desc: "Timed at the perfect moment — happy patients leave 5★ reviews; unhappy ones are routed privately." },
-              { icon: "🔔", title: "Recall after 6 months", desc: "Chronic and annual patients are brought back before they quietly drift away." },
-              { icon: "🔄", title: "Patient returns", desc: "The loop never breaks. Revenue compounds with every repeat visit." },
-            ].map((step) => (
-              <div key={step.title} className="timeline-step">
-                <div className="timeline-dot">{step.icon}</div>
-                <div className="timeline-content">
-                  <h3>{step.title}</h3>
-                  <p>{step.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* TRUST BAND */}
+      {/* ============ TRUST BAND — animated counters ============ */}
       <section className="trust-band">
         <div className="wrap">
-          <div className="stats-band reveal">
-            {[
-              { val: "2,000+", label: "Clinics across 140 Indian cities" },
-              { val: "4.1M+", label: "Appointments booked through ClinicOS" },
-              { val: "₹86Cr", label: "Revenue recovered for clinics in 2025" },
-              { val: "4.9★", label: "Average clinic rating after 6 months" },
-            ].map((stat) => (
-              <div key={stat.label} className="stat-cell">
-                <div className="n">{stat.val}</div>
-                <div className="d">{stat.label}</div>
+          <div className="stats-band" data-reveal>
+            <div className="stat-cell">
+              <div className="n">
+                <CountUp to={2000} suffix="+" />
               </div>
-            ))}
+              <div className="d">Clinics across 140 Indian cities</div>
+            </div>
+            <div className="stat-cell">
+              <div className="n">
+                <CountUp to={4.1} decimals={1} suffix="M+" />
+              </div>
+              <div className="d">Appointments booked through ClinicOS</div>
+            </div>
+            <div className="stat-cell">
+              <div className="n">
+                <CountUp to={86} prefix="₹" suffix="Cr" />
+              </div>
+              <div className="d">Revenue recovered for clinics in 2025</div>
+            </div>
+            <div className="stat-cell">
+              <div className="n">
+                <CountUp to={4.9} decimals={1} suffix="★" />
+              </div>
+              <div className="d">Average clinic rating after 6 months</div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* AI EMPLOYEES */}
+      {/* ============ AI EMPLOYEES — 3D tilt cards ============ */}
       <section className="ai-section" id="ai-employees">
         <div className="wrap">
-          <div className="reveal section-intro center">
+          <div className="section-intro center" data-reveal>
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               AI Employees
             </div>
@@ -307,22 +315,24 @@ export function ClinicosLanding() {
                 desc: "Creates and runs campaigns for slow days, seasonal rushes, and new services — explained in plain language, optimised with live data.",
                 chip: "Weekly growth playbook",
               },
-            ].map((card) => (
-              <div key={card.title} className="ai-card reveal">
-                <span className="ai-emoji">{card.emoji}</span>
-                <h3>{card.title}</h3>
-                <p>{card.desc}</p>
-                <span className="glow-chip">● {card.chip}</span>
-              </div>
+            ].map((card, i) => (
+              <TiltCard key={card.title} className="ai-card" maxTilt={11}>
+                <div data-reveal style={{ "--reveal-i": i % 3 } as React.CSSProperties}>
+                  <span className="ai-emoji">{card.emoji}</span>
+                  <h3>{card.title}</h3>
+                  <p>{card.desc}</p>
+                  <span className="glow-chip">● {card.chip}</span>
+                </div>
+              </TiltCard>
             ))}
           </div>
         </div>
       </section>
 
-      {/* RESULTS */}
+      {/* ============ RESULTS ============ */}
       <section className="results-section" id="results">
         <div className="wrap">
-          <div className="reveal section-intro center">
+          <div className="section-intro center" data-reveal>
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               Real results
             </div>
@@ -340,8 +350,13 @@ export function ClinicosLanding() {
               { val: "4.9★", label: "Google Rating", hint: "After 6 months average", color: "blue" },
               { val: "6 hrs", label: "Saved Per Doctor Weekly", hint: "Notes & admin offloaded", color: "mint" },
               { val: "₹3L+", label: "Additional Revenue", hint: "Average per clinic / year", color: "indigo" },
-            ].map((stat) => (
-              <div key={stat.label} className={`result-card reveal accent-${stat.color}`}>
+            ].map((stat, i) => (
+              <div
+                key={stat.label}
+                className={`result-card accent-${stat.color}`}
+                data-reveal
+                style={{ "--reveal-i": i } as React.CSSProperties}
+              >
                 <div className="val">{stat.val}</div>
                 <div className="label">{stat.label}</div>
                 <div className="hint">{stat.hint}</div>
@@ -351,10 +366,10 @@ export function ClinicosLanding() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
+      {/* ============ TESTIMONIALS ============ */}
       <section className="testimonials-section" id="testimonials">
         <div className="wrap">
-          <div className="reveal section-intro center">
+          <div className="section-intro center" data-reveal>
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               Trusted by clinics
             </div>
@@ -389,27 +404,29 @@ export function ClinicosLanding() {
                 initials: "AM",
                 accent: "indigo",
               },
-            ].map((t) => (
-              <div key={t.name} className={`testi reveal accent-${t.accent}`}>
-                <div className="stars">★★★★★</div>
-                <q>{t.quote}</q>
-                <div className="who">
-                  <span className={`av ${t.accent}`}>{t.initials}</span>
-                  <div>
-                    <b>{t.name}</b>
-                    <span>{t.role}</span>
+            ].map((t, i) => (
+              <TiltCard key={t.name} className={`testi accent-${t.accent}`} maxTilt={6}>
+                <div data-reveal style={{ "--reveal-i": i } as React.CSSProperties}>
+                  <div className="stars">★★★★★</div>
+                  <q>{t.quote}</q>
+                  <div className="who">
+                    <span className={`av ${t.accent}`}>{t.initials}</span>
+                    <div>
+                      <b>{t.name}</b>
+                      <span>{t.role}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </TiltCard>
             ))}
           </div>
         </div>
       </section>
 
-      {/* PRICING */}
+      {/* ============ PRICING ============ */}
       <section className="pricing-section" id="pricing">
         <div className="wrap">
-          <div className="reveal section-intro center">
+          <div className="section-intro center" data-reveal>
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               Pricing
             </div>
@@ -420,101 +437,111 @@ export function ClinicosLanding() {
             </p>
           </div>
           <div className="price-grid">
-            <div className="price-card reveal">
-              <span className="plan-tag">Launch</span>
-              <div className="price">
-                ₹2,999<small>/month</small>
+            <TiltCard className="price-card" maxTilt={5}>
+              <div data-reveal>
+                <span className="plan-tag">Launch</span>
+                <div className="price">
+                  ₹2,999<small>/month</small>
+                </div>
+                <p className="plan-desc">
+                  For new clinics ready to stop losing patients to missed calls and manual follow-ups.
+                </p>
+                <ul className="feat-list">
+                  {[
+                    "Online Booking",
+                    "Patient CRM",
+                    "WhatsApp Reminders",
+                    "Payment Reminders",
+                    "Dashboard",
+                    "Basic Analytics",
+                    "1 Doctor",
+                  ].map((f) => (
+                    <li key={f}>
+                      <span className="tick">✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
+                  Start free trial
+                </button>
               </div>
-              <p className="plan-desc">For new clinics ready to stop losing patients to missed calls and manual follow-ups.</p>
-              <ul className="feat-list">
-                {[
-                  "Online Booking",
-                  "Patient CRM",
-                  "WhatsApp Reminders",
-                  "Payment Reminders",
-                  "Dashboard",
-                  "Basic Analytics",
-                  "1 Doctor",
-                ].map((f) => (
-                  <li key={f}>
-                    <span className="tick">✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
-                Start free trial
-              </button>
-            </div>
-            <div className="price-card featured reveal">
-              <span className="pop-badge">Most Popular</span>
-              <span className="plan-tag">Growth AI ⭐</span>
-              <div className="price">
-                ₹7,999<small>/month</small>
+            </TiltCard>
+            <TiltCard className="price-card featured" maxTilt={5}>
+              <div data-reveal style={{ "--reveal-i": 1 } as React.CSSProperties}>
+                <span className="pop-badge">Most Popular</span>
+                <span className="plan-tag">Growth AI ⭐</span>
+                <div className="price">
+                  ₹7,999<small>/month</small>
+                </div>
+                <p className="plan-desc">
+                  The full AI growth engine — follow-ups, recalls, reviews, and revenue insights on autopilot.
+                </p>
+                <ul className="feat-list">
+                  {[
+                    "AI Follow-ups",
+                    "AI Recall Engine",
+                    "AI No-show Prediction",
+                    "Google Review Automation",
+                    "AI Marketing",
+                    "Revenue Insights",
+                    "Multi-user",
+                    "Priority Support",
+                  ].map((f) => (
+                    <li key={f}>
+                      <span className="tick">✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
+                  Start free trial
+                </button>
               </div>
-              <p className="plan-desc">The full AI growth engine — follow-ups, recalls, reviews, and revenue insights on autopilot.</p>
-              <ul className="feat-list">
-                {[
-                  "AI Follow-ups",
-                  "AI Recall Engine",
-                  "AI No-show Prediction",
-                  "Google Review Automation",
-                  "AI Marketing",
-                  "Revenue Insights",
-                  "Multi-user",
-                  "Priority Support",
-                ].map((f) => (
-                  <li key={f}>
-                    <span className="tick">✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
-                Start free trial
-              </button>
-            </div>
-            <div className="price-card reveal">
-              <span className="plan-tag">Elite Growth Partner</span>
-              <div className="price">
-                ₹24,999<small>/month</small>
+            </TiltCard>
+            <TiltCard className="price-card" maxTilt={5}>
+              <div data-reveal style={{ "--reveal-i": 2 } as React.CSSProperties}>
+                <span className="plan-tag">Elite Growth Partner</span>
+                <div className="price">
+                  ₹24,999<small>/month</small>
+                </div>
+                <p className="plan-desc">Your own dedicated digital growth team.</p>
+                <ul className="feat-list">
+                  {[
+                    "Everything above +",
+                    "Premium Website Development",
+                    "SEO",
+                    "Google Business Optimization",
+                    "Social Media Management",
+                    "AI Marketing Campaigns",
+                    "Dedicated Growth Manager",
+                    "Full ClinicOS Suite",
+                    "Unlimited Staff",
+                    "Monthly Strategy Calls",
+                  ].map((f) => (
+                    <li key={f}>
+                      <span className="tick">✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
+                  Talk to sales
+                </button>
               </div>
-              <p className="plan-desc">Your own dedicated digital growth team.</p>
-              <ul className="feat-list">
-                {[
-                  "Everything above +",
-                  "Premium Website Development",
-                  "SEO",
-                  "Google Business Optimization",
-                  "Social Media Management",
-                  "AI Marketing Campaigns",
-                  "Dedicated Growth Manager",
-                  "Full ClinicOS Suite",
-                  "Unlimited Staff",
-                  "Monthly Strategy Calls",
-                ].map((f) => (
-                  <li key={f}>
-                    <span className="tick">✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <button type="button" className="price-btn" onClick={openDemo(setDemoOpen)}>
-                Talk to sales
-              </button>
-            </div>
+            </TiltCard>
           </div>
-          <p className="price-note">
+          <p className="price-note" data-reveal>
             All plans include a <b>14-day free trial</b>, free onboarding, and migration from your current
             software — done for you in 48 hours.
           </p>
         </div>
       </section>
 
-      {/* ROI CALCULATOR */}
+      {/* ============ ROI CALCULATOR ============ */}
       <section className="roi-section" id="roi">
         <div className="wrap">
-          <div className="reveal">
+          <div data-reveal>
             <div className="eyebrow">ROI Calculator</div>
             <h2>See what your clinic is leaving on the table.</h2>
             <p className="lead">
@@ -523,7 +550,7 @@ export function ClinicosLanding() {
             </p>
           </div>
           <div className="roi-layout">
-            <div className="roi-form reveal">
+            <div className="roi-form" data-reveal>
               <div className="roi-field">
                 <label htmlFor="doctorsPerDay">Doctors Per Day</label>
                 <input
@@ -569,7 +596,7 @@ export function ClinicosLanding() {
                 />
               </div>
             </div>
-            <div className="roi-results reveal">
+            <div className="roi-results" data-reveal style={{ "--reveal-i": 1 } as React.CSSProperties}>
               <div className="roi-loss">
                 <small>You lose approximately</small>
                 <div className="amount">{fmtINR(roi.totalLoss)}/month</div>
@@ -588,10 +615,10 @@ export function ClinicosLanding() {
         </div>
       </section>
 
-      {/* COMPARISON */}
+      {/* ============ COMPARISON ============ */}
       <section className="compare-section" id="compare">
         <div className="wrap">
-          <div className="reveal section-intro center">
+          <div className="section-intro center" data-reveal>
             <div className="eyebrow" style={{ justifyContent: "center" }}>
               Why switch
             </div>
@@ -601,7 +628,7 @@ export function ClinicosLanding() {
               one intelligent platform.
             </p>
           </div>
-          <div className="compare-table reveal">
+          <div className="compare-table" data-reveal>
             <table>
               <thead>
                 <tr>
@@ -631,10 +658,10 @@ export function ClinicosLanding() {
         </div>
       </section>
 
-      {/* FOOTER CTA */}
+      {/* ============ FOOTER ============ */}
       <footer>
         <div className="wrap">
-          <div className="foot-cta reveal">
+          <div className="foot-cta" data-reveal>
             <h2 className="serif">Your Next Patient Is Probably Calling Right Now.</h2>
             <p>Don&apos;t let them book somewhere else.</p>
             <button type="button" className="btn-primary" onClick={openDemo(setDemoOpen)}>
@@ -655,10 +682,10 @@ export function ClinicosLanding() {
               <h4>Product</h4>
               <ul>
                 <li>
-                  <a href="#problems">Problems</a>
+                  <a href="#journey">The Journey</a>
                 </li>
                 <li>
-                  <a href="#how-it-works">How It Works</a>
+                  <a href="#problems">Problems</a>
                 </li>
                 <li>
                   <a href="#ai-employees">AI Team</a>
@@ -720,6 +747,6 @@ export function ClinicosLanding() {
       </footer>
 
       <BookDemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
-    </main>
+    </div>
   );
 }
