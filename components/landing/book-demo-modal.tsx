@@ -44,12 +44,19 @@ export function BookDemoModal({ open, onClose }: BookDemoModalProps) {
   }, [open]);
 
   useEffect(() => {
+    let cancelled = false;
     if (!open) {
-      setError(null);
-      setFieldErrors({});
-      setSuccess(false);
-      setLoading(false);
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        setError(null);
+        setFieldErrors({});
+        setSuccess(false);
+        setLoading(false);
+      });
     }
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

@@ -28,6 +28,7 @@ interface CertificateEditorProps {
 }
 
 export function CertificateEditor({ initialTemplate, onSuccess }: CertificateEditorProps) {
+  const [now] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contentHtml, setContentHtml] = useState(
@@ -159,8 +160,8 @@ export function CertificateEditor({ initialTemplate, onSuccess }: CertificateEdi
               .replaceAll("{{clinic_name}}", "Gunjan Batra Clinic")
               .replaceAll("{{diagnosis}}", "Acute Viral Fever")
               .replaceAll("{{rest_days}}", "3")
-              .replaceAll("{{issue_date}}", new Date().toLocaleDateString())
-              .replaceAll("{{expiry_date}}", new Date(Date.now() + 3 * 86400000).toLocaleDateString())
+              .replaceAll("{{issue_date}}", new Date(now).toLocaleDateString())
+              .replaceAll("{{expiry_date}}", new Date(now + 3 * 86400000).toLocaleDateString())
               .replaceAll("{{certificate_id}}", "CERT-2026-00001"),
           }}
         />

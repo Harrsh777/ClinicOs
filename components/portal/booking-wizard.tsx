@@ -50,13 +50,21 @@ export function BookingWizard({
   const fee = Number(selectedDoctor?.consultation_fee ?? defaultFee);
 
   useEffect(() => {
+    let cancelled = false;
     if (doctorId && date) {
       fetch(`/api/portal/slots?clinicSlug=${clinic.slug}&doctorId=${doctorId}&date=${date}`)
         .then((r) => r.json())
-        .then((d) => setSlots(d.slots ?? []));
+        .then((d) => {
+          if (!cancelled) setSlots(d.slots ?? []);
+        });
     } else {
-      setSlots([]);
+      Promise.resolve().then(() => {
+        if (!cancelled) setSlots([]);
+      });
     }
+    return () => {
+      cancelled = true;
+    };
   }, [doctorId, date, clinic.slug]);
 
   function loadRazorpay(): Promise<boolean> {

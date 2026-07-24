@@ -133,15 +133,23 @@ export function Phase2BookingWizard({
   }, [doctorId, clinic.slug]);
 
   useEffect(() => {
+    let cancelled = false;
     if (doctorId && date) {
       fetch(
         `/api/portal/slots?clinicSlug=${clinic.slug}&doctorId=${doctorId}&date=${date}&consultationType=${consultationType}`
       )
         .then((r) => r.json())
-        .then((d) => setSlots(d.slots ?? []));
+        .then((d) => {
+          if (!cancelled) setSlots(d.slots ?? []);
+        });
     } else {
-      setSlots([]);
+      Promise.resolve().then(() => {
+        if (!cancelled) setSlots([]);
+      });
     }
+    return () => {
+      cancelled = true;
+    };
   }, [doctorId, date, consultationType, clinic.slug]);
 
   async function lookupPatient() {

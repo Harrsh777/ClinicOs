@@ -377,7 +377,7 @@ export function ExecutiveDashboard({
   const [dateFilter, setDateFilter] = useState("week");
   const [aptSort, setAptSort] = useState<"date" | "patient">("date");
   const [aptStatusFilter, setAptStatusFilter] = useState("all");
-  const [chartTooltipPortal, setChartTooltipPortal] = useState<HTMLElement | null>(null);
+  const [chartTooltipPortal] = useState<HTMLElement | null>(() => (typeof document !== "undefined" ? document.body : null));
   const [liveOps, setLiveOps] = useState<DashboardOperationsSnapshot>({
     operations: {
       patientsWaiting: data.operations.patientsWaiting,
@@ -403,17 +403,15 @@ export function ExecutiveDashboard({
   }, [clinicId]);
 
   useEffect(() => {
-    setChartTooltipPortal(document.body);
-  }, []);
-
-  useEffect(() => {
     const clock = setInterval(() => setLiveTime(new Date()), 1000);
     return () => clearInterval(clock);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    setAiRecsLoading(true);
+    Promise.resolve().then(() => {
+      if (!cancelled) setAiRecsLoading(true);
+    });
     void getDashboardAIRecommendations(clinicId)
       .then((recs) => {
         if (!cancelled && recs.length > 0) setRecommendations(recs);

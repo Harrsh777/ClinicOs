@@ -66,8 +66,15 @@ function NavDropdown({
         window.removeEventListener("resize", updatePosition);
         window.removeEventListener("scroll", updatePosition, true);
       };
+    } else {
+      let cancelled = false;
+      Promise.resolve().then(() => {
+        if (!cancelled) setMenuStyle(null);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
-    setMenuStyle(null);
   }, [open]);
 
   useEffect(() => {

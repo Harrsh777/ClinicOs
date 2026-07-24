@@ -118,7 +118,13 @@ export function useLiveQueue(clinicId: string | null) {
   }, [clinicId]);
 
   useEffect(() => {
-    fetchData();
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) void fetchData();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchData]);
 
   useEffect(() => {

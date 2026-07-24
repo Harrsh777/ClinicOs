@@ -47,12 +47,19 @@ export function WalkInQuickForm({
   const visitType = isEmergency ? "emergency" : "walk_in";
 
   useEffect(() => {
-    if (isEmergency && feeType === "normal") {
-      setFeeType("emergency");
-    }
-    if (!isEmergency && feeType === "emergency") {
-      setFeeType("normal");
-    }
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      if (isEmergency && feeType === "normal") {
+        setFeeType("emergency");
+      }
+      if (!isEmergency && feeType === "emergency") {
+        setFeeType("normal");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isEmergency, feeType]);
 
   const baseFee = useMemo(() => {
@@ -72,9 +79,16 @@ export function WalkInQuickForm({
   }, [feeSetup.paymentMethods]);
 
   useEffect(() => {
-    if (enabledMethods.length === 1) {
-      setPaymentMethod(enabledMethods[0].key);
-    }
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      if (enabledMethods.length === 1) {
+        setPaymentMethod(enabledMethods[0].key);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [enabledMethods]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

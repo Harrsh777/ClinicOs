@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { usePatientQueueToken } from "@/lib/hooks/use-queue-realtime";
 import { calculateETA } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -12,6 +13,7 @@ export function PatientQueueView({
   patientId: string;
   clinicId: string;
 }) {
+  const [now] = useState(() => Date.now());
   const { myToken, session, loading } = usePatientQueueToken(patientId, clinicId);
 
   if (loading) return <div className="clinic-skeleton h-48" />;
@@ -28,7 +30,7 @@ export function PatientQueueView({
   }
 
   const eta = calculateETA(myToken.token_number, session.current_token, session.avg_consultation_mins);
-  const etaTime = new Date(Date.now() + eta.minutes * 60000).toLocaleTimeString("en-IN", {
+  const etaTime = new Date(now + eta.minutes * 60000).toLocaleTimeString("en-IN", {
     hour: "numeric",
     minute: "2-digit",
   });

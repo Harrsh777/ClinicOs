@@ -39,7 +39,7 @@ export function TVDisplay({
   const [serving, setServing] = useState(initialServing);
   const [nextTokens, setNextTokens] = useState(initialNextTokens);
   const [estimatedWait, setEstimatedWait] = useState(initialEstimatedWait);
-  const [clock, setClock] = useState(new Date());
+  const [clock, setClock] = useState(() => new Date());
 
   useEffect(() => {
     const t = setInterval(() => setClock(new Date()), 1000);
@@ -111,7 +111,7 @@ export function TVDisplay({
   const doctorName = serving?.doctors?.profiles?.full_name;
   const patientName = serving?.patients?.full_name;
 
-  const finishTime = new Date(Date.now() + estimatedWait * 60000);
+  const finishTime = new Date(clock.getTime() + estimatedWait * 60000);
 
   return (
     <div className="tv-display min-h-screen flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 text-white p-6 sm:p-10">

@@ -25,8 +25,8 @@ export default function OwnerNewCertificatePage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [diagnosis, setDiagnosis] = useState<string>("");
   const [restDurationDays, setRestDurationDays] = useState<number>(3);
-  const [issueDate, setIssueDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [expiryDate, setExpiryDate] = useState<string>(
+  const [issueDate, setIssueDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [expiryDate, setExpiryDate] = useState<string>(() =>
     new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
   );
   const [selectedSignatureUrl, setSelectedSignatureUrl] = useState<string>("");

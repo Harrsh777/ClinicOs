@@ -41,11 +41,19 @@ export function BookAppointmentForm({
   const router = useRouter();
 
   useEffect(() => {
+    let cancelled = false;
     if (doctorId && date) {
-      getAvailableSlots(doctorId, date).then(setSlots);
+      void getAvailableSlots(doctorId, date).then((res) => {
+        if (!cancelled) setSlots(res);
+      });
     } else {
-      setSlots([]);
+      Promise.resolve().then(() => {
+        if (!cancelled) setSlots([]);
+      });
     }
+    return () => {
+      cancelled = true;
+    };
   }, [doctorId, date]);
 
   const patientReady = !isStaff || patientMode === "new" || !!selectedPatient;

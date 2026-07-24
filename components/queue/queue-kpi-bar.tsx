@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Activity,
   Clock,
@@ -76,6 +77,7 @@ export function QueueKpiBar({
   totalDoctors,
   consultingCount,
 }: QueueKpiBarProps) {
+  const [now] = useState(() => Date.now());
   const waiting = tokens.filter((t) => getTokenCardVisual(t) === "waiting" || getTokenCardVisual(t) === "emergency" || getTokenCardVisual(t) === "vip" || getTokenCardVisual(t) === "returning");
   const completed = tokens.filter((t) => getTokenCardVisual(t) === "completed");
   const noShows = tokens.filter((t) => t.status === "no_show" || t.disposition === "no_show");
@@ -99,7 +101,7 @@ export function QueueKpiBar({
       <KpiCard
         label="Queue done by"
         value={completionLabel}
-        sub={analytics.estimatedCompletionAt ? formatDurationMins(Math.round((analytics.estimatedCompletionAt.getTime() - Date.now()) / 60000)) + " left" : undefined}
+        sub={analytics.estimatedCompletionAt ? formatDurationMins(Math.round((analytics.estimatedCompletionAt.getTime() - now) / 60000)) + " left" : undefined}
         icon={<UserCheck className="h-4 w-4" />}
         accent="#0EA5E9"
         highlight

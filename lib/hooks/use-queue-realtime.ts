@@ -37,7 +37,13 @@ export function useQueueRealtime(clinicId: string | null, sessionId: string | nu
   }, [clinicId]);
 
   useEffect(() => {
-    fetchData();
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) void fetchData();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchData, sessionId]);
 
   useEffect(() => {
@@ -71,9 +77,14 @@ export function usePatientQueueToken(patientId: string | null, clinicId: string 
   const { session, loading, refetch } = useQueueRealtime(clinicId, null);
 
   useEffect(() => {
+    let cancelled = false;
     if (!patientId || !session) {
-      setMyToken(null);
-      return;
+      Promise.resolve().then(() => {
+        if (!cancelled) setMyToken(null);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     const supabase = createClient();
     supabase

@@ -155,7 +155,7 @@ export async function getAvailableDatesForDoctor(
     .maybeSingle();
 
   // If doctor record is missing or not matched, query profiles as fallback
-  let validDoctorId = doctor?.id ?? doctorId;
+  const validDoctorId = doctor?.id ?? doctorId;
 
   const dates: string[] = [];
   const today = getTodayDateInClinicTz();

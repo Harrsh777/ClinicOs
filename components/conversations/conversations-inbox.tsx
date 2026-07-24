@@ -59,7 +59,15 @@ export function ConversationsInbox({
   }, []);
 
   useEffect(() => {
-    if (selectedId) void loadThread(selectedId);
+    let cancelled = false;
+    if (selectedId) {
+      void Promise.resolve().then(() => {
+        if (!cancelled) void loadThread(selectedId);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
   }, [selectedId, loadThread]);
 
   function handleSend() {

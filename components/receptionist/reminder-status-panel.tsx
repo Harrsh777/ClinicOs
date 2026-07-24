@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge, StatusBadge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ function displayStatus(reminder: FollowUpReminderRow): string {
 }
 
 export function ReminderStatusPanel({ reminders }: { reminders: FollowUpReminderRow[] }) {
+  const [tomorrowStr] = useState(() => new Date(Date.now() + 86400000).toISOString().split("T")[0]);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -49,9 +50,7 @@ export function ReminderStatusPanel({ reminders }: { reminders: FollowUpReminder
       <div className="space-y-2 max-h-64 overflow-y-auto">
         {active.map((reminder) => {
           const status = displayStatus(reminder);
-          const isTomorrow =
-            reminder.follow_up_date ===
-            new Date(Date.now() + 86400000).toISOString().split("T")[0];
+          const isTomorrow = reminder.follow_up_date === tomorrowStr;
 
           return (
             <div

@@ -362,10 +362,17 @@ export function Sidebar({ profile, sections, clinicName }: SidebarProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    setOpenSections((prev) => ({
-      ...prev,
-      [activeSectionKey]: true,
-    }));
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setOpenSections((prev) => ({
+        ...prev,
+        [activeSectionKey]: true,
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [activeSectionKey]);
 
   function isSectionOpen(key: string) {

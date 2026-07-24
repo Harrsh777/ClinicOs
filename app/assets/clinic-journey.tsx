@@ -51,12 +51,13 @@ export function ClinicJourney() {
   const trackRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
   const [p, setP] = useState(0);
-  const [reduced, setReduced] = useState(false);
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false
+  );
 
   /* scroll progress */
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
     const onMq = () => setReduced(mq.matches);
     mq.addEventListener?.("change", onMq);
 
