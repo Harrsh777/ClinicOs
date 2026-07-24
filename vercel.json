@@ -1,16 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/engagement",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/reminders",
-      "schedule": "0 18 * * *"
-    },
-    {
-      "path": "/api/cron/same-day-reminders",
-      "schedule": "0 * * * *"
+      "path": "/api/cron/daily",
+      "schedule": "0 4 * * *"
     }
   ]
 }
