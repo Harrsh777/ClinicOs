@@ -10,13 +10,13 @@ export const legalConfig = {
   lastUpdated: "24 July 2026",
   effectiveDate: "24 July 2026",
   contactEmail: siteConfig.contactEmail,
-  privacyEmail: "privacy@growclinicos.com",
-  legalEmail: "legal@growclinicos.com",
+  privacyEmail: "hello@growclinicos.com",
+  legalEmail: "hello@growclinicos.com",
   supportEmail: "hello@growclinicos.com",
   website: "growclinicos.com",
   grievanceOfficer: {
     name: "Harsh Srivastava",
-    email: "privacy@growclinicos.com",
+    email: "hello@growclinicos.com",
     responseDays: 30,
   },
 } as const;

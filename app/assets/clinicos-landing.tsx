@@ -748,8 +748,7 @@ export function ClinicosLanding() {
                 <ClinicOsWordmark osClassName="text-[#2e63ff]" />
               </a>
               <p>
-                India&apos;s first AI-powered clinic growth platform. Built in Bengaluru, trusted from
-                Srinagar to Kochi.
+                India&apos;s first AI-powered clinic growth platform.
               </p>
             </div>
             <div>
@@ -804,7 +803,17 @@ export function ClinicosLanding() {
             </div>
           </div>
           <div className="foot-bottom">
-            <span>Owned by EaseHawk Technologies Pvt Ltd</span>
+            <span>
+              Owned by{" "}
+              <a
+                href="https://easehawk.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#ffffff", textDecoration: "underline", marginLeft: 0 }}
+              >
+                EaseHawk Technologies Pvt Ltd
+              </a>
+            </span>
             <span>Made with care for Indian healthcare 🇮🇳</span>
           </div>
           <div className="foot-founder-wrap">
